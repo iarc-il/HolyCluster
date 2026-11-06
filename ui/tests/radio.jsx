@@ -41,6 +41,7 @@ vi.mock("@/hooks/useWs", () => ({
 
 import useRadio, { RadioProvider } from "@/hooks/useRadio";
 import { RTTY_TUNING_MIN_VERSION } from "@/utils/cat_features.js";
+import raw_band_plans from "../../shared/band_plans.json";
 
 function Consumer() {
     Consumer.radio = useRadio();
@@ -74,6 +75,12 @@ describe("radio configuration", () => {
     });
 
     afterEach(() => cleanup());
+
+    it("converts shared kHz band bounds to classify radio frequencies in Hz", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", freq: raw_band_plans[20].freq_start * 1000 });
+        expect(Consumer.radio.radio_band).toBe(20);
+    });
 
     it("uses radio configuration API 2 protocol messages", async () => {
         render_radio();

@@ -49,6 +49,7 @@ fi
 
 CURRENT_HEAD=$(git rev-parse HEAD)
 
+ROOT_CHANGED_FILES=""
 if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     CHANGED_FILES=""
     for svc in api collector coverage nginx victoriametrics grafana; do
@@ -76,9 +77,11 @@ if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     fi
 else
     CHANGED_FILES=$(git diff --name-only --relative "$DEPLOYED_HEAD" "$CURRENT_HEAD" -- .)
+    # Root build input is outside backend/; keep its routing separate from backend/shared/.
+    ROOT_CHANGED_FILES=$(git diff --name-only --no-relative "$DEPLOYED_HEAD" "$CURRENT_HEAD" -- ../shared/band_plans.json)
 fi
 
-if [ -z "$CHANGED_FILES" ]; then
+if [ -z "$CHANGED_FILES" ] && [ -z "$ROOT_CHANGED_FILES" ]; then
     mark_deployed
     echo "No files changed in backend/. Nothing to deploy."
     exit 0
@@ -94,6 +97,7 @@ fi
 
 echo "Changed files:"
 echo "$CHANGED_FILES"
+echo "$ROOT_CHANGED_FILES"
 echo ""
 
 declare -A SERVICES
@@ -195,6 +199,10 @@ while IFS= read -r file; do
             ;;
     esac
 done <<< "$CHANGED_FILES"
+
+if grep -qxF "shared/band_plans.json" <<< "$ROOT_CHANGED_FILES"; then
+    add_service collector
+fi
 
 if [[ -v SERVICES[api] ]]; then
     add_service nginx

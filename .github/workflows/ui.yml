@@ -3,6 +3,7 @@ name: Build and Deploy the UI
 on:
   push:
     paths:
+      - "shared/band_plans.json"
       - "scripts/ui_releases.py"
       - "scripts/deploy_ui.sh"
       - "scripts/tests/test_deploy_ui.py"
@@ -15,6 +16,7 @@ on:
       - "v*"
   pull_request:
     paths:
+      - "shared/band_plans.json"
       - "scripts/ui_releases.py"
       - "scripts/deploy_ui.sh"
       - "scripts/tests/test_deploy_ui.py"

@@ -1,4 +1,4 @@
-"""Deploy regression tests using only temporary shell stubs, not Git or Docker."""
+"""Deploy regression tests using temporary fixtures and Docker stubs."""
 
 import fcntl
 import os
@@ -32,7 +32,9 @@ case "$1" in
         ;;
     reset) ;;
     diff)
-        if [[ "$4" == "$CHECKOUT_DIFF_BASE" && -n "$CHECKOUT_CHANGED_FILES" ]]; then
+        if [[ "$3" == --no-relative ]]; then
+            printf '%s\\n' "$ROOT_INPUT_DIFF"
+        elif [[ "$4" == "$CHECKOUT_DIFF_BASE" && -n "$CHECKOUT_CHANGED_FILES" ]]; then
             printf '%s\\n' "$CHECKOUT_CHANGED_FILES"
         else
             printf '%s\\n' "$CHANGED_FILES"
@@ -172,6 +174,7 @@ class DeployTests(unittest.TestCase):
             "CHECKOUT_CHANGED_FILES": "",
             "CHECKOUT_DIFF_BASE": "",
             "CHANGED_FILES": "docker-compose.yml",
+            "ROOT_INPUT_DIFF": "",
             "MIGRATION_STATUS": "0",
             "FAIL_SERVICES": "",
             "COMPOSE_PROJECT_NAME": "holycluster-backend-dev",
@@ -224,6 +227,74 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(set(background), services)
         waits = (root / "wait.log").read_text().splitlines() if services else []
         self.assertCountEqual(waits, background.values())
+
+    def test_real_git_root_diff_from_backend_directory_for_branch_and_tag(self):
+        for ref in ("origin/dev", "backend-v1.2.3"):
+            with self.subTest(ref=ref):
+                root, _ = self.run_deploy(CHANGED_FILES="")
+                # Reuse the Docker fixture, but exercise actual Git pathspec/cwd semantics.
+                (root / "bin/git").write_text('#!/bin/sh\nexec /usr/bin/git "$@"\n')
+                repo = root / "repo"
+                backend = repo / "backend"
+                backend.mkdir(parents=True)
+                (backend / "deploy.sh").write_text(DEPLOY.read_text())
+                (backend / ".env").write_text(INITIAL_ENV)
+                (repo / "shared").mkdir()
+                source = repo / "shared/band_plans.json"
+                source.write_text("{}\n")
+
+                def git(*args):
+                    return subprocess.check_output(
+                        ["/usr/bin/git", *args], cwd=repo, text=True, stderr=subprocess.DEVNULL
+                    ).strip()
+
+                git("init", "-b", "dev")
+                git("config", "user.email", "test@example.invalid")
+                git("config", "user.name", "Deploy test")
+                git("add", "backend/deploy.sh", "shared/band_plans.json")
+                git("commit", "-m", "baseline")
+                baseline = git("rev-parse", "HEAD")
+                source.write_text('{"changed": true}\n')
+                git("add", "shared/band_plans.json")
+                git("commit", "-m", "root input only")
+                target = git("rev-parse", "HEAD")
+                git("update-ref", "refs/remotes/origin/dev", target)
+                git("tag", "backend-v1.2.3")
+                git("checkout", "--detach", baseline)
+                result = subprocess.run(
+                    ["bash", "deploy.sh", ref],
+                    cwd=backend,
+                    env=self.last_env,
+                    text=True,
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("shared/band_plans.json", result.stdout)
+
+    def test_root_band_plan_selects_only_collector_without_migrations(self):
+        root, result = self.run_deploy(CHANGED_FILES="", ROOT_INPUT_DIFF="shared/band_plans.json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_all_waited(root, {"collector"})
+        calls = (root / "docker.log").read_text().splitlines()
+        self.assertIn("compose build --parallel collector", calls)
+        self.assertFalse(any("migrate" in call for call in calls))
+
+    def test_root_band_plan_retry_retains_rollback_checkout_baseline(self):
+        root, result = self.run_deploy(
+            CHANGED_FILES="",
+            ROOT_INPUT_DIFF="shared/band_plans.json",
+            PREVIOUS_HEAD="oldhead",
+            deployed_head="newhead",
+            BUILD_STATUS="45",
+        )
+        self.assertEqual(result.returncode, 45, result.stderr)
+        retried = self.rerun_deploy(root, BUILD_STATUS="0")
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assert_all_waited(root, {"collector"})
+        calls = (root / "git.log").read_text().splitlines()
+        self.assertEqual(calls.count("diff --name-only --no-relative oldhead newhead -- ../shared/band_plans.json"), 2)
 
     def test_unrecoverable_checkout_aborts_before_env_or_docker(self):
         for mode, ref, status in (("fail", "release-tag", 23), ("tracked", "origin/dev", 24)):
@@ -408,7 +479,14 @@ class DeployTests(unittest.TestCase):
         self.assertTrue((root / "start-certbot").exists())
         self.assertEqual((root / "deployed").read_text(), "newhead\n")
         diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
-        self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+        self.assertEqual(
+            diffs,
+            [
+                "diff --name-only --relative oldhead newhead -- .",
+                "diff --name-only --no-relative oldhead newhead -- ../shared/band_plans.json",
+            ]
+            * 2,
+        )
 
     def test_success_marker_advances_only_after_health_and_uses_atomic_rename(self):
         root, result = self.run_deploy(deployed_head="lastsuccess")
@@ -511,7 +589,14 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(retried.returncode, 0, retried.stderr)
         self.assert_all_waited(root)
         diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
-        self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+        self.assertEqual(
+            diffs,
+            [
+                "diff --name-only --relative oldhead newhead -- .",
+                "diff --name-only --no-relative oldhead newhead -- ../shared/band_plans.json",
+            ]
+            * 2,
+        )
         self.assertFalse((root / "deployed.base").exists())
 
     def test_legacy_rollback_drift_uses_checkout_instead_of_marker(self):
