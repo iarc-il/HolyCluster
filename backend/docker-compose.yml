@@ -30,9 +30,6 @@ services:
     # Mount a volume for data persistence (optional, but recommended)
     # volumes:
     #   - valkey_data:/data
-    environment:
-    # Password needs to be passed to the healthcheck command
-      - VALKEY_PASSWORD=${VALKEY_PASSWORD}
     ports:
       # This is for local development only,
       # It's OK to expose these ports on the server because they are accessible only from localhost.
