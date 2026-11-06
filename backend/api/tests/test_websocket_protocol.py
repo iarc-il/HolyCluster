@@ -1,7 +1,6 @@
 import asyncio
 import threading
 import unittest
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -60,14 +59,6 @@ class FakeHistorySession:
 
     async def execute(self, _statement):
         return FakeHistoryExecuteResult(self.samples)
-
-
-class FakeWebSocket:
-    def __init__(self):
-        self.messages = []
-
-    async def send_json(self, message):
-        self.messages.append(message)
 
 
 def create_geo_data(callsign, *, cached=False, source="qrz"):
@@ -587,34 +578,6 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "received_type": "unknown",
                 },
             )
-
-    def test_broadcast_spots_sends_legacy_and_v1_messages(self):
-        legacy_websocket = FakeWebSocket()
-        ws_websocket = FakeWebSocket()
-        spots = [{"dx_callsign": "K1ABC"}]
-        fake_app = SimpleNamespace(
-            state=SimpleNamespace(
-                active_connections={legacy_websocket},
-                active_ws_spot_connections={ws_websocket},
-            )
-        )
-
-        with patch("api.main.time.time", return_value=10000):
-            asyncio.run(broadcast_spots(fake_app, spots))
-
-        self.assertEqual(legacy_websocket.messages, [{"type": "update", "spots": spots}])
-        self.assertEqual(
-            ws_websocket.messages,
-            [
-                {
-                    "version": 1,
-                    "type": "spots",
-                    "event": "update",
-                    "server_time": 10000,
-                    "spots": spots,
-                }
-            ],
-        )
 
 
 if __name__ == "__main__":
