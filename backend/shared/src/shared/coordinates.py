@@ -1,12 +1,3 @@
-class Position:
-    def __init__(self, lat: float, lon: float):
-        self.lat = lat
-        self.lon = lon
-
-    def __str__(self):
-        return f"{self.lat},{self.lon}"
-
-
 def coordinates_to_locator(lat: float, lon: float) -> str:
     assert -90.0 <= lat <= 90.0
     assert -180.0 <= lon <= 180.0
