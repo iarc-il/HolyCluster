@@ -15,25 +15,29 @@ import { useEffect } from "react";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
-function ContinentColumn({ spot_type, colors }) {
+export function ContinentColumn({ spot_type, colors, mobile = false }) {
     const { filters, setFilters } = useFilters();
     const filter_key = `${spot_type}_continents`;
     const color = colors.buttons[`${spot_type}_continents`];
 
     return (
         <div
-            className="flex flex-col gap-3 items-center p-1"
+            className={`flex ${mobile ? "flex-wrap p-3" : "flex-col p-1"} gap-3 items-center`}
             data-tour={`${spot_type}-continent-filters`}
         >
-            <strong style={{ color: colors.theme.text }}>{continent_title[spot_type]}</strong>
+            <strong className={mobile ? "w-full" : ""} style={{ color: colors.theme.text }}>
+                {continent_title[spot_type]}
+            </strong>
             {continents.map(continent => (
                 <FilterOptions
+                    touch={mobile}
                     key={`${spot_type}_${continent}`}
                     filter_key={filter_key}
                     filter_value={continent}
                     orientation="left"
                 >
                     <FilterButton
+                        className={mobile ? "min-h-11 min-w-16" : ""}
                         color={color}
                         text={continent}
                         text_color={colors.theme.text}
@@ -55,7 +59,7 @@ function ContinentColumn({ spot_type, colors }) {
     );
 }
 
-function SwapButton({ colors }) {
+export function SwapButton({ colors, mobile = false }) {
     const { filters, setFilters } = useFilters();
 
     const areFiltersEqual = continents.every(
@@ -75,7 +79,7 @@ function SwapButton({ colors }) {
         <button
             type="button"
             onClick={swapContinents}
-            className={`w-16 rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
+            className={`${mobile ? "min-h-11 mx-3 items-center" : ""} w-16 rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
                 areFiltersEqual
                     ? "opacity-50 pointer-events-none"
                     : "cursor-pointer hover:brightness-110"
@@ -178,16 +182,18 @@ const view_options = [
     },
 ];
 
-function ViewSelectorTabs({ active_view, set_active_view, colors }) {
+function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false }) {
     return (
         <div
             className="flex shrink-0 border-b-2"
             data-tour="side-panel-tabs"
             style={{
                 borderColor: colors.table.header_arrow,
+                color: mobile ? colors.theme.text : undefined,
             }}
         >
             {view_options.map((option, index) => {
+                if (mobile && index === 0) return null;
                 const is_active = active_view === index;
                 return (
                     <div
@@ -207,7 +213,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                                 set_active_view(index);
                             }
                         }}
-                        className={`flex items-center justify-center flex-1 py-0.5 transition-colors rounded-md${
+                        className={`flex items-center justify-center flex-1 ${mobile ? "min-h-11" : ""} py-0.5 transition-colors rounded-md${
                             !is_active && !option.is_disabled
                                 ? " cursor-pointer opacity-60 hover:opacity-100"
                                 : ""
@@ -215,6 +221,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                         style={{
                             backgroundColor: is_active ? colors.buttons.active_tab : undefined,
                         }}
+                        aria-label={mobile && index === 1 ? "Band activity" : option.label}
                         title={option.label}
                         role="button"
                         tabIndex={0}
@@ -222,25 +229,32 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                         data-tour-state={is_active ? "active" : "inactive"}
                         aria-pressed={is_active}
                     >
-                        <svg
-                            width={option.size}
-                            height={option.size}
-                            viewBox={option.viewbox}
-                            fill={is_active ? option.bg : colors.buttons.utility}
-                        >
-                            <title>{option.label || "View option"}</title>
-                            <path d={option.icon} />
-                        </svg>
+                        {mobile ? (
+                            <span className="text-sm font-semibold">
+                                {["", "Band", "Heatmap", "DX", "Missing"][index]}
+                            </span>
+                        ) : (
+                            <svg
+                                width={option.size}
+                                height={option.size}
+                                viewBox={option.viewbox}
+                                fill={is_active ? option.bg : colors.buttons.utility}
+                            >
+                                <title>{option.label || "View option"}</title>
+                                <path d={option.icon} />
+                            </svg>
+                        )}
                     </div>
                 );
             })}
-            <div className="w-18 shrink-0" />
+            {!mobile && <div className="w-18 shrink-0" />}
         </div>
     );
 }
 
 function SidePanel({
     visible,
+    mobile = false,
     overlay,
     on_close,
     on_open,
@@ -260,7 +274,8 @@ function SidePanel({
         return () => document.removeEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
     }, [set_active_view]);
 
-    if (active_view === null) return null;
+    if (active_view === null && !mobile) return null;
+    const displayed_view = mobile && ![1, 2, 3, 4].includes(active_view) ? 1 : active_view;
 
     function handle_import_complete() {
         on_open();
@@ -279,14 +294,16 @@ function SidePanel({
         <DXpeditions key="dxpeditions" />,
         <MissingPanel key="missing" on_import_complete={handle_import_complete} />,
     ];
-    const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
+    const active_view_label = view_options[displayed_view]?.label
+        .toLowerCase()
+        .replaceAll(" ", "-");
 
     const panel_classes = visible ? (overlay ? "absolute right-0 top-0 flex" : "flex") : "hidden";
     return (
         <aside
             id="tools-panel"
-            aria-label="Tools"
-            className={`${panel_classes} flex-col h-full z-50 max-h-full overflow-auto`}
+            aria-label={mobile ? "Explore" : "Tools"}
+            className={`${panel_classes} flex-col h-full min-w-0 z-50 max-h-full overflow-auto`}
             data-tour="side-panel"
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
@@ -308,7 +325,8 @@ function SidePanel({
                 </div>
             )}
             <ViewSelectorTabs
-                active_view={active_view}
+                mobile={mobile}
+                active_view={displayed_view}
                 set_active_view={set_active_view}
                 colors={colors}
             />
@@ -317,9 +335,21 @@ function SidePanel({
                     className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
                     data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
                 >
-                    {content[active_view]}
+                    {mobile
+                        ? content.map(
+                              (view, index) =>
+                                  index > 0 && (
+                                      <div
+                                          key={view.key}
+                                          className={displayed_view === index ? "h-full" : "hidden"}
+                                      >
+                                          {view}
+                                      </div>
+                                  ),
+                          )
+                        : content[active_view]}
                 </div>
-                <RightColumnContent colors={colors} />
+                {!mobile && <RightColumnContent colors={colors} />}
             </div>
         </aside>
     );

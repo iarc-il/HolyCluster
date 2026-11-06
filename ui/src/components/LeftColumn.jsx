@@ -183,7 +183,7 @@ function use_scroll_sync(scroll_ref, overlay_el) {
     }, [scroll_ref, overlay_el]);
 }
 
-function LeftColumn({ visible, overlay, on_close, children }) {
+function LeftColumn({ visible, overlay, on_close, children, mobile = false, content }) {
     const { spots_per_band_count, spots_per_mode_count } = useSpotData();
     const { set_hovered_band } = useSpotInteraction();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
@@ -196,7 +196,9 @@ function LeftColumn({ visible, overlay, on_close, children }) {
 
     use_scroll_sync(scroll_ref, overlay_el);
 
-    const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
+    const filter_group_classes = mobile
+        ? "p-3 flex flex-wrap text-center gap-3 "
+        : "p-1 flex flex-col text-center gap-2 ";
     const panel_classes = visible
         ? overlay
             ? "absolute left-0 top-0 z-50 flex border-r"
@@ -219,7 +221,7 @@ function LeftColumn({ visible, overlay, on_close, children }) {
         <aside
             id="filters-panel"
             aria-label="Filters"
-            className={`${panel_classes} w-18 flex-col h-full shrink-0`}
+            className={`${panel_classes} ${mobile ? "w-full min-w-0" : "w-18"} flex-col h-full shrink-0`}
             data-tour="left-column"
             style={{
                 backgroundColor: colors.theme.columns,
@@ -245,8 +247,13 @@ function LeftColumn({ visible, overlay, on_close, children }) {
             )}
             <div
                 ref={scroll_ref}
-                className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto"
+                className={`flex min-h-0 flex-1 flex-col ${mobile ? "items-stretch" : "items-center"} overflow-y-auto`}
             >
+                {mobile && (
+                    <h2 className="px-3 pt-3 font-semibold" style={{ color: colors.theme.text }}>
+                        Bands
+                    </h2>
+                )}
                 <div
                     className={`${filter_group_classes}pb-4 border-b-2 border-slate-300`}
                     data-tour="band-filter-group"
@@ -256,6 +263,7 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                         const label = Number.isInteger(band) ? `${band}m` : band;
                         return (
                             <FilterOptions
+                                touch={mobile}
                                 key={band}
                                 filter_key="bands"
                                 filter_value={band}
@@ -266,7 +274,7 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                                 {!filters.radio_band && (
                                     <SpotCount
                                         count={spots_per_band_count[band]}
-                                        visible={visible}
+                                        visible={visible && !mobile}
                                         overlay_el={overlay_el}
                                     />
                                 )}
@@ -286,7 +294,7 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                                                 },
                                             }));
                                     }}
-                                    className={filters.radio_band && "opacity-50"}
+                                    className={`${mobile ? "min-h-11 min-w-16" : ""} ${filters.radio_band ? "opacity-50" : ""}`}
                                     on_mouse_enter={_ => {
                                         if (!filters.radio_band) set_hovered_band(band);
                                     }}
@@ -306,10 +314,11 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                         <div data-tour="radio-band-filter">
                             <SpotCount
                                 count={spots_per_band_count[radio_band]}
-                                visible={visible}
+                                visible={visible && !mobile}
                                 overlay_el={overlay_el}
                             />
                             <FilterButton
+                                className={mobile ? "min-h-11 min-w-16" : ""}
                                 text={"Radio"}
                                 is_active={filters.radio_band}
                                 color={colors.bands[radio_band] ?? "black"}
@@ -330,10 +339,16 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                     ""
                 )}
 
+                {mobile && (
+                    <h2 className="px-3 pt-3 font-semibold" style={{ color: colors.theme.text }}>
+                        Modes
+                    </h2>
+                )}
                 <div className={`${filter_group_classes} pt-4`} data-tour="mode-filter-group">
                     {visible_modes.map(mode => {
                         return (
                             <FilterOptions
+                                touch={mobile}
                                 key={mode}
                                 filter_key="modes"
                                 filter_value={mode}
@@ -341,7 +356,7 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                             >
                                 <SpotCount
                                     count={spots_per_mode_count[mode]}
-                                    visible={visible}
+                                    visible={visible && !mobile}
                                     overlay_el={overlay_el}
                                 />
                                 <FilterButton
@@ -368,13 +383,14 @@ function LeftColumn({ visible, overlay, on_close, children }) {
                                         }))
                                     }
                                     color={colors.buttons.modes}
-                                    className="text-[0.94rem]"
+                                    className={`text-[0.94rem] ${mobile ? "min-h-11 min-w-16" : ""}`}
                                     data_tour={`mode-filter-${mode}`}
                                 />
                             </FilterOptions>
                         );
                     })}
                 </div>
+                {content}
             </div>
             {children && (
                 <div
