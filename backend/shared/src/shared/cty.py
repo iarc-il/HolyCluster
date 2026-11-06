@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
 from loguru import logger
 
 
@@ -61,21 +60,6 @@ class CtyResolver:
                 return entity
 
         return None
-
-    def resolve_country(self, callsign: str) -> CtyCountry | None:
-        return self.resolve_entity(callsign)
-
-    def resolve(self, callsign: str) -> tuple[int, str] | None:
-        entity = self.resolve_entity(callsign)
-        if entity is None:
-            return None
-        return entity.dxcc_code, entity.continent
-
-    def resolve_country_and_continent(self, callsign: str) -> tuple[str, str] | None:
-        entity = self.resolve_entity(callsign)
-        if entity is None:
-            return None
-        return entity.country, entity.continent
 
     def get_entity_by_dxcc_code(self, dxcc_code: int) -> CtyCountry | None:
         return self.entities_by_dxcc_code.get(dxcc_code)
@@ -245,23 +229,7 @@ def get_cty_resolver(path: Path = CTY_PATH) -> CtyResolver | None:
     return _CTY_RESOLVER
 
 
-def resolve_country_from_cty(callsign: str, path: Path = CTY_PATH) -> tuple[str, str] | None:
-    resolver = get_cty_resolver(path)
-    if resolver is None:
-        return None
-    return resolver.resolve_country_and_continent(callsign)
-
-
-def resolve_dxcc_from_cty(callsign: str, path: Path = CTY_PATH) -> tuple[int, str] | None:
-    resolver = get_cty_resolver(path)
-    if resolver is None:
-        return None
-    return resolver.resolve(callsign)
-
-
-async def ensure_cty_available(http_client: httpx.AsyncClient | None = None) -> CtyResolver:
-    del http_client
-
+async def ensure_cty_available() -> CtyResolver:
     try:
         _validate_cty_cache(CTY_PATH)
     except (OSError, ValueError) as e:

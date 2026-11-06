@@ -304,7 +304,7 @@ async def lifespan(app: fastapi.FastAPI):
     tasks = []
 
     try:
-        await ensure_cty_available(http_client=app.state.http_client)
+        await ensure_cty_available()
 
         tasks = [
             asyncio.create_task(propagation_data_collector(app)),

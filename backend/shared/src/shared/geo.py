@@ -104,22 +104,6 @@ def resolve_dxcc_entity(
     )
 
 
-def resolve_dxcc_and_continent(
-    callsign: str,
-    callsign_type: str,
-) -> tuple[int, str]:
-    cty_country = resolve_dxcc_entity(callsign, callsign_type)
-    return cty_country.dxcc_code, cty_country.continent
-
-
-def resolve_country_and_continent(
-    callsign: str,
-    callsign_type: str,
-) -> tuple[str, str]:
-    cty_country = resolve_dxcc_entity(callsign, callsign_type)
-    return cty_country.country, cty_country.continent
-
-
 async def get_geo_details(
     valkey_client,
     qrz_session_key: str,
