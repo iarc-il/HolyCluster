@@ -1325,7 +1325,6 @@ dependencies = [
     { name = "loguru" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "redis" },
     { name = "sentry-sdk" },
     { name = "sqlmodel" },
 ]
@@ -1338,7 +1337,6 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.7.1" },
-    { name = "redis", specifier = ">=7.1.0" },
     { name = "sentry-sdk", specifier = ">=2.0.0" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
 ]
