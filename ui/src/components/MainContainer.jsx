@@ -1,5 +1,6 @@
 import LeftColumn from "@/components/LeftColumn.jsx";
 import MapControls from "@/components/MapControls.jsx";
+import MobileFiltersWorkspace from "@/components/MobileFiltersWorkspace.jsx";
 import MobileWorkspaceNavigation from "@/components/MobileWorkspaceNavigation.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
@@ -65,7 +66,9 @@ function MainContent({
     const is_full_cockpit = useMediaQuery("(min-width: 1536px)");
     const is_md_device = useMediaQuery("(max-width: 767px)");
     const [open_panel, set_open_panel] = useState(null);
+    const [preferred_mobile_panel, set_preferred_mobile_panel] = useLocalStorage("mobile_panel");
     const panel_opener_ref = useRef(null);
+    const mobile_return_panel = useRef("map");
 
     function close_panel() {
         set_open_panel(null);
@@ -82,12 +85,12 @@ function MainContent({
     }
 
     useLayoutEffect(() => {
-        if (is_full_cockpit) {
+        if (is_full_cockpit || is_md_device) {
             set_open_panel(null);
         } else if (open_panel) {
             document.getElementById(`${open_panel}-panel-close`)?.focus();
         }
-    }, [is_full_cockpit, open_panel]);
+    }, [is_full_cockpit, is_md_device, open_panel]);
     const { local_version } = use_radio();
     const {
         active_profile_data: {
@@ -306,15 +309,20 @@ function MainContent({
 
     useEffect(() => {
         function close_left_panel_for_tour() {
+            if (is_md_device && preferred_mobile_panel === "filters")
+                set_preferred_mobile_panel(mobile_return_panel.current);
             if (open_panel === "filters") close_panel();
         }
 
         function close_side_panel_for_tour() {
+            if (is_md_device && preferred_mobile_panel === "explore")
+                set_preferred_mobile_panel(mobile_return_panel.current);
             if (open_panel === "tools") close_panel();
         }
 
         function open_filters_for_tour() {
-            set_open_panel("filters");
+            if (is_md_device) set_preferred_mobile_panel("filters");
+            else set_open_panel("filters");
         }
 
         document.addEventListener(TOUR_OPEN_FILTERS_EVENT, open_filters_for_tour);
@@ -325,7 +333,7 @@ function MainContent({
             document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
             document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         };
-    }, [open_panel]);
+    }, [open_panel, is_md_device, preferred_mobile_panel, set_preferred_mobile_panel]);
 
     useEffect(() => {
         function handle_fullscreen_change() {
@@ -438,11 +446,16 @@ function MainContent({
         map,
         table,
     };
-    // Use a new key because legacy mobile_tab indices depend on the old layout order.
-    const [preferred_mobile_panel, set_preferred_mobile_panel] = useLocalStorage("mobile_panel");
-    const mobile_panel = active_panel_keys.includes(preferred_mobile_panel)
+    const mobile_panel = [...active_panel_keys, "filters", "explore"].includes(
+        preferred_mobile_panel,
+    )
         ? preferred_mobile_panel
         : active_panel_keys[0];
+
+    useEffect(() => {
+        if (mobile_panel === "map" || mobile_panel === "table")
+            mobile_return_panel.current = mobile_panel;
+    }, [mobile_panel]);
 
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
@@ -467,7 +480,7 @@ function MainContent({
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    {!is_full_cockpit && open_panel && (
+                    {!is_md_device && !is_full_cockpit && open_panel && (
                         <button
                             type="button"
                             aria-label={`Close ${open_panel === "filters" ? "Filters" : "Tools"} overlay`}
@@ -476,20 +489,49 @@ function MainContent({
                             onClick={close_panel}
                         />
                     )}
-                    <LeftColumn
-                        visible={is_full_cockpit || open_panel === "filters"}
-                        overlay={!is_full_cockpit}
-                        on_close={close_panel}
-                    >
-                        <WebsiteTour is_mobile={is_md_device} />
-                    </LeftColumn>
+                    {!is_md_device && (
+                        <LeftColumn
+                            visible={is_full_cockpit || open_panel === "filters"}
+                            overlay={!is_full_cockpit}
+                            on_close={close_panel}
+                        >
+                            <WebsiteTour is_mobile={is_md_device} />
+                        </LeftColumn>
+                    )}
                     <div
                         className="flex flex-1 min-w-0 h-full"
-                        inert={!is_full_cockpit && open_panel ? "" : undefined}
+                        inert={!is_md_device && !is_full_cockpit && open_panel ? "" : undefined}
                     >
                         {is_md_device ? (
                             <div className="flex-1 min-w-0 h-full" data-tour="mobile-workspace">
-                                {main_panel_content[mobile_panel]}
+                                {["map", "table", "filters", "explore"].map(panel => (
+                                    <div
+                                        key={panel}
+                                        id={`mobile-workspace-${panel}`}
+                                        className={
+                                            mobile_panel === panel ? "h-full min-w-0" : "hidden"
+                                        }
+                                    >
+                                        {panel === "filters" ? (
+                                            <MobileFiltersWorkspace
+                                                visible={mobile_panel === "filters"}
+                                            />
+                                        ) : panel === "explore" ? (
+                                            <SidePanel
+                                                mobile
+                                                visible
+                                                set_cat_to_spot={set_cat_to_spot}
+                                                active_view={active_view}
+                                                set_active_view={set_active_view}
+                                                on_open={() =>
+                                                    set_preferred_mobile_panel("explore")
+                                                }
+                                            />
+                                        ) : (
+                                            main_panel_content[panel]
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         ) : (
                             <div className="flex flex-1 min-w-0 h-full">
@@ -505,15 +547,17 @@ function MainContent({
                             </div>
                         )}
                     </div>
-                    <SidePanel
-                        visible={is_full_cockpit || open_panel === "tools"}
-                        overlay={!is_full_cockpit}
-                        on_close={close_panel}
-                        on_open={() => set_open_panel("tools")}
-                        set_cat_to_spot={set_cat_to_spot}
-                        active_view={active_view}
-                        set_active_view={set_active_view}
-                    />
+                    {!is_md_device && (
+                        <SidePanel
+                            visible={is_full_cockpit || open_panel === "tools"}
+                            overlay={!is_full_cockpit}
+                            on_close={close_panel}
+                            on_open={() => set_open_panel("tools")}
+                            set_cat_to_spot={set_cat_to_spot}
+                            active_view={active_view}
+                            set_active_view={set_active_view}
+                        />
+                    )}
                 </div>
                 {is_history_mode && (
                     <Suspense fallback={null}>
@@ -535,12 +579,7 @@ function MainContent({
                 <MobileWorkspaceNavigation
                     panel_keys={active_panel_keys}
                     active_panel={mobile_panel}
-                    on_select={panel => {
-                        if (open_panel) close_panel();
-                        set_preferred_mobile_panel(panel);
-                    }}
-                    open_panel={open_panel}
-                    toggle_panel={toggle_panel}
+                    on_select={set_preferred_mobile_panel}
                     map_icon={MAP_TAB_ICON}
                     table_icon={TABLE_TAB_ICON}
                 />
