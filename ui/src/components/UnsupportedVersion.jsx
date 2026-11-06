@@ -16,23 +16,20 @@ function UnsupportedVersion() {
             }}
         >
             <div className="flex flex-col items-center justify-center h-full space-y-4 p-4">
-                <div className="text-xl font-medium text-red-600">
-                    Unsupported CAT Control Version
-                </div>
+                <div className="text-xl font-medium text-red-600">CAT Control update required</div>
                 <div className="text-center">
-                    The version of CAT Control you are using is no longer supported. Please upgrade
-                    to the latest version.
+                    Update CAT Control to continue using the spots table.
                 </div>
                 {enabled ? (
                     <Button className="px-4 py-2" on_click={install}>
-                        Upgrade Now
+                        Update now
                     </Button>
                 ) : (
                     <a
                         className="px-4 py-2 font-medium rounded-lg bg-blue-600 text-white"
-                        href="/addons"
+                        href="/addons#download"
                     >
-                        Download Update
+                        Download update
                     </a>
                 )}
             </div>

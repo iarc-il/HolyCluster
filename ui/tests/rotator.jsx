@@ -165,7 +165,7 @@ describe("rotator map bearings", () => {
         expect(Consumer.rotator.rotator_azimuth).toBe(90);
         expect(state.send).not.toHaveBeenCalled();
         expect(state.warn).toHaveBeenCalledWith(
-            "This CATServer cannot stop movement already in progress.",
+            "CAT Control cannot stop the rotator while it is moving.",
             { toastId: "rotator-stop" },
         );
     });

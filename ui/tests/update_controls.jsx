@@ -216,13 +216,17 @@ describe("CAT Control updates", () => {
         render_updates();
 
         const dialog = await screen.findByRole("dialog");
-        const cat_link = screen.getByRole("link", { name: /CAT/ });
+        let cat_link = screen.getByRole("button", { name: "Open CAT Control update" });
         expect(within(cat_link).getByText("!")).not.toBeNull();
         expect(within(dialog).getByText("Version 1.3.1 is ready to install.")).not.toBeNull();
         await userEvent.click(within(dialog).getByRole("button", { name: "Later" }));
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-        expect(within(cat_link).getByText("!")).not.toBeNull();
+        cat_link = await screen.findByRole("button", { name: "Open CAT Control update" });
+        expect(cat_link.getAttribute("type")).toBe("button");
+        expect(cat_link.getAttribute("aria-haspopup")).toBe("dialog");
+        expect(cat_link.getAttribute("aria-expanded")).toBe("false");
         await userEvent.click(cat_link);
+        expect(cat_link.getAttribute("aria-expanded")).toBe("true");
         expect(await screen.findByRole("button", { name: "Update", exact: true })).not.toBeNull();
         expect(fetch).toHaveBeenCalledTimes(2);
     });
@@ -235,7 +239,11 @@ describe("CAT Control updates", () => {
             await waitFor(() =>
                 expect(screen.queryByText("Checking for CAT Control updates…")).toBeNull(),
             );
-            expect(within(screen.getByRole("link", { name: "CAT" })).queryByText("!")).toBeNull();
+            expect(
+                within(
+                    screen.getByRole("link", { name: "Open CAT Control downloads" }),
+                ).queryByText("!"),
+            ).toBeNull();
             expect(screen.queryByRole("dialog")).toBeNull();
         },
     );
@@ -282,7 +290,11 @@ describe("CAT Control updates", () => {
             </UpdateProvider>,
         );
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-        expect(within(screen.getByRole("link", { name: "CAT" })).queryByText("!")).toBeNull();
+        expect(
+            within(screen.getByRole("link", { name: "Open CAT Control downloads" })).queryByText(
+                "!",
+            ),
+        ).toBeNull();
         expect(fetch).toHaveBeenCalledTimes(3);
     });
 

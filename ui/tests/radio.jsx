@@ -256,7 +256,7 @@ describe("radio configuration", () => {
 
         expect(websocket.send).not.toHaveBeenCalled();
         expect(toast.warn).toHaveBeenCalledWith(
-            "Update CATServer to use RTTY with OmniRig. The radio was not changed.",
+            "Update CAT Control to use RTTY with OmniRig. The radio was not changed.",
             {
                 theme: "dark",
                 toastId: "radio-mode",
@@ -321,7 +321,7 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_band).toBe(20);
         expect(websocket.send).not.toHaveBeenCalled();
         expect(toast.warn).toHaveBeenCalledWith(
-            "Wait for CATServer radio configuration before using RTTY.",
+            "CAT Control is still loading your radio settings. Try RTTY again in a moment.",
             {
                 theme: "dark",
                 toastId: "radio-mode",
@@ -354,7 +354,7 @@ describe("radio configuration", () => {
 
         expect(websocket.send).not.toHaveBeenCalled();
         expect(toast.warn).toHaveBeenCalledWith(
-            "Wait for CATServer radio configuration before using RTTY.",
+            "CAT Control is still loading your radio settings. Try RTTY again in a moment.",
             {
                 theme: "dark",
                 toastId: "radio-mode",

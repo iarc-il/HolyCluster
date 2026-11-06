@@ -133,7 +133,7 @@ function message_for(status, error) {
         updated: "CAT Control restarted with the verified update.",
         installing: "Installing CAT Control…",
         reboot_required: "Restart Windows to finish installing CAT Control.",
-        unsupported: "Automatic updates are not supported on this platform.",
+        unsupported: "Automatic updates are not available on this platform.",
         failed: error ?? "CAT Control update failed.",
     };
     return messages[status] ?? null;
@@ -192,7 +192,7 @@ export default function UpdateControls({ on_check = null }) {
                         className="rounded-lg bg-blue-600 p-2 text-sm font-medium text-white"
                         href="/addons#download"
                     >
-                        Download manually
+                        Download update
                     </a>
                 )}
             </div>

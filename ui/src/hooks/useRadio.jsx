@@ -267,17 +267,19 @@ export function RadioProvider({ children }) {
 
     function set_mode_and_freq(mode, freq) {
         if (mode === "RTTY" && !supports_cat_feature(local_version, RTTY_TUNING_MIN_VERSION)) {
-            warn_unsupported_mode("Update CATServer to use RTTY mode. The radio was not changed.");
+            warn_unsupported_mode("Update CAT Control to use RTTY. The radio was not changed.");
             return false;
         }
         if (mode === "RTTY" && !radio_configuration_ready) {
-            warn_unsupported_mode("Wait for CATServer radio configuration before using RTTY.");
+            warn_unsupported_mode(
+                "CAT Control is still loading your radio settings. Try RTTY again in a moment.",
+            );
             return false;
         }
         const is_omnirig = radio_configuration?.rig?.model_id?.startsWith("omnirig:");
         if (mode === "RTTY" && is_omnirig && radio_capabilities?.omnirig_rtty_mode !== "dig_l") {
             warn_unsupported_mode(
-                "Update CATServer to use RTTY with OmniRig. The radio was not changed.",
+                "Update CAT Control to use RTTY with OmniRig. The radio was not changed.",
             );
             return false;
         }

@@ -89,8 +89,8 @@ const RELEASES = [
         "24/09/2025",
         [
             <>
-                <b key="cat-update">Cat server update:</b> Clicking on spot now fills the callsign
-                in Log4OM (Upgrading cat server is required)
+                <b key="cat-update">CAT Control update:</b> Selecting a spot now fills the callsign
+                field in Log4OM. This release requires a CAT Control update.
             </>,
             "Close and approve window by pressing Enter",
             "Mobile UI bug fixes",
@@ -103,9 +103,7 @@ const RELEASES = [
     [
         "09/08/2025",
         [
-            <>
-                <b key="note">NOTE ⚠️</b> The CAT control should be updated due to breaking changes!
-            </>,
+            "This release requires a CAT Control update because it includes breaking changes.",
             "Add VHF, UHF and SHF bands!",
             "Add timestamp when hovering over the propagation data",
             "Move the hover spot popup from the map to the bottom left corner",
@@ -117,10 +115,7 @@ const RELEASES = [
     [
         "25/06/2025",
         [
-            <>
-                🎉<b key="cat">CAT control </b> - first release of locally installed CAT control
-                software!
-            </>,
+            "First CAT Control release.",
             "Equator display on the map",
             "Table context menu - right click on a callsign for quick actions",
             "Change the grid of the map to be polar",
@@ -146,7 +141,7 @@ const RELEASES = [
             "The band bar",
             "Toggle alerts",
             "Zulu to UTC",
-            "CAT control infrastructure",
+            "CAT Control infrastructure",
             "New tutorial video by VE9CF (in the 'About' tab)",
         ],
     ],

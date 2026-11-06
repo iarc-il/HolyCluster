@@ -266,9 +266,7 @@ describe("CAT control settings", () => {
         render_cat();
 
         expect(screen.queryByRole("region", { name: "Radio hardware settings" })).toBeNull();
-        expect(
-            screen.getByText("Update the CAT server to configure radio hardware."),
-        ).not.toBeNull();
+        expect(screen.getByText("Update CAT Control to configure your radio.")).not.toBeNull();
         expect(screen.getByText("Logger integration")).not.toBeNull();
     });
 });

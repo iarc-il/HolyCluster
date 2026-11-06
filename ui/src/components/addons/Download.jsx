@@ -49,19 +49,19 @@ export default function Download() {
                 <div className="max-w-4xl mx-auto">
                     <Card className="bg-white p-8 shadow-lg border border-gray-200">
                         <h2 className="text-3xl font-bold text-center mb-6 text-addons-primary">
-                            Download CAT Server
+                            Download CAT Control
                         </h2>
                         <div className="mx-auto max-w-2xl text-center">
                             <p className="text-lg text-gray-700">
-                                Add CAT control to Holy Cluster by installing the companion server
-                                on your computer.
+                                Install CAT Control on this computer to connect Holy Cluster to your
+                                radio.
                             </p>
                             {downloads[current_platform] ? (
                                 <a
                                     className="mt-6 inline-flex rounded-lg bg-addons-primary px-8 py-4 text-xl font-semibold text-white shadow-lg transition-opacity hover:opacity-75"
                                     href={downloads[current_platform]}
                                 >
-                                    Download for {current_name}
+                                    Download CAT Control for {current_name}
                                 </a>
                             ) : loading ? (
                                 <span
@@ -69,11 +69,13 @@ export default function Download() {
                                     role="status"
                                 >
                                     <Spinner size="28" color="currentColor" />
-                                    <span className="sr-only">Loading {current_name} download</span>
+                                    <span className="sr-only">
+                                        Loading CAT Control for {current_name}…
+                                    </span>
                                 </span>
                             ) : (
                                 <span className="mt-6 inline-flex rounded-lg bg-gray-400 px-8 py-4 text-xl font-semibold text-white">
-                                    {current_name} download unavailable
+                                    CAT Control for {current_name} is unavailable.
                                 </span>
                             )}
                             <p className="mt-2 text-sm text-gray-600">
@@ -86,7 +88,8 @@ export default function Download() {
                                         className="font-medium text-addons-primary underline underline-offset-2 hover:opacity-75"
                                         href={downloads[alternate_platform]}
                                     >
-                                        Download the {alternate_format}
+                                        Download CAT Control for {alternate_name} (
+                                        {alternate_format})
                                     </a>
                                 </p>
                             ) : null}

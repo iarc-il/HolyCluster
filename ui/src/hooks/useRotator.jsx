@@ -199,7 +199,7 @@ export function RotatorProvider({ children }) {
             if (rotator_stop_supported) {
                 if (send("rotator", { action: "Stop" })) start_refresh_blocker("stop");
             } else if (rotator_target_azimuth != null) {
-                toast.warn("This CATServer cannot stop movement already in progress.", {
+                toast.warn("CAT Control cannot stop the rotator while it is moving.", {
                     toastId: "rotator-stop",
                 });
             }

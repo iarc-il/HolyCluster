@@ -27,10 +27,9 @@ function LoggerIntegrationHelp({ colors }) {
                             content: (
                                 <div className="max-h-[60vh] overflow-y-auto p-4">
                                     <p>
-                                        When clicking on a callsign, the CAT server can notify
-                                        Log4OM and autofill the callsign field.
+                                        When logger integration is enabled, selecting a callsign
+                                        fills the callsign field in Log4OM.
                                     </p>
-                                    <p>To configure this feature, follow this guide:</p>
                                     <img
                                         src={log4omImage}
                                         alt="Log4OM integration guide"

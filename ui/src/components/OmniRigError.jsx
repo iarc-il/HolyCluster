@@ -21,22 +21,13 @@ function OmniRigError() {
                             />
                         </svg>
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">OmniRig Required</h1>
+                    <h1 className="text-2xl font-bold text-white mb-2">OmniRig required</h1>
                     <p className="text-gray-200 text-sm leading-relaxed">
-                        Holy Cluster requires OmniRig to be installed on your system to control your
-                        radio.
+                        Install OmniRig to use the OmniRig backend.
                     </p>
                 </div>
 
                 <div className="space-y-4">
-                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                        <h3 className="text-blue-300 font-semibold mb-2">What is OmniRig?</h3>
-                        <p className="text-gray-200 text-sm">
-                            OmniRig is a COM component that provides a standard interface for radio
-                            control software to communicate with various amateur radio transceivers.
-                        </p>
-                    </div>
-
                     <div className="flex space-x-4 text-white font-semibold">
                         <button
                             type="button"
@@ -57,12 +48,7 @@ function OmniRigError() {
                     </div>
 
                     <div className="text-lg text-gray-200 space-y-1">
-                        <p className="font-semibold">After installing OmniRig:</p>
-                        <ol className="list-decimal list-inside space-y-1 text-left">
-                            <li>Restart Holy Cluster</li>
-                            <li>Configure your radio in OmniRig</li>
-                            <li>Enjoy seamless radio control!</li>
-                        </ol>
+                        <p>Configure your radio in OmniRig, then restart CAT Control.</p>
                     </div>
                 </div>
             </div>
