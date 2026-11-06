@@ -619,7 +619,7 @@ export const TOUR_CHAPTERS = {
                 mobile: {
                     target: "[data-tour='mobile-custom-filters']",
                     title: "Custom Filters",
-                    content: "Open Custom filters to manage Alert, Show Only, and Hide filters.",
+                    content: "Select Custom to manage Alert, Show Only, and Hide filters.",
                     before: async () => {
                         await open_filters();
                         document

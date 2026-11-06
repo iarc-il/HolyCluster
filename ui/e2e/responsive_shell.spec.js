@@ -221,7 +221,9 @@ for (const [width, height] of [
                 ]) {
                     await expect(workspace.locator(`[data-tour="${target}"]`)).toBeVisible();
                 }
-                await workspace.getByText("Custom filters", { exact: true }).click();
+                await workspace
+                    .getByRole("button", { name: "Custom filters", exact: true })
+                    .click();
                 for (const label of ["Alert", "Show Only", "Hide"])
                     await expect(
                         workspace.getByRole("heading", { name: label, exact: true }),
