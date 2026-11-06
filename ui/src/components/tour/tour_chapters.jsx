@@ -101,7 +101,7 @@ export const TOUR_CHAPTERS = {
                 before: close_drawers,
                 target: "[data-tour='mobile-main-tabs']",
                 title: "Mobile Workspaces",
-                content: "Switch between Map, Spots, Filters, and Explore.",
+                content: "Switch between Map, Spots, Filters, and Tools.",
                 hideOverlay: true,
                 mobileOnly: true,
                 optional: true,
@@ -769,16 +769,16 @@ export const TOUR_CHAPTERS = {
     side_panel: {
         id: "side_panel",
         title: "Tools",
-        mobileTitle: "Explore",
-        mobileDescription: "Explore Band activity, Heatmap, DXpeditions, and Missing.",
+        mobileTitle: "Tools",
+        mobileDescription: "Inspect Band activity, Heatmap, DXpeditions, and Missing.",
         description: "Explore Filters, Band Bar, Heatmap, DXpeditions, and Missing.",
         steps: [
             {
                 id: "side_panel_open_side_panel",
                 mobile: {
                     target: "[data-tour='mobile-main-tab-explore']",
-                    title: "Open Explore",
-                    content: "Select Explore to inspect activity.",
+                    title: "Open Tools",
+                    content: "Select Tools to inspect activity.",
                 },
                 target: "[data-tour='top-bar-right-menu']",
                 title: "Open Tools",
@@ -792,7 +792,7 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "side_panel_overview",
-                mobile: { title: "Explore", content: "Choose a view to inspect activity." },
+                mobile: { title: "Tools", content: "Choose a view to inspect activity." },
                 target: "[data-tour='side-panel']",
                 title: "Tools",
                 content: "Choose a tool to inspect activity or manage filters.",
@@ -804,7 +804,7 @@ export const TOUR_CHAPTERS = {
             {
                 id: "side_panel_tabs",
                 mobile: {
-                    title: "Explore Views",
+                    title: "Tool Views",
                     content: "Choose Band, Heatmap, DX, or Missing.",
                 },
                 target: "[data-tour='side-panel-tabs']",

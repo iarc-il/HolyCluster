@@ -100,7 +100,7 @@ describe("tour chapters", () => {
         expect(step_for("[data-tour='top-bar-submit-spot']")?.content).toContain("sharing");
         expect(step_for("[data-tour='left-column']")?.content).toContain("relevant");
         expect(step_for("[data-tour='mobile-main-tabs']")?.content).toContain(
-            "Map, Spots, Filters, and Explore",
+            "Map, Spots, Filters, and Tools",
         );
         expect(step_for("[data-tour='map-panel']")?.content).toContain("geographic clusters");
         expect(step_for("[data-tour='table-panel']")?.content).toContain("inspect");

@@ -210,7 +210,7 @@ export async function start_tour(page, chapter_title) {
     const panel = page.locator(tour_target("tour-launcher-panel"));
     await panel
         .getByRole("button", {
-            name: `Select ${page.viewportSize().width < 768 ? ({ Tools: "Explore", "Spots Table": "Spots" }[chapter_title] ?? chapter_title) : chapter_title} tour`,
+            name: `Select ${page.viewportSize().width < 768 ? ({ "Spots Table": "Spots" }[chapter_title] ?? chapter_title) : chapter_title} tour`,
         })
         .click();
     await panel.getByRole("button", { name: "Start tour", exact: true }).click();

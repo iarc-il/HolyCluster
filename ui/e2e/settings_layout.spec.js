@@ -55,10 +55,10 @@ for (const width of [390, 500]) {
                 const tabs = page.locator(
                     `${tour_target("mobile-main-tabs")} button[aria-pressed]`,
                 );
-                await expect(tabs).toHaveText([...option.tabs, "Filters", "Explore"]);
+                await expect(tabs).toHaveText([...option.tabs, "Filters", "Tools"]);
                 await expect(
                     page.getByRole("navigation", { name: "Workspace" }).getByRole("button"),
-                ).toHaveText([...option.tabs, "Filters", "Explore"]);
+                ).toHaveText([...option.tabs, "Filters", "Tools"]);
                 for (const tab of option.tabs) {
                     const button = tabs.filter({ hasText: tab });
                     await button.click();
@@ -68,7 +68,7 @@ for (const width of [390, 500]) {
                     ).toBeVisible();
                 }
 
-                for (const name of ["Filters", "Explore"]) {
+                for (const name of ["Filters", "Tools"]) {
                     const tab = page
                         .getByRole("navigation", { name: "Workspace" })
                         .getByRole("button", { name, exact: true });
@@ -95,7 +95,7 @@ for (const width of [390, 500]) {
 
         async function expect_workspace(page, selected, order) {
             const nav = page.getByRole("navigation", { name: "Workspace" });
-            await expect(nav.getByRole("button")).toHaveText([...order, "Filters", "Explore"]);
+            await expect(nav.getByRole("button")).toHaveText([...order, "Filters", "Tools"]);
             await expect(nav.getByRole("button", { name: selected, exact: true })).toHaveAttribute(
                 "aria-pressed",
                 "true",

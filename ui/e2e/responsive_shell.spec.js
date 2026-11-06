@@ -199,10 +199,10 @@ for (const [width, height] of [
         await page.setViewportSize({ width, height });
         await page.goto("/");
         const nav = page.getByRole("navigation", { name: "Workspace" });
-        await expect(nav.getByRole("button")).toHaveText(["Map", "Spots", "Filters", "Explore"]);
+        await expect(nav.getByRole("button")).toHaveText(["Map", "Spots", "Filters", "Tools"]);
         const workspace = page.locator('[data-tour="mobile-workspace"]');
         const table = nav.getByRole("button", { name: "Spots", exact: true });
-        for (const name of ["Map", "Spots", "Filters", "Explore"]) {
+        for (const name of ["Map", "Spots", "Filters", "Tools"]) {
             const tab = nav.getByRole("button", { name, exact: true });
             await tab.click();
             await expect(tab).toHaveAttribute("aria-pressed", "true");
@@ -227,7 +227,7 @@ for (const [width, height] of [
                         workspace.getByRole("heading", { name: label, exact: true }),
                     ).toBeVisible();
             }
-            if (name === "Explore") {
+            if (name === "Tools") {
                 await expect(
                     workspace.locator('[data-tour="continent-filter-column"]'),
                 ).toHaveCount(0);
@@ -334,12 +334,7 @@ for (const width of [767, 768, 1535, 1536]) {
         const nav = page.getByRole("navigation", { name: "Workspace" });
         if (width < 768) {
             await expect(nav).toBeVisible();
-            await expect(nav.getByRole("button")).toHaveText([
-                "Map",
-                "Spots",
-                "Filters",
-                "Explore",
-            ]);
+            await expect(nav.getByRole("button")).toHaveText(["Map", "Spots", "Filters", "Tools"]);
             await expect(top.locator('[data-tour="top-bar-left-menu"]')).toHaveCount(0);
             await expect(top.locator('[data-tour="top-bar-right-menu"]')).toHaveCount(0);
         } else {
@@ -397,7 +392,7 @@ for (const width of [390, 500]) {
             "aria-pressed",
             "true",
         );
-        await select("Explore");
+        await select("Tools");
         await page.getByRole("button", { name: "Heatmap", exact: true }).click();
         const region = page.locator('[data-tour="heatmap-continent-selector"]');
         await region.selectOption("NA");
@@ -407,11 +402,11 @@ for (const width of [390, 500]) {
         await select("Map");
         await select("Spots");
         await expect(search).toHaveValue("JA1");
-        await select("Explore");
+        await select("Tools");
         await expect(region).toBeVisible();
         await expect(region).toHaveValue("NA");
         await page.reload();
-        await expect(nav.getByRole("button", { name: "Explore", exact: true })).toHaveAttribute(
+        await expect(nav.getByRole("button", { name: "Tools", exact: true })).toHaveAttribute(
             "aria-pressed",
             "true",
         );

@@ -213,7 +213,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false
                                 set_active_view(index);
                             }
                         }}
-                        className={`flex items-center justify-center flex-1 ${mobile ? "min-h-11" : ""} py-0.5 transition-colors rounded-md${
+                        className={`flex items-center justify-center flex-1 ${mobile ? "min-h-14 flex-col gap-0.5" : ""} py-0.5 transition-colors rounded-md${
                             !is_active && !option.is_disabled
                                 ? " cursor-pointer opacity-60 hover:opacity-100"
                                 : ""
@@ -230,9 +230,20 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false
                         aria-pressed={is_active}
                     >
                         {mobile ? (
-                            <span className="text-sm font-semibold">
-                                {["", "Band", "Heatmap", "DX", "Missing"][index]}
-                            </span>
+                            <>
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox={option.viewbox}
+                                    fill={is_active ? option.bg : colors.buttons.utility}
+                                    aria-hidden="true"
+                                >
+                                    <path d={option.icon} />
+                                </svg>
+                                <span className="text-xs font-semibold">
+                                    {["", "Band", "Heatmap", "DX", "Missing"][index]}
+                                </span>
+                            </>
                         ) : (
                             <svg
                                 width={option.size}
@@ -302,7 +313,7 @@ function SidePanel({
     return (
         <aside
             id="tools-panel"
-            aria-label={mobile ? "Explore" : "Tools"}
+            aria-label="Tools"
             className={`${panel_classes} flex-col h-full min-w-0 z-50 max-h-full overflow-auto`}
             data-tour="side-panel"
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}

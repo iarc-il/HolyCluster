@@ -21,7 +21,7 @@ export default function MobileWorkspaceNavigation({
                     map: "Map",
                     table: "Spots",
                     filters: "Filters",
-                    explore: "Explore",
+                    explore: "Tools",
                 }[panel];
                 const active = active_panel === panel;
                 return (
