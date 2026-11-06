@@ -64,7 +64,9 @@ export function step_is_excluded(step, { is_mobile, runtime_conditions }) {
 }
 
 export function get_available_steps(step_list, options) {
-    return step_list.filter(step => !step_is_excluded(step, options));
+    return step_list
+        .map(step => (options.is_mobile && step.mobile ? { ...step, ...step.mobile } : step))
+        .filter(step => !step_is_excluded(step, options));
 }
 
 export function get_step_wait_key(chapter_id, step_index, step) {

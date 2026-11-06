@@ -40,6 +40,9 @@ const wait_poll_interval_ms = 150;
 function is_element_visible(element) {
     if (!element) return false;
 
+    if (element.checkVisibility && !element.checkVisibility({ visibilityProperty: true }))
+        return false;
+
     const style = window.getComputedStyle(element);
     if (style.display === "none" || style.visibility === "hidden") return false;
 
@@ -710,7 +713,11 @@ function WebsiteTour({ is_mobile }) {
 
     return (
         <>
-            <TourLauncher completed_chapters={completed_chapters} on_start_tour={start_tour} />
+            <TourLauncher
+                is_mobile={is_mobile}
+                completed_chapters={completed_chapters}
+                on_start_tour={start_tour}
+            />
             <Joyride
                 continuous={true}
                 onEvent={handle_callback}

@@ -99,7 +99,9 @@ describe("tour chapters", () => {
         expect(step_for("[data-tour='top-bar-time-limit']")?.content).toContain("Start by");
         expect(step_for("[data-tour='top-bar-submit-spot']")?.content).toContain("sharing");
         expect(step_for("[data-tour='left-column']")?.content).toContain("relevant");
-        expect(step_for("[data-tour='mobile-main-tabs']")?.content).toContain("bottom navigation");
+        expect(step_for("[data-tour='mobile-main-tabs']")?.content).toContain(
+            "Map, Spots, Filters, and Explore",
+        );
         expect(step_for("[data-tour='map-panel']")?.content).toContain("geographic clusters");
         expect(step_for("[data-tour='table-panel']")?.content).toContain("inspect");
         expect(step_for("[data-tour='table-panel']")?.content).toContain("act on it");
@@ -269,13 +271,13 @@ describe("tour chapters", () => {
         }
     });
 
-    it("uses one safe placement for the band and mode filter spotlight", () => {
+    it("centers the mobile band and mode filter spotlight", () => {
         const step = TOUR_CHAPTERS.quick_start.steps.find(
             candidate => candidate.title === "Band And Mode Filters",
         );
 
         expect(step?.placement).toBe("auto");
-        expect(step?.mobilePlacement).toBeUndefined();
+        expect(step?.mobilePlacement).toBe("center");
         expect(step?.mobileWidth).toBe(280);
     });
 
@@ -455,7 +457,7 @@ describe("tour chapters", () => {
 
     it("highlights the table tab when asking mobile users to show it", () => {
         const step = TOUR_CHAPTERS.spots_table.steps.find(
-            candidate => candidate.title === "Show The Table",
+            candidate => candidate.id === "spots_table_show_the_table",
         );
 
         expect(step?.target).toBe("[data-tour='mobile-main-tab-table']");

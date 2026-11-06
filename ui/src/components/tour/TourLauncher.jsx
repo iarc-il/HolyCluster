@@ -4,13 +4,21 @@ import { DEFAULT_TOUR_CHAPTER_ID, TOUR_CHAPTERS } from "./tour_chapters.jsx";
 
 const JOYRIDE_PORTAL_SELECTOR = "#react-joyride-portal";
 
-function TourLauncher({ completed_chapters, on_start_tour }) {
+function TourLauncher({ completed_chapters, on_start_tour, is_mobile }) {
     const { colors } = useColors();
     const launcher_ref = useRef(null);
     const [show_launcher_panel, set_show_launcher_panel] = useState(false);
     const [selected_chapter_id, set_selected_chapter_id] = useState(DEFAULT_TOUR_CHAPTER_ID);
-    const chapters = Object.values(TOUR_CHAPTERS);
-    const selected_chapter = TOUR_CHAPTERS[selected_chapter_id];
+    const chapters = Object.values(TOUR_CHAPTERS).map(chapter =>
+        is_mobile
+            ? {
+                  ...chapter,
+                  title: chapter.mobileTitle ?? chapter.title,
+                  description: chapter.mobileDescription ?? chapter.description,
+              }
+            : chapter,
+    );
+    const selected_chapter = chapters.find(chapter => chapter.id === selected_chapter_id);
     const selected_chapter_state = completed_chapters[selected_chapter_id];
     const completed_text = selected_chapter_state?.status === "skipped" ? "Skipped" : "Completed";
     const completed_chapters_count = chapters.filter(
@@ -100,7 +108,7 @@ function TourLauncher({ completed_chapters, on_start_tour }) {
             </button>
             {show_launcher_panel && (
                 <div
-                    className="absolute bottom-0 left-full ml-2 flex w-80 max-w-[calc(100vw-5.5rem)] flex-col gap-3 rounded-xl p-3 text-sm shadow-xl"
+                    className={`${is_mobile ? "fixed bottom-28 left-3 right-3" : "absolute bottom-0 left-full ml-2 w-80 max-w-[calc(100vw-5.5rem)]"} flex flex-col gap-3 rounded-xl p-3 text-sm shadow-xl`}
                     data-tour="tour-launcher-panel"
                     style={panel_style}
                 >
