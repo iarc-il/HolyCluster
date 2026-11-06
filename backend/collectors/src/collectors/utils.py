@@ -18,10 +18,10 @@ class UpstreamResponseError(Exception):
     pass
 
 
-def retry_delay(poll_interval: int, failure_count: int) -> float:
+def retry_delay(poll_interval: int, failure_count: int, max_delay: int = MAX_RETRY_DELAY_SECONDS) -> float:
     exponent = min(failure_count - 1, 10)
-    base_delay = min(poll_interval * 2**exponent, MAX_RETRY_DELAY_SECONDS)
-    return min(base_delay + random.uniform(0, base_delay * 0.2), MAX_RETRY_DELAY_SECONDS)
+    base_delay = min(poll_interval * 2**exponent, max_delay)
+    return min(base_delay + random.uniform(0, base_delay * 0.2), max_delay)
 
 
 def as_text(value: Any) -> str:

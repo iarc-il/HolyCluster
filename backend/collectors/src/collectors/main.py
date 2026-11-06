@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import random
 import sys
 import re
 from datetime import datetime, timezone
@@ -35,6 +34,7 @@ from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
 from collectors.telnet.spot_tracking import TelnetSpotTracker
+from collectors.utils import retry_delay
 from collectors.wwff import run_wwff_collector
 
 import aiomonitor
@@ -284,12 +284,6 @@ async def refresh_dxpedition_data(valkey_client):
         await asyncio.sleep(sleep)
 
 
-def lotw_retry_delay(failure_count: int) -> float:
-    exponent = min(failure_count - 1, 10)
-    base_delay = min(LOTW_RETRY_BASE_SECONDS * 2**exponent, LOTW_RETRY_MAX_SECONDS)
-    return min(base_delay + random.uniform(0, base_delay * 0.2), LOTW_RETRY_MAX_SECONDS)
-
-
 async def load_cached_lotw_user_data(valkey_client):
     global LOTW_USERS
 
@@ -332,13 +326,13 @@ async def refresh_lotw_user_data(valkey_client):
             sleep = LOTW_REFRESH_INTERVAL_SECONDS
         except (httpx.HTTPError, LotwResponseError) as e:
             failure_count += 1
-            sleep = lotw_retry_delay(failure_count)
+            sleep = retry_delay(LOTW_RETRY_BASE_SECONDS, failure_count, LOTW_RETRY_MAX_SECONDS)
             logger.warning(f"LoTW user activity unavailable; retrying in {sleep:.1f}s: {type(e).__name__}")
             if failure_count == 1:
                 capture_exception(e, operation="collector.lotw_refresh")
         except Exception as e:
             failure_count += 1
-            sleep = lotw_retry_delay(failure_count)
+            sleep = retry_delay(LOTW_RETRY_BASE_SECONDS, failure_count, LOTW_RETRY_MAX_SECONDS)
             logger.exception("Failed to refresh LoTW user activity")
             capture_exception(e, operation="collector.lotw_refresh")
         await asyncio.sleep(sleep)
