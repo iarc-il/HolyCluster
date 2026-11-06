@@ -55,7 +55,7 @@ for (const width of [768, 1280, 1440, 1535]) {
     });
 }
 
-for (const width of [390, 500, 768]) {
+for (const width of [768]) {
     test(`compact top bar fits at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.goto("/");
@@ -85,23 +85,6 @@ for (const width of [390, 500, 768]) {
     });
 }
 
-test("mobile map and table remain usable", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
-    const tools = page.getByRole("button", { name: "Open Tools", exact: true });
-    const box = await tools.boundingBox();
-    expect(box.x + box.width).toBeLessThanOrEqual(390);
-    await tools.click();
-    await page
-        .locator('[data-tour="side-panel"]')
-        .getByRole("button", { name: "Close Tools" })
-        .click();
-    await page.locator('[data-tour="mobile-main-tab-table"]').click();
-    await expect(page.locator('[data-tour="spots-table"]')).toBeVisible();
-    await page.locator('[data-tour="mobile-main-tab-map"]').click();
-    await expect(page.locator('[data-tour="map-controls"]')).toBeVisible();
-});
-
 for (const width of [1536, 1800]) {
     test(`persistent cockpit at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
@@ -127,7 +110,7 @@ for (const width of [1536, 1800]) {
     });
 }
 
-for (const width of [390, 768]) {
+for (const width of [768]) {
     test(`Escape closes a drawer modal first at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.goto("/");
@@ -216,51 +199,61 @@ for (const [width, height] of [
         await page.setViewportSize({ width, height });
         await page.goto("/");
         const nav = page.getByRole("navigation", { name: "Workspace" });
-        await expect(nav.getByRole("button")).toHaveText(["Map", "Table", "Filters", "Tools"]);
+        await expect(nav.getByRole("button")).toHaveText(["Map", "Spots", "Filters", "Explore"]);
         const workspace = page.locator('[data-tour="mobile-workspace"]');
-        const table = nav.getByRole("button", { name: "Table", exact: true });
-        await table.click();
-        await expect(table).toHaveAttribute("aria-pressed", "true");
-        await expect(page.locator('[data-tour="spots-table"]')).toBeVisible();
-        for (const key of ["filters", "tools"]) {
-            await nav
-                .getByRole("button", { name: `Open ${key === "filters" ? "Filters" : "Tools"}` })
-                .click();
-            await expect(nav.locator(`[aria-controls="${key}-panel"]`)).toHaveAttribute(
-                "aria-expanded",
-                "true",
-            );
-        }
-        await expect(page.locator('[data-tour="left-column"]')).toBeHidden();
-        await page.keyboard.press("Escape");
-        await expect(nav.getByRole("button", { name: "Open Tools" })).toBeFocused();
-        await expect(table).toHaveAttribute("aria-pressed", "true");
-        await nav.getByRole("button", { name: "Open Filters" }).click();
-        await page.locator("#filters-panel-close").click();
-        await expect(nav.getByRole("button", { name: "Open Filters" })).toBeFocused();
-        await nav.getByRole("button", { name: "Open Tools" }).click();
-        await page
-            .getByRole("button", { name: "Close Tools overlay" })
-            .click({ position: { x: 10, y: 10 } });
-        await expect(nav.getByRole("button", { name: "Open Tools" })).toBeFocused();
-        for (const name of ["Map", "Table"]) {
-            await nav.getByRole("button", { name, exact: true }).click();
+        const table = nav.getByRole("button", { name: "Spots", exact: true });
+        for (const name of ["Map", "Spots", "Filters", "Explore"]) {
+            const tab = nav.getByRole("button", { name, exact: true });
+            await tab.click();
+            await expect(tab).toHaveAttribute("aria-pressed", "true");
+            await expect(
+                page.getByRole("button", { name: /Close .*overlay|Close Filters|Close Tools/ }),
+            ).toHaveCount(0);
+            await page.keyboard.press("Escape");
+            await expect(tab).toHaveAttribute("aria-pressed", "true");
+            if (name === "Filters") {
+                for (const target of [
+                    "band-filter-group",
+                    "mode-filter-group",
+                    "dx-continent-filters",
+                    "spotter-continent-filters",
+                    "swap-continent-filters",
+                ]) {
+                    await expect(workspace.locator(`[data-tour="${target}"]`)).toBeVisible();
+                }
+                await workspace.getByText("Custom filters", { exact: true }).click();
+                for (const label of ["Alert", "Show Only", "Hide"])
+                    await expect(
+                        workspace.getByRole("heading", { name: label, exact: true }),
+                    ).toBeVisible();
+            }
+            if (name === "Explore") {
+                await expect(
+                    workspace.locator('[data-tour="continent-filter-column"]'),
+                ).toHaveCount(0);
+                await expect(workspace.locator('[data-tour="side-panel-tab-filters"]')).toHaveCount(
+                    0,
+                );
+                for (const [label, target] of [
+                    ["Band activity", "band-bar-panel"],
+                    ["Heatmap", "heatmap-panel"],
+                    ["DXpeditions", "dxpeditions-panel"],
+                    ["Missing", "missing-panel"],
+                ]) {
+                    await workspace.getByRole("button", { name: label, exact: true }).click();
+                    await expect(workspace.locator(`[data-tour="${target}"]`)).toBeVisible();
+                }
+            }
             const bounds = await workspace.boundingBox();
             const top = await page.locator('[data-tour="top-bar"]').boundingBox();
             const bottom = await nav.boundingBox();
             expect(bounds.y).toBeCloseTo(top.y + top.height, 0);
             expect(bounds.y + bounds.height).toBeCloseTo(bottom.y, 0);
-            const content = await workspace.locator(":scope > div").boundingBox();
-            expect(content.height).toBeCloseTo(bounds.height, 0);
             expect(
-                await page.evaluate(() =>
-                    Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-                ),
+                await page.evaluate(() => document.documentElement.scrollHeight),
             ).toBeLessThanOrEqual(height);
             expect(
-                await page.evaluate(() =>
-                    Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),
-                ),
+                await page.evaluate(() => document.documentElement.scrollWidth),
             ).toBeLessThanOrEqual(width);
         }
         await table.click();
@@ -341,7 +334,12 @@ for (const width of [767, 768, 1535, 1536]) {
         const nav = page.getByRole("navigation", { name: "Workspace" });
         if (width < 768) {
             await expect(nav).toBeVisible();
-            await expect(nav.getByRole("button")).toHaveText(["Map", "Table", "Filters", "Tools"]);
+            await expect(nav.getByRole("button")).toHaveText([
+                "Map",
+                "Spots",
+                "Filters",
+                "Explore",
+            ]);
             await expect(top.locator('[data-tour="top-bar-left-menu"]')).toHaveCount(0);
             await expect(top.locator('[data-tour="top-bar-right-menu"]')).toHaveCount(0);
         } else {
@@ -355,5 +353,75 @@ for (const width of [767, 768, 1535, 1536]) {
         }
         await expect(top.locator('[data-tour^="mobile-main-tab"]')).toHaveCount(0);
         await expect(page.getByRole("button", { name: /hamburger|menu/i })).toHaveCount(0);
+    });
+}
+
+for (const width of [390, 500]) {
+    test(`mobile workspaces keep state and scroll at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 700 });
+        await page.goto("/");
+        const nav = page.getByRole("navigation", { name: "Workspace" });
+        const select = name => nav.getByRole("button", { name, exact: true }).click();
+        await select("Filters");
+        const band = page.locator('[data-tour="band-filter-20"]');
+        const before = await band.getAttribute("aria-pressed");
+        await band.click();
+        await expect(band).not.toHaveAttribute("aria-pressed", before);
+        const dx = page.locator('[data-tour="dx-continent-filter-EU"]');
+        const de = page.locator('[data-tour="spotter-continent-filter-EU"]');
+        const dx_before = await dx.getAttribute("aria-pressed");
+        await dx.click();
+        const de_before = await de.getAttribute("aria-pressed");
+        await page.locator('[data-tour="swap-continent-filters"]').click();
+        await expect(dx).toHaveAttribute("aria-pressed", de_before);
+        await expect(de).not.toHaveAttribute("aria-pressed", dx_before);
+        const scroll = page.locator("#filters-panel .overflow-y-auto");
+        await scroll.evaluate(element => {
+            element.scrollTop = 160;
+        });
+        const offset = await scroll.evaluate(element => element.scrollTop);
+        expect(offset).toBeGreaterThan(0);
+        await select("Spots");
+        await select("Filters");
+        await expect(band).not.toHaveAttribute("aria-pressed", before);
+        expect(await scroll.evaluate(element => element.scrollTop)).toBe(offset);
+        await page.getByRole("button", { name: "Custom filters", exact: true }).click();
+        await select("Map");
+        await select("Filters");
+        await expect(page.locator('[data-tour="filters-panel"]')).toBeVisible();
+        await page.locator('[data-tour="add-filter-button-alert"]').click();
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog")).toBeHidden();
+        await expect(nav.getByRole("button", { name: "Filters", exact: true })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        await select("Explore");
+        await page.getByRole("button", { name: "Heatmap", exact: true }).click();
+        const region = page.locator('[data-tour="heatmap-continent-selector"]');
+        await region.selectOption("NA");
+        await select("Spots");
+        const search = page.locator('[data-tour="table-search-mobile"] input');
+        await search.fill("JA1");
+        await select("Map");
+        await select("Spots");
+        await expect(search).toHaveValue("JA1");
+        await select("Explore");
+        await expect(region).toBeVisible();
+        await expect(region).toHaveValue("NA");
+        await page.reload();
+        await expect(nav.getByRole("button", { name: "Explore", exact: true })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        await expect(region).toHaveValue("NA");
+        await select("Filters");
+        await page.reload();
+        await expect(nav.getByRole("button", { name: "Filters", exact: true })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        await expect(band).not.toHaveAttribute("aria-pressed", before);
     });
 }

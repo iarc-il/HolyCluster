@@ -10,6 +10,15 @@ import {
 } from "../fixtures/tour.js";
 
 async function open_side_panel(page) {
+    if (page.viewportSize().width < 768) {
+        await expect_tour_step(
+            page,
+            "side_panel_open_side_panel",
+            tour_target("mobile-main-tab-explore"),
+        );
+        await page.locator(tour_target("mobile-main-tab-explore")).click();
+        return;
+    }
     await expect_tour_step(page, "side_panel_open_side_panel", tour_target("top-bar-right-menu"));
     await page.locator(tour_target("top-bar-right-menu")).locator("button").click();
     await expect(page.locator(tour_target("side-panel"))).toBeVisible();
@@ -31,15 +40,32 @@ async function complete_side_panel(page, { mobile = false } = {}) {
     await expect_tour_step(page, "side_panel_tabs", tour_target("side-panel-tabs"));
     await next_tour_step(page);
 
-    await expect_tour_step(page, "side_panel_filters_tab", tour_target("side-panel-tab-filters"));
-    await next_tour_step(page);
-    await expect_tour_step(page, "side_panel_filters_view", tour_target("side-panel-view-filters"));
-    await next_tour_step(page);
-
-    await click_side_panel_tab(page, "side_panel_band_bar_tab", "side-panel-tab-band-bar", {
-        id: "side_panel_band_activity",
-        target: "band-bar-panel",
-    });
+    if (!mobile) {
+        await expect_tour_step(
+            page,
+            "side_panel_filters_tab",
+            tour_target("side-panel-tab-filters"),
+        );
+        await next_tour_step(page);
+        await expect_tour_step(
+            page,
+            "side_panel_filters_view",
+            tour_target("side-panel-view-filters"),
+        );
+        await next_tour_step(page);
+    }
+    if (mobile) {
+        await expect_tour_step(
+            page,
+            "side_panel_band_bar_tab",
+            tour_target("side-panel-tab-band-bar"),
+        );
+        await next_tour_step(page);
+    } else
+        await click_side_panel_tab(page, "side_panel_band_bar_tab", "side-panel-tab-band-bar", {
+            id: "side_panel_band_activity",
+            target: "band-bar-panel",
+        });
     await next_tour_step(page);
     await expect_tour_step(page, "side_panel_band_selector", tour_target("band-bar-selector"));
     await page.locator(tour_target("band-bar-band-select")).selectOption("20");

@@ -35,9 +35,10 @@ for (const width of [390, 1280]) {
                     await next_tour_step(page);
                 }
 
-                const opener = page
-                    .locator(tour_target("top-bar-left-menu"))
-                    .getByRole("button", { name: "Open Filters", exact: true });
+                const opener =
+                    width < 768
+                        ? page.locator(tour_target("mobile-main-tab-filters"))
+                        : page.getByRole("button", { name: "Open Filters", exact: true });
                 const drawer = page.locator(tour_target("left-column"));
                 const content_id =
                     chapter === "Quick Start"
@@ -47,7 +48,7 @@ for (const width of [390, 1280]) {
                 await expect_tour_step(
                     page,
                     `${prefix}_open_filter_rail`,
-                    tour_target("top-bar-left-menu"),
+                    tour_target(width < 768 ? "mobile-main-tab-filters" : "top-bar-left-menu"),
                 );
                 await opener.click();
                 await expect_tour_step(page, content_id, tour_target("left-column"));
@@ -55,17 +56,22 @@ for (const width of [390, 1280]) {
                 await expect_tour_step(
                     page,
                     `${prefix}_open_filter_rail`,
-                    tour_target("top-bar-left-menu"),
+                    tour_target(width < 768 ? "mobile-main-tab-filters" : "top-bar-left-menu"),
                 );
                 await expect(drawer).toBeHidden();
                 await expect(opener).toBeVisible();
-                await expect(opener).toHaveAttribute("aria-expanded", "false");
+                await expect(opener).toHaveAttribute(
+                    width < 768 ? "aria-pressed" : "aria-expanded",
+                    "false",
+                );
 
                 await opener.click();
                 await expect(drawer).toBeVisible();
                 await expect_tour_step(page, content_id, tour_target("left-column"));
                 await expect(
-                    page.getByRole("button", { name: "Close Filters", exact: true }).first(),
+                    width < 768
+                        ? opener
+                        : page.getByRole("button", { name: "Close Filters", exact: true }).first(),
                 ).toBeVisible();
             });
         }

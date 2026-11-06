@@ -35,9 +35,9 @@ test.describe("Quick Start on mobile", () => {
         await expect_tour_step(
             page,
             "quick_start_open_filter_rail",
-            tour_target("top-bar-left-menu"),
+            tour_target("mobile-main-tab-filters"),
         );
-        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
+        await page.locator(tour_target("mobile-main-tab-filters")).click();
         await expect(page.locator(tour_target("left-column"))).toBeVisible();
         await expect_tour_step(
             page,
