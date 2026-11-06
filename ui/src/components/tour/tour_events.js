@@ -8,3 +8,4 @@ export const TOUR_FILTER_OPTIONS_EVENT = "holycluster:tour-filter-options";
 export const TOUR_TABLE_CONTEXT_MENU_EVENT = "holycluster:tour-table-context-menu";
 export const TOUR_TABLE_SPOT_ROW_EVENT = "holycluster:tour-table-spot-row";
 export const TOUR_OPEN_FILTERS_EVENT = "holycluster:tour-open-filters";
+export const TOUR_PREPARE_QUICK_FILTERS_EVENT = "holycluster:tour-prepare-quick-filters";

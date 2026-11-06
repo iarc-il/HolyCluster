@@ -11,8 +11,11 @@ import {
 test.describe("Quick Start on mobile", () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    test("completes the mobile workflow", async ({ page }) => {
+    test("completes the mobile workflow from Custom filters", async ({ page }) => {
         await page.goto("/");
+        await page.locator(tour_target("mobile-main-tab-filters")).click();
+        await page.getByRole("button", { name: "Custom filters", exact: true }).click();
+        await expect(page.locator(tour_target("filters-panel"))).toBeVisible();
         await start_tour(page, "Quick Start");
 
         await expect_tour_step(page, "quick_start_welcome", tour_target("top-bar"));

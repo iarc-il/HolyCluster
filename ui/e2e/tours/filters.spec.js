@@ -126,9 +126,12 @@ test.describe("Filters tour", () => {
         await complete_filters(page);
     });
 
-    test("completes every applicable mobile step", async ({ page }) => {
+    test("completes every applicable mobile step from Custom filters", async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto("/");
+        await page.locator(tour_target("mobile-main-tab-filters")).click();
+        await page.getByRole("button", { name: "Custom filters", exact: true }).click();
+        await expect(page.locator(tour_target("filters-panel"))).toBeVisible();
         await start_tour(page, "Filters");
         await complete_filters(page, { mobile: true });
     });

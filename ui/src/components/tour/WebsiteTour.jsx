@@ -27,6 +27,7 @@ import {
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
+    TOUR_PREPARE_QUICK_FILTERS_EVENT,
     TOUR_SELECT_SETTINGS_TAB_EVENT,
     TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
@@ -404,6 +405,14 @@ function WebsiteTour({ is_mobile }) {
                 return;
             }
 
+            // Prepare the hidden subview before the tour waits for the quick-filter rail.
+            if (
+                available_steps.some(step =>
+                    as_array(step.waitFor).includes("[data-tour='left-column']"),
+                )
+            ) {
+                document.dispatchEvent(new Event(TOUR_PREPARE_QUICK_FILTERS_EVENT));
+            }
             document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
             document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
 

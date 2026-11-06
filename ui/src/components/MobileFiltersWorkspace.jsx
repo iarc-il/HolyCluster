@@ -2,7 +2,10 @@ import Filters from "@/components/Filters.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import { ContinentColumn, SwapButton } from "@/components/SidePanel.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
-import { TOUR_OPEN_FILTERS_EVENT } from "@/components/tour/tour_events.js";
+import {
+    TOUR_OPEN_FILTERS_EVENT,
+    TOUR_PREPARE_QUICK_FILTERS_EVENT,
+} from "@/components/tour/tour_events.js";
 import { useColors } from "@/hooks/useColors";
 import { useEffect, useState } from "react";
 
@@ -12,7 +15,11 @@ export default function MobileFiltersWorkspace({ visible }) {
     useEffect(() => {
         const show_quick_filters = () => set_custom(false);
         document.addEventListener(TOUR_OPEN_FILTERS_EVENT, show_quick_filters);
-        return () => document.removeEventListener(TOUR_OPEN_FILTERS_EVENT, show_quick_filters);
+        document.addEventListener(TOUR_PREPARE_QUICK_FILTERS_EVENT, show_quick_filters);
+        return () => {
+            document.removeEventListener(TOUR_OPEN_FILTERS_EVENT, show_quick_filters);
+            document.removeEventListener(TOUR_PREPARE_QUICK_FILTERS_EVENT, show_quick_filters);
+        };
     }, []);
     return (
         <div className="flex flex-col h-full min-w-0" style={{ color: colors.theme.text }}>
