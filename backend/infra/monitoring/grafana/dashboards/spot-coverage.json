@@ -3,7 +3,7 @@
   "title": "HolyCluster / External spot coverage",
   "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 8,
+  "version": 9,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -791,7 +791,7 @@
       "id": 6,
       "title": "Holy coverage of competitor \u2014 selected range",
       "type": "barchart",
-      "description": "Each service has its own service population. Green is matched; service only is the uncovered part. Bars show counts, not signed differences. Missing results remain unknown.",
+      "description": "Each service has its own service population. Green is matched. HolyCluster misses are split by correlated pipeline result. Pipeline gap means collection succeeded but no Holy output reached comparison; not observed means no pipeline event matched; unattributed preserves older or incomplete telemetry. Bars show counts.",
       "gridPos": {
         "x": 12,
         "y": 23,
@@ -817,7 +817,115 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (service) (increase(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"service_only\"}[$__range]))",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"invalid_band\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"invalid_callsign\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"geo_error\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"enrich_error\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"south_pole\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "G",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"persist_error\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "H",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"multiple_drops\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "I",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"pipeline_gap\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "J",
+          "expr": "sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\",cause=\"not_observed\"}[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "K",
+          "expr": "clamp_min(sum by (service) (increase(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=\"service_only\"}[$__range])) - (sum by (service) (increase(holycluster_coverage_service_only_causes_total{service=~\"${service:regex}\"}[$__range])) or on (service) (0 * sum by (service) (increase(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=\"service_only\"}[$__range])))), 0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -868,7 +976,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "^Service only$"
+              "options": "^Dropped:"
             },
             "properties": [
               {
@@ -876,6 +984,51 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^Multiple drop reasons$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^Pipeline gap$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(Not observed at pipeline|Unattributed)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
                 }
               }
             ]
@@ -897,7 +1050,16 @@
               "names": [
                 "service",
                 "Value #A",
-                "Value #B"
+                "Value #B",
+                "Value #C",
+                "Value #D",
+                "Value #E",
+                "Value #F",
+                "Value #G",
+                "Value #H",
+                "Value #I",
+                "Value #J",
+                "Value #K"
               ]
             }
           }
@@ -909,12 +1071,30 @@
             "indexByName": {
               "service": 0,
               "Value #A": 1,
-              "Value #B": 2
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6,
+              "Value #G": 7,
+              "Value #H": 8,
+              "Value #I": 9,
+              "Value #J": 10,
+              "Value #K": 11
             },
             "renameByName": {
               "service": "Service",
               "Value #A": "Matched",
-              "Value #B": "Service only"
+              "Value #B": "Dropped: invalid band",
+              "Value #C": "Dropped: invalid callsign",
+              "Value #D": "Dropped: geolocation",
+              "Value #E": "Dropped: enrichment error",
+              "Value #F": "Dropped: South Pole locator",
+              "Value #G": "Dropped: persistence error",
+              "Value #H": "Multiple drop reasons",
+              "Value #I": "Pipeline gap",
+              "Value #J": "Not observed at pipeline",
+              "Value #K": "Unattributed"
             }
           }
         }
