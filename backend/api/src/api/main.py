@@ -16,6 +16,7 @@ import redis.asyncio
 from fastapi import HTTPException, Query, websockets
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, Info, generate_latest
 from shared.cty import ensure_cty_available
@@ -1461,10 +1462,25 @@ async def get_index():
     return response
 
 
+@app.get("/manifest.webmanifest")
+async def get_manifest():
+    response = FileResponse(
+        f"{settings.ui_dist_path}/manifest.webmanifest",
+        media_type="application/manifest+json",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.mount(
     "/assets",
     ImmutableStaticFiles(directory=f"{settings.ui_dist_path}/assets"),
     name="static",
+)
+app.mount(
+    "/icons",
+    StaticFiles(directory=f"{settings.ui_dist_path}/icons"),
+    name="icons",
 )
 
 
