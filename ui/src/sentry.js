@@ -330,7 +330,10 @@ function isLazySecondary(primary, boundary, original_frames) {
         !/^undefined is not an object \(evaluating '[A-Za-z_$][\w$]*\._result\.default'\)$/.test(
             message,
         ) &&
-        !/^can't access property "default", [A-Za-z_$][\w$]*\._result is undefined$/.test(message)
+        !/^can't access property "default", [A-Za-z_$][\w$]*\._result is undefined$/.test(
+            message,
+        ) &&
+        message !== "Cannot read properties of undefined (reading 'default')"
     )
         return false;
     const frame = primary.stacktrace?.frames?.at(-1);

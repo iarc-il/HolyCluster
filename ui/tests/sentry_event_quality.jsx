@@ -26,6 +26,7 @@ const gtm = { filename: "https://tracker.example/gtm.js", lineno: 695 };
 const secondary = [
     "undefined is not an object (evaluating 'v._result.default')",
     'can\'t access property "default", v._result is undefined',
+    "Cannot read properties of undefined (reading 'default')",
 ];
 
 it("prepares events when Object.hasOwn is unavailable", () => {
