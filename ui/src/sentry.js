@@ -411,8 +411,8 @@ function isRuntimeBridgeCandidate(
             original === message ||
             (isError(original) &&
                 original.message === message &&
-                !Object.hasOwn(original, "cause") &&
-                !Object.hasOwn(original, "errors")))
+                !Object.prototype.hasOwnProperty.call(original, "cause") &&
+                !Object.prototype.hasOwnProperty.call(original, "errors")))
     );
 }
 
@@ -479,7 +479,7 @@ export function prepareSentryEvent(event, hint = {}) {
         mechanisms.includes("auto.function.react.error_boundary") ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
     if (isPrimitiveFirefoxGlobalOom(event, original, evidence, boundary)) return null;
-    const has_original = Object.hasOwn(hint, "originalException");
+    const has_original = Object.prototype.hasOwnProperty.call(hint, "originalException");
     const needs_synthetic_stack =
         has_original &&
         !isError(original) &&

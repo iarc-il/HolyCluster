@@ -15,7 +15,7 @@ const CAT_RELEASE_NOTES = {
 const INTERNAL_RELEASE_NOTES = ["Release notes are available only for public releases."];
 
 function release_notes_for(version) {
-    if (Object.hasOwn(CAT_RELEASE_NOTES, version)) {
+    if (Object.prototype.hasOwnProperty.call(CAT_RELEASE_NOTES, version)) {
         return { heading: "What's new", notes: CAT_RELEASE_NOTES[version] };
     }
     if (/^\d+\.\d+\.\d+-\d+(?:-g[0-9a-f]+)?$/i.test(version ?? "")) {

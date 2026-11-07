@@ -87,6 +87,22 @@ describe("SidePanel", () => {
         window.localStorage.clear();
     });
 
+    it("renders tour anchors when String.replaceAll is unavailable", () => {
+        const descriptor = Object.getOwnPropertyDescriptor(String.prototype, "replaceAll");
+        Object.defineProperty(String.prototype, "replaceAll", {
+            value: undefined,
+            configurable: true,
+        });
+        try {
+            render_side_panel();
+            expect(screen.getByRole("button", { name: "Band Bar" }).getAttribute("data-tour")).toBe(
+                "side-panel-tab-band-bar",
+            );
+        } finally {
+            Object.defineProperty(String.prototype, "replaceAll", descriptor);
+        }
+    });
+
     it("keeps the Missing panel open without opening a filter modal after an import", async () => {
         const user = userEvent.setup();
         render_side_panel();

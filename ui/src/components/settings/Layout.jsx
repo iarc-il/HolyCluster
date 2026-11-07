@@ -114,7 +114,7 @@ function OptionCard({ option, selected, colors, on_select, mobile }) {
                 ))}
             </div>
             <div className="font-semibold">
-                {mobile ? option.title.replaceAll("Table", "Spots") : option.title}
+                {mobile ? option.title.replace("Table", "Spots") : option.title}
             </div>
         </button>
     );

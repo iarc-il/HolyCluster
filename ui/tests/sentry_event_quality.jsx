@@ -28,6 +28,21 @@ const secondary = [
     'can\'t access property "default", v._result is undefined',
 ];
 
+it("prepares events when Object.hasOwn is unavailable", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Object, "hasOwn");
+    Object.defineProperty(Object, "hasOwn", { value: undefined, configurable: true });
+    try {
+        const input = event("application failure", [app]);
+        const result = prepareSentryEvent(input, {
+            originalException: new Error("application failure"),
+        });
+        expect(result.exception).toEqual(input.exception);
+        expect(result.contexts.diagnostic.provenance).toBe("app_frames");
+    } finally {
+        Object.defineProperty(Object, "hasOwn", descriptor);
+    }
+});
+
 describe("runtime bridge advisory", () => {
     const message = "Invalid call to runtime.sendMessage(). Tab not found.";
     const rejection = "auto.browser.global_handlers.onunhandledrejection";

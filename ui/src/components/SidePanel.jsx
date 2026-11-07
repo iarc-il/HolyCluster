@@ -237,7 +237,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false
                         title={option.label}
                         role="button"
                         tabIndex={0}
-                        data-tour={`side-panel-tab-${option.label.toLowerCase().replaceAll(" ", "-")}`}
+                        data-tour={`side-panel-tab-${option.label.toLowerCase().replace(/ /g, "-")}`}
                         data-tour-state={is_active ? "active" : "inactive"}
                         aria-pressed={is_active}
                     >
@@ -327,9 +327,7 @@ function SidePanel({
         <MissingPanel key="missing" on_import_complete={handle_import_complete} />,
         <WebsiteTour key="tours" is_mobile launcher_inline />,
     ];
-    const active_view_label = view_options[displayed_view]?.label
-        .toLowerCase()
-        .replaceAll(" ", "-");
+    const active_view_label = view_options[displayed_view]?.label.toLowerCase().replace(/ /g, "-");
 
     const panel_classes = visible ? (overlay ? "absolute right-0 top-0 flex" : "flex") : "hidden";
     return (

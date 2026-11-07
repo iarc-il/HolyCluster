@@ -121,7 +121,7 @@ function serial_descriptors(descriptors) {
     return descriptors
         .filter(
             descriptor =>
-                Object.hasOwn(serial_labels, descriptor.token) ||
+                Object.prototype.hasOwnProperty.call(serial_labels, descriptor.token) ||
                 descriptor.token === "rot_pathname",
         )
         .sort(
@@ -160,7 +160,7 @@ function materialized_hamlib(rig, descriptors, serial_ports, port_type) {
     }
     for (const descriptor of descriptors.filter(
         descriptor =>
-            (Object.hasOwn(serial_labels, descriptor.token) ||
+            (Object.prototype.hasOwnProperty.call(serial_labels, descriptor.token) ||
                 descriptor.token === "rot_pathname") &&
             !(
                 connection_kind_by_port_type[port_type] === "none" &&
