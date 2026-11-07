@@ -16,7 +16,6 @@ import redis.asyncio
 from fastapi import HTTPException, Query, websockets
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, Info, generate_latest
 from shared.cty import ensure_cty_available
@@ -35,6 +34,7 @@ from .coverage import CoveragePublisher
 from .release_cache import ReleaseCacheMiddleware
 from .release_response import validated_response
 from .settings import settings
+from .static_files import ImmutableStaticFiles
 
 initialize_sentry(settings, "api")
 Info("holycluster_api_build", "API build release").info({"release": settings.sentry_release})
@@ -1461,7 +1461,11 @@ async def get_index():
     return response
 
 
-app.mount("/assets", StaticFiles(directory=f"{settings.ui_dist_path}/assets"), name="static")
+app.mount(
+    "/assets",
+    ImmutableStaticFiles(directory=f"{settings.ui_dist_path}/assets"),
+    name="static",
+)
 
 
 @app.get("/{path:path}")
