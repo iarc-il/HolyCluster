@@ -127,7 +127,8 @@ export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
     radio_state: [{ status: "unavailable" }, { option: true }],
-    page: async ({ page, tour_spots, auto_start_tour, radio_state }, use) => {
+    propagation_data: [null, { option: true }],
+    page: async ({ page, tour_spots, auto_start_tour, radio_state, propagation_data }, use) => {
         await page.addInitScript(auto_start => {
             if (sessionStorage.getItem("tour_fixture_initialized")) return;
             localStorage.clear();
@@ -143,7 +144,7 @@ export const test = base.extend({
             route.fulfill({
                 status: 200,
                 contentType: "application/json",
-                body: "null",
+                body: JSON.stringify(propagation_data),
             }),
         );
         await page.route("**/dxpeditions", route =>

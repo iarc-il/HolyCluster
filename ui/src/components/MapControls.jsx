@@ -827,7 +827,7 @@ function MapControls({
             )}
             {propagation && settings.propagation_displayed && (
                 <div
-                    className="fixed md:absolute bottom-0 md:bottom-2 right-2 z-40 flex justify-end md:justify-center gap-2"
+                    className="absolute bottom-2 right-2 z-40 flex justify-end md:justify-center gap-2"
                     data-tour="propagation-bars"
                     style={{ backgroundColor: colors.theme.background }}
                 >

@@ -276,6 +276,32 @@ for (const [width, height] of [
     });
 }
 
+test.describe("mobile map layout", () => {
+    test.use({
+        propagation_data: {
+            a_index: { timestamp: 100, value: 5 },
+            k_index: { timestamp: 100, value: 2 },
+            sfi: { timestamp: 100, value: 118 },
+        },
+    });
+
+    test("places the workspace navigation below the map and propagation bars", async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto("/");
+        const navigation = page.getByRole("navigation", { name: "Workspace" });
+        const map = page.locator('[data-tour="map-canvas"]');
+        const propagation = page.locator('[data-tour="propagation-bars"]');
+        await expect(propagation).toBeVisible();
+
+        const navigation_box = await navigation.boundingBox();
+        const map_box = await map.boundingBox();
+        const propagation_box = await propagation.boundingBox();
+        expect(map_box.y + map_box.height).toBeLessThanOrEqual(navigation_box.y);
+        expect(propagation_box.y + propagation_box.height).toBeLessThanOrEqual(navigation_box.y);
+        await expect(propagation).toHaveCSS("position", "absolute");
+    });
+});
+
 test.describe("configured radio and rotator", () => {
     for (const [width, height] of [
         [390, 844],
