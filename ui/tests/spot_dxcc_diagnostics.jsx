@@ -39,6 +39,7 @@ vi.mock("@/data/dxcc_entities.js", async importOriginal => {
     }
     return {
         ...original,
+        get_dxcc_label: value => invoke("label", value, original.get_dxcc_label),
         is_us_state_dxcc_code: value => invoke("us_state", value, original.is_us_state_dxcc_code),
         is_canada_dxcc_code: value => invoke("canada", value, original.is_canada_dxcc_code),
     };
@@ -62,6 +63,7 @@ vi.mock("@/utils/zones.js", () => ({
 
 import useSpotWebSocket, { enrich_spot_zones_if_missing } from "@/hooks/useSpotWebSocket.js";
 import { annotateDiagnosticError, prepareSentryEvent } from "@/sentry.js";
+import { get_spot_dxcc_display } from "@/utils/spot_dxcc.js";
 
 const base_spot = {
     time: Date.now() / 1000,
@@ -131,6 +133,85 @@ afterEach(() => {
     cleanup();
     websocket.handler = null;
     vi.restoreAllMocks();
+});
+
+it("records bounded DXCC evidence at the spot render boundary", () => {
+    const error = fail("label", 291);
+    let caught;
+    try {
+        get_spot_dxcc_display(base_spot, "live");
+    } catch (value) {
+        caught = value;
+    }
+
+    expect(caught).toBe(error);
+    const event = report(caught);
+    expect(event.contexts.diagnostic).toMatchObject({
+        operation: "spot_render",
+        dxcc_failure_field: "dx_dxcc_code",
+        dxcc_failure_predicate: "label",
+        dxcc_input_type: "number",
+        dxcc_input_length: null,
+        dxcc_input_positive_integer: true,
+        spot_source: "live",
+    });
+    const serialized = JSON.stringify(event);
+    expect(serialized).not.toContain("PRIVATE-CALLSIGN");
+    expect(serialized).not.toContain("PRIVATE-COMMENT");
+    expect(serialized).not.toContain('"dx_loc"');
+});
+
+it.each([
+    ["us_state", "history"],
+    ["canada", "live"],
+])("records %s failures for %s spot rendering", (predicate, spot_source) => {
+    const error = fail(predicate, 291);
+    let caught;
+    try {
+        get_spot_dxcc_display(base_spot, spot_source);
+    } catch (value) {
+        caught = value;
+    }
+
+    expect(caught).toBe(error);
+    expect(report(caught).contexts.diagnostic).toMatchObject({
+        operation: "spot_render",
+        dxcc_failure_predicate: predicate,
+        spot_source,
+    });
+});
+
+it("records bounded string metadata without the DXCC value", () => {
+    const value = "PRIVATE-DXCC".repeat(1000);
+    const error = fail("label", value);
+    let caught;
+    try {
+        get_spot_dxcc_display({ ...base_spot, dx_dxcc_code: value }, "history");
+    } catch (result) {
+        caught = result;
+    }
+
+    expect(caught).toBe(error);
+    const diagnostic = report(caught).contexts.diagnostic;
+    expect(diagnostic).toMatchObject({
+        dxcc_input_type: "string",
+        dxcc_input_length: value.length,
+        dxcc_input_positive_integer: null,
+        spot_source: "history",
+    });
+    expect(JSON.stringify(diagnostic)).not.toContain("PRIVATE-DXCC");
+});
+
+it("rethrows the original render error if annotation fails", () => {
+    const error = fail("label", 291);
+    diagnostics.fail = true;
+    let caught;
+    try {
+        get_spot_dxcc_display(base_spot, "live");
+    } catch (value) {
+        caught = value;
+    }
+    expect(caught).toBe(error);
 });
 
 it("records the spotter Canada input at the real receive failure boundary", () => {

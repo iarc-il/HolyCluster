@@ -4,6 +4,7 @@ import { UiRefreshProvider } from "@/hooks/useUiRefresh.jsx";
 import { WsProvider, useWsMessage } from "@/hooks/useWs";
 import { initializeSentry } from "@/sentry";
 import { create_interval_db } from "@/utils/interval_cache.js";
+import { get_spot_dxcc_display } from "@/utils/spot_dxcc.js";
 import { addBreadcrumb, flush } from "@sentry/react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -70,6 +71,18 @@ function DxccFailingComponent() {
     return null;
 }
 
+function DxccRenderFailingComponent() {
+    get_spot_dxcc_display(
+        {
+            dx_dxcc_code: 291,
+            dx_country: "PRIVATE-COUNTRY",
+            dx_callsign: "PRIVATE-CALLSIGN",
+        },
+        "live",
+    );
+    return null;
+}
+
 function FailingSubscriber() {
     useWsMessage("radio", message => {
         if (message.event === "diagnostic_failure") return message.missing.secret;
@@ -117,11 +130,12 @@ window.run_diagnostic = async scenario => {
         window.fetch = native_fetch;
         return;
     }
-    if (scenario === "dxcc_predicate") {
+    if (["dxcc_predicate", "dxcc_render"].includes(scenario)) {
         const native_test = RegExp.prototype.test;
         let calls = 0;
+        const failing_call = scenario === "dxcc_predicate" ? 2 : 1;
         RegExp.prototype.test = function (value) {
-            if (this.source === "^\\d{1,3}$" && ++calls === 2) {
+            if (this.source === "^\\d{1,3}$" && ++calls === failing_call) {
                 RegExp.prototype.test = native_test;
                 const error = new Error("too much recursion");
                 error.name = "InternalError";
@@ -129,9 +143,11 @@ window.run_diagnostic = async scenario => {
             }
             return native_test.call(this, value);
         };
+        const Component =
+            scenario === "dxcc_predicate" ? DxccFailingComponent : DxccRenderFailingComponent;
         createRoot(document.getElementById("root")).render(
             <RouteErrorBoundary>
-                <DxccFailingComponent />
+                <Component />
             </RouteErrorBoundary>,
         );
         return;

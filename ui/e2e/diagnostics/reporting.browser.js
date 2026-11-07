@@ -257,6 +257,28 @@ testWithBrowserErrors(
 );
 
 testWithBrowserErrors(
+    "reports bounded DXCC render evidence through the production SDK",
+    [/^(?:console: InternalError: |pageerror: )too much recursion(?:\n|$)/],
+    async ({ page }) => {
+        const event = await capture(page, "dxcc_render");
+        expect(event.contexts.diagnostic).toMatchObject({
+            operation: "spot_render",
+            dxcc_failure_field: "dx_dxcc_code",
+            dxcc_failure_predicate: "label",
+            dxcc_input_type: "number",
+            dxcc_input_length: null,
+            dxcc_input_positive_integer: true,
+            spot_source: "live",
+            capture_path: "global_error",
+        });
+        const serialized = JSON.stringify(event);
+        expect(serialized).not.toContain("PRIVATE-CALLSIGN");
+        expect(serialized).not.toContain("PRIVATE-COUNTRY");
+        expect(serialized.length).toBeLessThan(16000);
+    },
+);
+
+testWithBrowserErrors(
     "preserves complete boundary cause chains",
     [/^console: TypeError: diagnostic boundary failure(?:\n|$)/],
     async ({ page }) => {

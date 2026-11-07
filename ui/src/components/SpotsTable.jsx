@@ -10,11 +10,6 @@ import {
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
 } from "@/components/tour/tour_events.js";
-import {
-    get_dxcc_label,
-    is_canada_dxcc_code,
-    is_us_state_dxcc_code,
-} from "@/data/dxcc_entities.js";
 import { get_dxcc_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
@@ -24,6 +19,7 @@ import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useTimeZone } from "@/hooks/useTimeZone";
 import { get_missing_alert_flash_phase } from "@/utils.js";
+import { get_spot_dxcc_display } from "@/utils/spot_dxcc.js";
 
 const cell_classes = {
     time: "w-[15%] md:w-[11%] xl:w-[8%]",
@@ -360,7 +356,7 @@ const Spot = forwardRef(function Spot(
     },
     ref,
 ) {
-    const { current_freq_spots } = useSpotData();
+    const { current_freq_spots, is_history_mode } = useSpotData();
     const { settings } = useSettings();
     const [is_fading, set_is_fading] = useState(false);
 
@@ -429,9 +425,10 @@ const Spot = forwardRef(function Spot(
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
     const [is_reference_hovered, set_is_reference_hovered] = useState(false);
     const [is_missing_hovered, set_is_missing_hovered] = useState(false);
-    const dx_label = get_dxcc_label(spot.dx_dxcc_code) || spot.dx_country || "";
-    const is_us_state_entity = is_us_state_dxcc_code(spot.dx_dxcc_code);
-    const is_canada_entity = is_canada_dxcc_code(spot.dx_dxcc_code);
+    const { dx_label, is_us_state_entity, is_canada_entity } = get_spot_dxcc_display(
+        spot,
+        is_history_mode ? "history" : "live",
+    );
     const state_name = is_canada_entity
         ? STATES.Canada?.[spot.dx_state]
         : is_us_state_entity
