@@ -28,7 +28,7 @@ export default function MobileWorkspaceNavigation({
                     <div key={panel} className="flex flex-1 min-w-0">
                         <button
                             type="button"
-                            className="flex flex-col gap-1 items-center justify-center w-full min-h-14 border-t-2 pb-[env(safe-area-inset-bottom)] text-xs font-semibold focus-visible:outline focus-visible:outline-2"
+                            className="flex flex-col gap-1 items-center justify-center w-full min-h-14 border-t-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2"
                             data-tour={`mobile-main-tab-${panel}`}
                             data-tour-state={active ? "active" : "inactive"}
                             aria-label={label}
