@@ -109,7 +109,7 @@ function dispatch_tour_side_effect(side_effect) {
     document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
-function WebsiteTour({ is_mobile }) {
+function WebsiteTour({ is_mobile, launcher_inline = false }) {
     const { propagation } = useRestData();
     const { filters, setCallsignFilters } = useFilters();
     const { start_temporary_profile, stop_temporary_profile } = useProfiles();
@@ -724,6 +724,7 @@ function WebsiteTour({ is_mobile }) {
         <>
             <TourLauncher
                 is_mobile={is_mobile}
+                inline={launcher_inline}
                 completed_chapters={completed_chapters}
                 on_start_tour={start_tour}
             />

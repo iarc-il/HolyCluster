@@ -190,12 +190,16 @@ export async function open_tour_launcher(page) {
     await expect(page.locator(tour_target("top-bar"))).toBeVisible();
 
     const launcher = page.locator(tour_target("tour-launcher"));
+    if (page.viewportSize().width < 768) {
+        await page.locator(tour_target("mobile-main-tab-explore")).click();
+        await page.locator(tour_target("side-panel-tab-tours")).click();
+        await expect(page.locator(tour_target("tour-launcher-panel"))).toBeVisible();
+        return;
+    }
+
     const launcher_button = launcher.locator("button");
     if (!(await launcher_button.isVisible())) {
-        const menu_button =
-            page.viewportSize().width < 768
-                ? page.locator(tour_target("mobile-main-tab-filters"))
-                : page.locator(tour_target("top-bar-left-menu")).locator("button");
+        const menu_button = page.locator(tour_target("top-bar-left-menu")).locator("button");
         await expect(menu_button).toBeVisible();
         await menu_button.click();
     }

@@ -54,18 +54,10 @@ async function complete_side_panel(page, { mobile = false } = {}) {
         );
         await next_tour_step(page);
     }
-    if (mobile) {
-        await expect_tour_step(
-            page,
-            "side_panel_band_bar_tab",
-            tour_target("side-panel-tab-band-bar"),
-        );
-        await next_tour_step(page);
-    } else
-        await click_side_panel_tab(page, "side_panel_band_bar_tab", "side-panel-tab-band-bar", {
-            id: "side_panel_band_activity",
-            target: "band-bar-panel",
-        });
+    await click_side_panel_tab(page, "side_panel_band_bar_tab", "side-panel-tab-band-bar", {
+        id: "side_panel_band_activity",
+        target: "band-bar-panel",
+    });
     await next_tour_step(page);
     await expect_tour_step(page, "side_panel_band_selector", tour_target("band-bar-selector"));
     await page.locator(tour_target("band-bar-band-select")).selectOption("20");

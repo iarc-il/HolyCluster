@@ -241,6 +241,7 @@ for (const [width, height] of [
                     ["Heatmap", "heatmap-panel"],
                     ["DXpeditions", "dxpeditions-panel"],
                     ["Missing", "missing-panel"],
+                    ["Tours", "tour-launcher-panel"],
                 ]) {
                     await workspace.getByRole("button", { name: label, exact: true }).click();
                     await expect(workspace.locator(`[data-tour="${target}"]`)).toBeVisible();

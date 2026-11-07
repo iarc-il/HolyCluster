@@ -6,10 +6,12 @@ import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
 import MissingPanel from "@/components/MissingPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
+import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import { TOUR_SELECT_SIDE_PANEL_TAB_EVENT } from "@/components/tour/tour_events.js";
 import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useLocalStorage } from "@uidotdev/usehooks";
 
 import { useEffect } from "react";
 
@@ -180,6 +182,15 @@ const view_options = [
         size: 32,
         is_disabled: false,
     },
+    {
+        label: "Tours",
+        bg: "#3b82f6",
+        icon: "M1 2.828c.885-.37 2.154-.769 3.5-.769 1.258 0 2.294.31 3.5 1.436V14.5c-1.206-1.126-2.242-1.436-3.5-1.436-1.346 0-2.615.4-3.5.769zm14 0c-.885-.37-2.154-.769-3.5-.769-1.258 0-2.294.31-3.5 1.436V14.5c1.206-1.126 2.242-1.436 3.5-1.436 1.346 0 2.615.4 3.5.769z",
+        viewbox: "0 0 16 16",
+        size: 32,
+        is_disabled: false,
+        mobile_only: true,
+    },
 ];
 
 function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false }) {
@@ -193,7 +204,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false
             }}
         >
             {view_options.map((option, index) => {
-                if (mobile && index === 0) return null;
+                if ((mobile && index === 0) || (!mobile && option.mobile_only)) return null;
                 const is_active = active_view === index;
                 return (
                     <div
@@ -241,7 +252,8 @@ function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false
                                     <path d={option.icon} />
                                 </svg>
                                 <span className="text-xs font-semibold">
-                                    {["", "Band", "Heatmap", "DX", "Missing"][index]}
+                                    {{ "Band Bar": "Band", DXpeditions: "DX" }[option.label] ??
+                                        option.label}
                                 </span>
                             </>
                         ) : (
@@ -274,19 +286,27 @@ function SidePanel({
     set_active_view,
 }) {
     const { colors } = useColors();
+    const [mobile_view, set_mobile_view] = useLocalStorage("mobile_tools_view", 1);
+    const set_displayed_view = mobile ? set_mobile_view : set_active_view;
 
     useEffect(() => {
         function select_tab(event) {
             const index = view_options.findIndex(option => option.label === event.detail?.label);
-            if (index >= 0) set_active_view(index);
+            if (index >= 0) set_displayed_view(index);
         }
 
         document.addEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
         return () => document.removeEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
-    }, [set_active_view]);
+    }, [set_displayed_view]);
 
     if (active_view === null && !mobile) return null;
-    const displayed_view = mobile && ![1, 2, 3, 4].includes(active_view) ? 1 : active_view;
+    const numeric_mobile_view = Number(mobile_view);
+    const displayed_view =
+        mobile && [1, 2, 3, 4, 5].includes(numeric_mobile_view)
+            ? numeric_mobile_view
+            : mobile
+              ? 1
+              : active_view;
 
     function handle_import_complete() {
         on_open();
@@ -304,6 +324,7 @@ function SidePanel({
         </div>,
         <DXpeditions key="dxpeditions" />,
         <MissingPanel key="missing" on_import_complete={handle_import_complete} />,
+        <WebsiteTour key="tours" is_mobile launcher_inline />,
     ];
     const active_view_label = view_options[displayed_view]?.label
         .toLowerCase()
@@ -338,7 +359,7 @@ function SidePanel({
             <ViewSelectorTabs
                 mobile={mobile}
                 active_view={displayed_view}
-                set_active_view={set_active_view}
+                set_active_view={set_displayed_view}
                 colors={colors}
             />
             <div className="flex flex-1 overflow-hidden" data-tour="side-panel-body">

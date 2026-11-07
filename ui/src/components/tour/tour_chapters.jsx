@@ -770,7 +770,7 @@ export const TOUR_CHAPTERS = {
         id: "side_panel",
         title: "Tools",
         mobileTitle: "Tools",
-        mobileDescription: "Inspect Band activity, Heatmap, DXpeditions, and Missing.",
+        mobileDescription: "Inspect activity, DXpeditions, missing entities, and guided tours.",
         description: "Explore Filters, Band Bar, Heatmap, DXpeditions, and Missing.",
         steps: [
             {
@@ -805,7 +805,7 @@ export const TOUR_CHAPTERS = {
                 id: "side_panel_tabs",
                 mobile: {
                     title: "Tool Views",
-                    content: "Choose Band, Heatmap, DX, or Missing.",
+                    content: "Choose Band, Heatmap, DX, Missing, or Tours.",
                 },
                 target: "[data-tour='side-panel-tabs']",
                 title: "Tools Tabs",

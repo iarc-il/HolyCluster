@@ -1,7 +1,6 @@
 import Filters from "@/components/Filters.jsx";
 import LeftColumn from "@/components/LeftColumn.jsx";
 import { ContinentColumn, SwapButton } from "@/components/SidePanel.jsx";
-import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_OPEN_FILTERS_EVENT,
     TOUR_PREPARE_QUICK_FILTERS_EVENT,
@@ -75,9 +74,6 @@ export default function MobileFiltersWorkspace({ visible }) {
                 className={active_view === "custom" ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}
             >
                 <Filters />
-            </div>
-            <div className="flex shrink-0 justify-start border-t p-2">
-                <WebsiteTour is_mobile />
             </div>
         </div>
     );
