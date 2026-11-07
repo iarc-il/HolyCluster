@@ -178,8 +178,8 @@ export async function ensure_propagation_loaded(
     });
 }
 
-export async function evict_old_records() {
-    const cutoff = Date.now() - 5 * 86_400_000;
+export async function evict_old_records(now_ms = Date.now()) {
+    const cutoff = now_ms - 5 * 86_400_000;
     await store.evict(cutoff, (record, cutoff_ms) => {
         const kept_metrics = {};
         let kept_count = 0;
@@ -197,6 +197,6 @@ export async function evict_old_records() {
     });
 }
 
-export function open_db_and_evict() {
-    return evict_old_records().catch(() => {});
+export function open_db_and_evict(now_ms) {
+    return evict_old_records(now_ms).catch(() => {});
 }

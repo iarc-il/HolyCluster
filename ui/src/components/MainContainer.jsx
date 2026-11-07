@@ -20,6 +20,7 @@ import { RestDataProvider } from "@/hooks/useRestData";
 import useRotator from "@/hooks/useRotator";
 import { SpotDataProvider, useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useServerClock } from "@/hooks/useWs";
 import {
     calculate_bearing_between_locations,
     compare_version,
@@ -59,6 +60,7 @@ function MainContent({
     set_is_dragging,
 }) {
     const { dev_mode, set_dev_mode, colors } = useColors();
+    const { now_ms } = useServerClock();
 
     useEffect(() => {
         document.body.style.backgroundColor = colors.theme.background;
@@ -374,7 +376,7 @@ function MainContent({
             set_history_start(null);
             set_history_end(null);
         } else {
-            const bar_start_ms = Date.now() - display_hours * 3_600_000;
+            const bar_start_ms = now_ms() - display_hours * 3_600_000;
             set_history_start(new Date(bar_start_ms));
             set_history_end(new Date(bar_start_ms + window_size_ms));
         }
@@ -590,6 +592,7 @@ function MainContent({
 
 function MainContainer() {
     const { dev_mode } = useColors();
+    const { now_ms, is_server_time } = useServerClock();
     const {
         active_profile_data: {
             history: { window_size_ms, step_size_ms, display_hours },
@@ -611,9 +614,12 @@ function MainContainer() {
     }
 
     useEffect(() => {
+        if (!is_server_time) return;
+
         const evict_all = () => {
-            open_db_and_evict_spots();
-            open_db_and_evict_propagation();
+            const current_time_ms = now_ms();
+            open_db_and_evict_spots(current_time_ms);
+            open_db_and_evict_propagation(current_time_ms);
         };
 
         const handle =
@@ -627,7 +633,7 @@ function MainContainer() {
                 : clearTimeout(handle);
             clearInterval(timer);
         };
-    }, []);
+    }, [is_server_time, now_ms]);
 
     // Every drag-induced change hits the fetch hooks immediately (no
     // debounce) — the underlying interval cache only ever fetches the small

@@ -160,16 +160,15 @@ function read_records(now) {
     }
 }
 
-export function read_live_spot_snapshot() {
-    return read_records(Date.now()).map(record => record.spot);
+export function read_live_spot_snapshot(now_ms = Date.now()) {
+    return read_records(now_ms).map(record => record.spot);
 }
 
-async function persist_records(records) {
+async function persist_records(records, now_ms) {
     try {
         if (!navigator.locks?.request) return false;
         return await navigator.locks.request(KEY, () => {
-            const now = Date.now();
-            const merged = compact_records([...read_records(now), ...records], now);
+            const merged = compact_records([...read_records(now_ms), ...records], now_ms);
             const text = JSON.stringify({ version: 2, records: merged });
             if (localStorage.getItem(KEY) !== text) localStorage.setItem(KEY, text);
             localStorage.removeItem("live_spot_snapshot_v1");
@@ -188,7 +187,8 @@ function schedule_write() {
         writing = true;
         const records = pending;
         pending = [];
-        drain_succeeded = (await persist_records(records)) && drain_succeeded;
+        const now_ms = Math.max(...records.map(record => record.observed_at));
+        drain_succeeded = (await persist_records(records, now_ms)) && drain_succeeded;
         writing = false;
         if (pending.length) {
             schedule_write();
@@ -206,14 +206,19 @@ function schedule_write() {
 }
 
 export function write_live_spot_snapshot(spots, observed_at) {
-    if (!Array.isArray(spots) || !globalThis.navigator?.locks?.request)
+    if (
+        !Array.isArray(spots) ||
+        !Number.isFinite(observed_at) ||
+        !globalThis.navigator?.locks?.request
+    )
         return Promise.resolve(false);
     const records = compact_records(
         spots.map(spot => ({ spot, observed_at })),
-        Date.now(),
+        observed_at,
     );
     if (!records.length) return Promise.resolve(false);
-    pending = compact_records([...pending, ...records], Date.now());
+    const now_ms = Math.max(observed_at, ...pending.map(record => record.observed_at));
+    pending = compact_records([...pending, ...records], now_ms);
     if (!drain_promise) {
         drain_succeeded = true;
         drain_promise = new Promise(resolve => {

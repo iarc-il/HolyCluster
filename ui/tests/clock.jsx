@@ -4,10 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Clock from "@/components/Clock.jsx";
 import { TimeZoneProvider } from "@/hooks/useTimeZone";
 
+const server_clock = vi.hoisted(() => {
+    const state = { value: null };
+    state.now_ms = () => state.value ?? Date.now();
+    return state;
+});
+
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
         colors: { theme: { text: "#ffffff" } },
     }),
+}));
+vi.mock("@/hooks/useWs", () => ({
+    useServerClock: () => server_clock,
 }));
 
 const INSTANT = new Date("2026-11-01T04:05:09Z");
@@ -22,6 +31,7 @@ function render_clock() {
 
 beforeEach(() => {
     localStorage.clear();
+    server_clock.value = null;
     vi.useFakeTimers({ now: INSTANT });
     vi.stubEnv("TZ", "Asia/Jerusalem");
 });
@@ -52,6 +62,13 @@ describe("clock", () => {
 
         fireEvent.click(clock);
         expect(clock.textContent).toBe("04:05 UTC");
+    });
+
+    it("shows server time when the browser clock is wrong", () => {
+        server_clock.value = Date.parse("2026-11-01T08:05:09Z");
+        render_clock();
+
+        expect(screen.getByRole("button").textContent).toBe("08:05 UTC");
     });
 
     it("ticks forward", () => {

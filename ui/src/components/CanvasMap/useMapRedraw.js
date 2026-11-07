@@ -67,7 +67,7 @@ export function useMapRedraw({
         let timeout_id = null;
 
         function schedule_redraw() {
-            const ms_until_next_minute = 60_000 - (Date.now() % 60_000);
+            const ms_until_next_minute = 60_000 - (render_state_ref.current.now_ms() % 60_000);
             timeout_id = setTimeout(() => {
                 if (!gesture_active_ref.current) {
                     do_redraw(dims, projection_ref, render_state_ref, canvas_refs);

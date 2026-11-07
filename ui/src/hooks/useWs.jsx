@@ -1,4 +1,5 @@
 import { annotateDiagnosticError, recordDiagnosticAction } from "@/sentry";
+import { create_server_clock } from "@/utils/server_clock.js";
 import { captureException } from "@sentry/react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
@@ -81,6 +82,9 @@ export function WsProvider({ children }) {
         set_spot_socket_epochs({ ...spot_socket_epochs_ref.current });
     };
     const [network_state, set_network_state] = useState("connecting");
+    const server_clock_ref = useRef(null);
+    if (server_clock_ref.current === null) server_clock_ref.current = create_server_clock();
+    const [clock_revision, set_clock_revision] = useState(0);
     const transport_ref = useRef("probing");
     const subscribers_ref = useRef(new Map());
     const ready_state_ref = useRef(ReadyState.CONNECTING);
@@ -88,6 +92,12 @@ export function WsProvider({ children }) {
     const send_state_ref = useRef(null);
 
     const dispatch = useCallback(message => {
+        if (message.type === "spots") {
+            const was_synchronized = server_clock_ref.current.is_server_time();
+            if (server_clock_ref.current.synchronize(message.server_time) && !was_synchronized) {
+                set_clock_revision(revision => revision + 1);
+            }
+        }
         if (message.type === "radio" && message.event === "status") {
             if (typeof message.catserver_version === "string") {
                 catserver_version_ref.current = message.catserver_version;
@@ -407,6 +417,9 @@ export function WsProvider({ children }) {
                 radioReadyState,
                 wait_for_open,
                 reconnect,
+                now_ms: server_clock_ref.current.now_ms,
+                is_server_time: server_clock_ref.current.is_server_time(),
+                clock_revision,
             }}
         >
             {children}
@@ -416,6 +429,11 @@ export function WsProvider({ children }) {
 
 export function useWs() {
     return useContext(WsContext);
+}
+
+export function useServerClock() {
+    const { now_ms, is_server_time, clock_revision } = useWs();
+    return { now_ms, is_server_time, clock_revision };
 }
 
 export function useWsMessage(type, handler) {

@@ -1,18 +1,21 @@
 import { useColors } from "@/hooks/useColors";
 import { useTimeZone } from "@/hooks/useTimeZone";
+import { useServerClock } from "@/hooks/useWs";
 import { useEffect, useState } from "react";
 
 function clock() {
     const { colors } = useColors();
     const { time_zone, toggle_time_zone, label, to_string } = useTimeZone();
-    const [time, set_current_time] = useState(new Date());
+    const { now_ms, clock_revision } = useServerClock();
+    const [time, set_current_time] = useState(() => new Date(now_ms()));
 
     useEffect(() => {
-        const interval_id = setInterval(() => set_current_time(new Date()), 1000);
+        set_current_time(new Date(now_ms()));
+        const interval_id = setInterval(() => set_current_time(new Date(now_ms())), 1000);
         return () => {
             clearInterval(interval_id);
         };
-    }, []);
+    }, [clock_revision, now_ms]);
 
     return (
         <button

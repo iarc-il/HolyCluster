@@ -1,4 +1,4 @@
-import { ReadyState, useWs } from "@/hooks/useWs";
+import { ReadyState, useServerClock, useWs } from "@/hooks/useWs";
 import {
     ensure_propagation_loaded,
     get_propagation,
@@ -23,6 +23,7 @@ function snap_to_bucket_end(ms) {
 
 export default function useHistoryPropagation(startTime, endTime) {
     const { send, subscribe: subscribe_ws, wait_for_open, readyState } = useWs();
+    const { now_ms } = useServerClock();
     const inflight = useRef(new Set());
     const latest_request_ref = useRef(null);
     const fetch_running_ref = useRef(false);
@@ -61,15 +62,15 @@ export default function useHistoryPropagation(startTime, endTime) {
                     if (signal.aborted) return;
                     const next_s = s + BUCKET_MS * direction;
                     const next_e = e + BUCKET_MS * direction;
-                    const now_ms = Date.now();
-                    if (direction > 0 && next_e > now_ms + 60_000) return;
-                    if (direction < 0 && next_s < now_ms - PREFETCH_RETENTION_MS) return;
+                    const current_time_ms = now_ms();
+                    if (direction > 0 && next_e > current_time_ms + 60_000) return;
+                    if (direction < 0 && next_s < current_time_ms - PREFETCH_RETENTION_MS) return;
                     prefetch_chain(next_s, next_e, direction, signal);
                 })
                 .catch(() => {})
                 .finally(() => inflight.current.delete(key));
         },
-        [ensure_loaded],
+        [ensure_loaded, now_ms],
     );
 
     // Cancel work from the old connection and on unmount. Reopening queues

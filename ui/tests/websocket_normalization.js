@@ -123,14 +123,14 @@ describe("trim_spots_to_last_hour", () => {
     it("keeps spots within the last hour", () => {
         const now = Math.round(Date.now() / 1000);
         const spots = [{ time: now - 600 }, { time: now - 1800 }, { time: now - 3000 }];
-        const result = trim_spots_to_last_hour(spots);
+        const result = trim_spots_to_last_hour(spots, now);
         expect(result).toHaveLength(3);
     });
 
     it("removes spots older than one hour", () => {
         const now = Math.round(Date.now() / 1000);
         const spots = [{ time: now - 600 }, { time: now - 4000 }];
-        const result = trim_spots_to_last_hour(spots);
+        const result = trim_spots_to_last_hour(spots, now);
         expect(result).toHaveLength(1);
         expect(result[0].time).toBe(now - 600);
     });
@@ -138,7 +138,7 @@ describe("trim_spots_to_last_hour", () => {
     it("returns empty array for all-old spots", () => {
         const now = Math.round(Date.now() / 1000);
         const spots = [{ time: now - 7200 }];
-        const result = trim_spots_to_last_hour(spots);
+        const result = trim_spots_to_last_hour(spots, now);
         expect(result).toHaveLength(0);
     });
 });

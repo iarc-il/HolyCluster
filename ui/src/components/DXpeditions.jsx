@@ -4,6 +4,7 @@ import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
+import { useServerClock } from "@/hooks/useWs";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const filter_options = [
@@ -34,14 +35,14 @@ function format_duration(diff_ms) {
     return `${minutes}m`;
 }
 
-function format_time_remaining(end_date) {
-    const diff_ms = new Date(end_date) - new Date();
+function format_time_remaining(end_date, now_ms) {
+    const diff_ms = new Date(end_date).getTime() - now_ms;
     if (diff_ms <= 0) return "Ended";
     return `${format_duration(diff_ms)} left`;
 }
 
-function format_time_until_start(start_date) {
-    const diff_ms = new Date(start_date) - new Date();
+function format_time_until_start(start_date, now_ms) {
+    const diff_ms = new Date(start_date).getTime() - now_ms;
     if (diff_ms <= 0) return null;
     return `in ${format_duration(diff_ms)}`;
 }
@@ -51,19 +52,20 @@ function format_date(date_string) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function progress_fraction(start_date, end_date) {
-    const now = new Date();
-    const start = new Date(start_date);
-    const end = new Date(end_date);
-    const total = end - start;
+function progress_fraction(start_date, end_date, now_ms) {
+    const start_ms = new Date(start_date).getTime();
+    const end_ms = new Date(end_date).getTime();
+    const total = end_ms - start_ms;
     if (total <= 0) return 1;
-    const elapsed = now - start;
+    const elapsed = now_ms - start_ms;
     return Math.max(0, Math.min(1, elapsed / total));
 }
 
-function is_active(dxpedition) {
-    const now = new Date();
-    return now >= new Date(dxpedition.start_date) && now <= new Date(dxpedition.end_date);
+function is_active(dxpedition, now_ms) {
+    return (
+        now_ms >= new Date(dxpedition.start_date).getTime() &&
+        now_ms <= new Date(dxpedition.end_date).getTime()
+    );
 }
 
 function OnAirStar({ colors }) {
@@ -104,11 +106,12 @@ function DXpeditionCard({
     card_ref,
     onMouseEnter,
     onMouseLeave,
+    now_ms,
 }) {
-    const active = is_active(dxpedition);
-    const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date);
-    const time_remaining = format_time_remaining(dxpedition.end_date);
-    const time_until_start = format_time_until_start(dxpedition.start_date);
+    const active = is_active(dxpedition, now_ms);
+    const fraction = progress_fraction(dxpedition.start_date, dxpedition.end_date, now_ms);
+    const time_remaining = format_time_remaining(dxpedition.end_date, now_ms);
+    const time_until_start = format_time_until_start(dxpedition.start_date, now_ms);
     const is_ended = time_remaining === "Ended";
     const is_urgent = fraction > 0.85 && !is_ended;
     const badge_text = active ? time_remaining : time_until_start || time_remaining;
@@ -171,6 +174,8 @@ function DXpeditionCard({
 
 function DXpeditions() {
     const { colors } = useColors();
+    const { now_ms } = useServerClock();
+    const current_time_ms = now_ms();
     const { spots } = useSpotData();
     const { hovered_spot, set_hovered_spot } = useSpotInteraction();
     const { dxpeditions } = useRestData();
@@ -248,20 +253,21 @@ function DXpeditions() {
     }, [hovered_dxpedition_id, hovered_spot.source]);
 
     const sorted_dxpeditions = useMemo(() => {
-        const now = new Date();
-        let filtered = [...dxpeditions].filter(d => new Date(d.end_date) >= now);
+        let filtered = [...dxpeditions].filter(
+            d => new Date(d.end_date).getTime() >= current_time_ms,
+        );
         if (filter_key === "active") {
-            filtered = filtered.filter(is_active);
+            filtered = filtered.filter(d => is_active(d, current_time_ms));
         } else if (filter_key === "upcoming") {
-            filtered = filtered.filter(d => !is_active(d));
+            filtered = filtered.filter(d => !is_active(d, current_time_ms));
         }
         if (sort_key === "on_air") {
             filtered.sort((a, b) => {
                 const a_spotted = spotted_dxpedition_spots.has(a.id) ? 1 : 0;
                 const b_spotted = spotted_dxpedition_spots.has(b.id) ? 1 : 0;
                 if (a_spotted !== b_spotted) return b_spotted - a_spotted;
-                const a_active = is_active(a) ? 1 : 0;
-                const b_active = is_active(b) ? 1 : 0;
+                const a_active = is_active(a, current_time_ms) ? 1 : 0;
+                const b_active = is_active(b, current_time_ms) ? 1 : 0;
                 if (a_active !== b_active) return b_active - a_active;
                 return new Date(a.end_date) - new Date(b.end_date);
             });
@@ -270,9 +276,12 @@ function DXpeditions() {
             filtered.sort(sort_fn);
         }
         return filtered;
-    }, [dxpeditions, sort_key, filter_key, spotted_dxpedition_spots]);
+    }, [current_time_ms, dxpeditions, sort_key, filter_key, spotted_dxpedition_spots]);
 
-    const active_count = useMemo(() => dxpeditions.filter(is_active).length, [dxpeditions]);
+    const active_count = useMemo(
+        () => dxpeditions.filter(dxpedition => is_active(dxpedition, current_time_ms)).length,
+        [current_time_ms, dxpeditions],
+    );
     const upcoming_count = dxpeditions.length - active_count;
 
     return (
@@ -385,6 +394,7 @@ function DXpeditions() {
                             if (element) card_refs.current[dxpedition.id] = element;
                             else delete card_refs.current[dxpedition.id];
                         }}
+                        now_ms={current_time_ms}
                     />
                 ))
             )}
