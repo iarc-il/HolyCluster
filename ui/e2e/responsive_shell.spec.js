@@ -217,10 +217,17 @@ for (const [width, height] of [
                     "mode-filter-group",
                     "dx-continent-filters",
                     "spotter-continent-filters",
+                    "continent-filter-header",
                     "swap-continent-filters",
                 ]) {
                     await expect(workspace.locator(`[data-tour="${target}"]`)).toBeVisible();
                 }
+                await expect(
+                    workspace.getByRole("button", {
+                        name: "Swap DX and DE continent filters",
+                        exact: true,
+                    }),
+                ).toBeVisible();
                 await workspace
                     .getByRole("button", { name: "Custom filters", exact: true })
                     .click();

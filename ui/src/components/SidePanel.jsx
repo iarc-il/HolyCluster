@@ -81,33 +81,37 @@ export function SwapButton({ colors, mobile = false }) {
         <button
             type="button"
             onClick={swapContinents}
-            className={`${mobile ? "min-h-11 mx-3 items-center" : ""} w-16 rounded-full select-none border border-slate-700 flex justify-center py-0.5 ${
+            className={`${mobile ? "min-h-11 items-center gap-2 rounded-lg px-3" : "w-16 rounded-full py-0.5"} select-none border border-slate-700 flex justify-center ${
                 areFiltersEqual
                     ? "opacity-50 pointer-events-none"
                     : "cursor-pointer hover:brightness-110"
             }`}
-            style={{ backgroundColor: colors.buttons.disabled_background }}
+            style={{
+                backgroundColor: colors.buttons.disabled_background,
+                color: mobile ? colors.theme.text : "#000000",
+            }}
+            aria-label="Swap DX and DE continent filters"
             title="Swap DX and DE continent filters"
             disabled={areFiltersEqual}
             data-tour="swap-continent-filters"
         >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <title>Swap continents</title>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
                     d="M7 4L7 20M7 4L3 8M7 4L11 8"
-                    stroke="#000000"
+                    stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
                 <path
                     d="M17 20L17 4M17 20L21 16M17 20L13 16"
-                    stroke="#000000"
+                    stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
             </svg>
+            {mobile && <span className="text-sm font-semibold">Swap DX / DE</span>}
         </button>
     );
 }

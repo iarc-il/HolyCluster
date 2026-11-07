@@ -62,8 +62,15 @@ export default function MobileFiltersWorkspace({ visible }) {
                     visible={visible}
                     content={
                         <>
+                            <div
+                                className="flex items-center justify-between gap-3 border-t px-3 pt-3"
+                                data-tour="continent-filter-header"
+                                style={{ borderColor: colors.theme.borders }}
+                            >
+                                <h2 className="font-semibold">Continents</h2>
+                                <SwapButton mobile colors={colors} />
+                            </div>
                             <ContinentColumn mobile spot_type="dx" colors={colors} />
-                            <SwapButton mobile colors={colors} />
                             <ContinentColumn mobile spot_type="spotter" colors={colors} />
                         </>
                     }
