@@ -10,6 +10,7 @@ import {
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
 } from "@/components/tour/tour_events.js";
+import { get_dxcc_label } from "@/data/dxcc_entities.js";
 import { get_dxcc_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
@@ -326,6 +327,10 @@ export function FitText({ value, children, className = "", style, title }) {
             </span>
         </span>
     );
+}
+
+export function get_spot_entity_label(spot) {
+    return get_dxcc_label(spot.dx_dxcc_code);
 }
 
 function Callsign({ callsign }) {
@@ -964,8 +969,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         if (menu_type === "flag") {
             return [
                 build_filter_action({
-                    add_label: spot => `Add Alert for ${get_dxcc_label(spot.dx_dxcc_code)}`,
-                    remove_label: spot => `Remove Alert for ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    add_label: spot => `Add Alert for ${get_spot_entity_label(spot)}`,
+                    remove_label: spot => `Remove Alert for ${get_spot_entity_label(spot)}`,
                     build_filter: spot => ({
                         action: "alert",
                         type: "entity",
@@ -974,8 +979,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     }),
                 }),
                 build_filter_action({
-                    add_label: spot => `Add Show Only ${get_dxcc_label(spot.dx_dxcc_code)}`,
-                    remove_label: spot => `Remove Show Only ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    add_label: spot => `Add Show Only ${get_spot_entity_label(spot)}`,
+                    remove_label: spot => `Remove Show Only ${get_spot_entity_label(spot)}`,
                     build_filter: spot => ({
                         action: "show_only",
                         type: "entity",
@@ -984,8 +989,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     }),
                 }),
                 build_filter_action({
-                    add_label: spot => `Add Hide ${get_dxcc_label(spot.dx_dxcc_code)}`,
-                    remove_label: spot => `Remove Hide ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    add_label: spot => `Add Hide ${get_spot_entity_label(spot)}`,
+                    remove_label: spot => `Remove Hide ${get_spot_entity_label(spot)}`,
                     build_filter: spot => ({
                         action: "hide",
                         type: "entity",
