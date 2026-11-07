@@ -20,7 +20,7 @@ class MonitoringConfigTests(unittest.TestCase):
         queries = [data for data in target_rules[0]["data"] if data["refId"] == "A"]
         self.assertEqual(len(queries), 1)
         expression = queries[0]["model"]["expr"]
-        selector = re.search(r'\bup\s*\{([^}]*)\}', expression)
+        selector = re.search(r"\bup\s*\{([^}]*)\}", expression)
         self.assertIsNotNone(selector, "Target-down query must select up metrics")
         matcher = re.search(r'\bjob\s*=~\s*"([^"]+)"', selector.group(1))
         self.assertIsNotNone(matcher, "Target-down query must explicitly match scrape jobs")
