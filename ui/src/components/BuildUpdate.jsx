@@ -4,14 +4,7 @@ import { createPortal } from "react-dom";
 import { ToastContainer, toast } from "react-toastify";
 
 export default function BuildUpdate() {
-    const {
-        blockers,
-        manual_reload,
-        manual_required,
-        navigation_outcome,
-        stale_recovery,
-        target_entry,
-    } = useUiRefresh();
+    const { manual_reload, navigation_outcome, stale_recovery } = useUiRefresh();
     const notification_shown_ref = useRef(false);
     const [container] = useState(() => document.createElement("div"));
     useEffect(() => {
@@ -27,14 +20,13 @@ export default function BuildUpdate() {
         };
     }, [container]);
     useEffect(() => {
-        if (!target_entry && !stale_recovery && navigation_outcome?.event !== "target_mismatch")
-            return;
         const mismatch = navigation_outcome?.event === "target_mismatch";
-        const manual = mismatch || manual_required || stale_recovery?.status === "manual";
-        const blocked = blockers.length > 0 || stale_recovery?.status === "blocked";
+        if (!stale_recovery && !mismatch) return;
+        const manual = mismatch || stale_recovery?.status === "manual";
+        const blocked = stale_recovery?.status === "blocked";
         const checking = stale_recovery?.status === "checking";
         let message =
-            "A new version is available. HolyCluster will refresh when this tab is hidden or after one hour without activity. ";
+            "A module failed to load. HolyCluster will refresh when this tab is hidden or after one hour without activity. ";
         if (stale_recovery?.status === "manual") {
             message = "Part of the UI could not be loaded. ";
         } else if (manual) message = "The update could not be loaded automatically. ";
@@ -66,14 +58,7 @@ export default function BuildUpdate() {
                 draggable: false,
             });
         }
-    }, [
-        blockers,
-        manual_reload,
-        manual_required,
-        navigation_outcome,
-        stale_recovery,
-        target_entry,
-    ]);
+    }, [manual_reload, navigation_outcome, stale_recovery]);
     return createPortal(
         <ToastContainer containerId="ui-build-update" position="top-right" />,
         container,
