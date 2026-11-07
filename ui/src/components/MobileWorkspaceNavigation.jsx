@@ -12,7 +12,7 @@ export default function MobileWorkspaceNavigation({
         <nav
             aria-label="Workspace"
             data-tour="mobile-main-tabs"
-            className="flex shrink-0 border-t pb-[env(safe-area-inset-bottom)] z-[60]"
+            className="flex shrink-0 border-t z-[60]"
             style={{ backgroundColor: colors.theme.background, borderColor: colors.theme.borders }}
         >
             {[...panel_keys, "filters", "explore"].map(panel => {
@@ -28,7 +28,7 @@ export default function MobileWorkspaceNavigation({
                     <div key={panel} className="flex flex-1 min-w-0">
                         <button
                             type="button"
-                            className="flex flex-col gap-1 items-center justify-center w-full min-h-14 border-t-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2"
+                            className="flex flex-col gap-1 items-center justify-center w-full min-h-14 border-t-2 pb-[env(safe-area-inset-bottom)] text-xs font-semibold focus-visible:outline focus-visible:outline-2"
                             data-tour={`mobile-main-tab-${panel}`}
                             data-tour-state={active ? "active" : "inactive"}
                             aria-label={label}
