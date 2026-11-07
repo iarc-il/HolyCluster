@@ -12,7 +12,7 @@ from shared.telemetry import initialize_sentry
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from .adapters import SERVICES, Adapter
-from .consumer import HolyConsumer
+from .consumer import HolyConsumer, PipelineConsumer
 from .feeds.dxdata import DXDataAdapter
 from .feeds.dxheat import DXHeatAdapter
 from .feeds.dxsummit import DXSummitAdapter
@@ -70,6 +70,7 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...], sink: SampleSin
                     tasks = [
                         group.create_task(renew_lease(lease)),
                         group.create_task(HolyConsumer(redis, matcher).run()),
+                        group.create_task(PipelineConsumer(redis, matcher).run()),
                         group.create_task(run_finalizer(matcher)),
                     ]
                     tasks.extend(group.create_task(run_adapter(matcher, adapter)) for adapter in adapters)

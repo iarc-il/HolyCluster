@@ -6,10 +6,11 @@ from loguru import logger
 from redis.exceptions import WatchError
 
 from .adapters import SERVICES, SOURCES, encode_spot, identity, validate_source
-from .metrics import Metrics
+from .metrics import PIPELINE_RESULTS, Metrics
 from .samples import SampleSink
 
 WINDOW = 60
+FINALIZED = "coverage:finalized"
 
 
 def empty_state() -> dict:
@@ -21,6 +22,7 @@ def empty_state() -> dict:
         "oldest_deadline": 0,
         "outcomes": {},
         "skipped": {},
+        "service_only_causes": {},
         "samples": {},
         "last_event_id": "0-0",
     }
@@ -29,6 +31,17 @@ def empty_state() -> dict:
 def increment(state: dict, metric: str, service: str, result: str):
     key = f"{service}|{result}"
     state[metric][key] = state[metric].get(key, 0) + 1
+
+
+def service_only_cause(window: dict) -> str:
+    results = set(window.get("pipeline_results", ()))
+    if "success" in results:
+        return "pipeline_gap"
+    if not results:
+        return "not_observed"
+    if len(results) > 1:
+        return "multiple_drops"
+    return results.pop()
 
 
 def stream_id(value: str) -> tuple[int, int]:
@@ -75,13 +88,14 @@ class Matcher:
         while True:
             async with self.redis.pipeline(transaction=True) as pipe:
                 try:
-                    await pipe.watch("coverage:state", "coverage:windows", "coverage:deadlines")
+                    await pipe.watch("coverage:state", "coverage:windows", "coverage:deadlines", FINALIZED)
                     raw = await pipe.get("coverage:state")
                     reset = raw is None
                     try:
                         state = json.loads(raw) if raw else empty_state()
                         if state["version"] != 1:
                             raise ValueError("Unknown coverage state version")
+                        state.setdefault("service_only_causes", {})
                         for key in empty_state():
                             if key not in state:
                                 raise ValueError("Incomplete coverage state")
@@ -105,17 +119,22 @@ class Matcher:
                         value = await pipe.hget("coverage:windows", key)
                         if value:
                             state["windows"][key] = json.loads(value)
+                    finalized_until = await pipe.zscore(FINALIZED, window_key) if window_key is not None else None
+                    state["_recently_finalized"] = finalized_until is not None and finalized_until > now
+                    state["_finalized_keys"] = []
                     before = {key: json.dumps(value, allow_nan=False) for key, value in state["windows"].items()}
                     count = 0 if reset else await pipe.zcard("coverage:deadlines")
                     state["pending_windows"] = count
                     oldest = await pipe.zrange("coverage:deadlines", 0, 0, withscores=True)
                     state["oldest_deadline"] = oldest[0][1] if oldest else now
                     mutate(state)
+                    finalized_keys = state.pop("_finalized_keys")
+                    state.pop("_recently_finalized")
                     removed = before.keys() - state["windows"].keys()
                     state["pending_windows"] = count + len(state["windows"]) - len(before)
                     pipe.multi()
                     if reset:
-                        pipe.delete("coverage:windows", "coverage:deadlines")
+                        pipe.delete("coverage:windows", "coverage:deadlines", FINALIZED)
                     if removed:
                         pipe.hdel("coverage:windows", *removed)
                         pipe.zrem("coverage:deadlines", *removed)
@@ -124,6 +143,9 @@ class Matcher:
                         if before.get(key) != encoded:
                             pipe.hset("coverage:windows", key, encoded)
                             pipe.zadd("coverage:deadlines", {key: value["deadline"]})
+                    pipe.zremrangebyscore(FINALIZED, "-inf", now)
+                    if finalized_keys:
+                        pipe.zadd(FINALIZED, {key: now + WINDOW for key in finalized_keys})
                     pipe.set("coverage:state", json.dumps({**state, "windows": {}}, allow_nan=False))
                     await pipe.execute()
                     self.metrics.sync(state, now, self.eligibility)
@@ -182,6 +204,9 @@ class Matcher:
                     continue
                 result = "matched" if holy and other else "holy_only" if holy else "service_only"
                 increment(state, "outcomes", service, result)
+                if result == "service_only":
+                    cause = service_only_cause(window)
+                    increment(state, "service_only_causes", service, cause)
                 if result != "matched":
                     if len(state["samples"]) < self.max_samples:
                         sample_id = f"{key}:{window['opened']}:{service}"
@@ -194,6 +219,7 @@ class Matcher:
                         }
                     else:
                         increment(state, "skipped", service, "sample_limit")
+            state["_finalized_keys"].append(key)
             del state["windows"][key]
             state["pending_windows"] -= 1
 
@@ -226,6 +252,7 @@ class Matcher:
                     "opened": now,
                     "deadline": now + WINDOW,
                     "sources": [],
+                    "pipeline_results": [],
                     "spot": json.loads(encoded),
                     "pairs": {
                         service: {
@@ -240,6 +267,34 @@ class Matcher:
 
         state = await self.change(now, update, window_key=key, load_due=True)
         await self.flush_samples(now, state)
+
+    async def observe_pipeline(self, spot: dict, result: str, now: float) -> str:
+        if result not in PIPELINE_RESULTS:
+            raise ValueError("Unknown pipeline result")
+        key = hashlib.sha256(identity(spot).encode()).hexdigest()
+        encode_spot(spot, self.sample_max_bytes)
+        status = "pending"
+
+        def update(state):
+            nonlocal status
+            status = "pending"
+            self.finish(state, now)
+            if state["_recently_finalized"] or key in state["_finalized_keys"]:
+                if key not in state["_finalized_keys"]:
+                    state["_finalized_keys"].append(key)
+                status = "discarded"
+                return
+            window = state["windows"].get(key)
+            if window is None:
+                return
+            results = window.setdefault("pipeline_results", [])
+            if result not in results:
+                results.append(result)
+            status = "matched"
+
+        state = await self.change(now, update, window_key=key, load_due=True)
+        await self.flush_samples(now, state)
+        return status
 
     async def finalize(self, now: float):
         state = await self.change(now, lambda state: self.finish(state, now), load_due=True)

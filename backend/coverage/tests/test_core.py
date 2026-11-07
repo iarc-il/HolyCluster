@@ -39,6 +39,74 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
             or 0
         )
 
+    def cause_count(self, service, cause):
+        return (
+            self.registry.get_sample_value(
+                "holycluster_coverage_service_only_causes_total", {"service": service, "cause": cause}
+            )
+            or 0
+        )
+
+    async def test_service_only_outcomes_are_attributed_to_pipeline_results(self):
+        cases = (
+            ([], "not_observed"),
+            (["invalid_band"], "invalid_band"),
+            (["geo_error", "invalid_callsign"], "multiple_drops"),
+            (["invalid_band", "success"], "pipeline_gap"),
+        )
+        for index, (results, cause) in enumerate(cases):
+            spot = {**SPOT, "dx_callsign": f"4X{index}AA"}
+            await self.matcher.observe("dxsummit", spot, 60)
+            for result in results:
+                await self.matcher.observe_pipeline(spot, result, 61)
+        await self.matcher.finalize(120)
+        for _, cause in cases:
+            self.assertEqual(self.cause_count("dxsummit", cause), 1)
+
+    async def test_holy_output_takes_precedence_over_pipeline_drop(self):
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.observe_pipeline(SPOT, "invalid_band", 61)
+        await self.matcher.observe("holy", SPOT, 62)
+        await self.matcher.finalize(120)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.cause_count("dxsummit", "invalid_band"), 0)
+
+    async def test_pipeline_metadata_does_not_start_comparison_window(self):
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "success", 60), "pending")
+        await self.matcher.observe("dxsummit", SPOT, 119)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "success", 119), "matched")
+        await self.matcher.observe("holy", SPOT, 170)
+        await self.matcher.finalize(179)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.count("dxsummit", "service_only"), 0)
+
+    async def test_late_pipeline_metadata_does_not_reach_repeated_identity(self):
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.finalize(120)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "invalid_band", 121), "discarded")
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 130)
+        await self.matcher.observe("dxsummit", SPOT, 130)
+        await self.matcher.finalize(190)
+        self.assertEqual(self.count("dxsummit", "service_only"), 2)
+        self.assertEqual(self.cause_count("dxsummit", "invalid_band"), 0)
+        self.assertEqual(self.cause_count("dxsummit", "not_observed"), 2)
+
+    async def test_discarded_pipeline_metadata_extends_finalized_marker(self):
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.finalize(120)
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 120)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "invalid_band", 179), "discarded")
+
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 181)
+        await self.matcher.observe("dxsummit", SPOT, 181)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "invalid_band", 182), "discarded")
+        await self.matcher.finalize(241)
+        self.assertEqual(self.cause_count("dxsummit", "invalid_band"), 0)
+        self.assertEqual(self.cause_count("dxsummit", "not_observed"), 2)
+
     async def test_example_throttle_does_not_sample_outcome_metrics(self):
         sink = PostgresSampleSink(MagicMock(), clock=lambda: 0, utcnow=lambda: datetime.fromtimestamp(120, UTC))
         sink.sessions = MagicMock()
@@ -134,7 +202,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         await self.matcher.finalize(120)
         for family in self.registry.collect():
             for sample in family.samples:
-                self.assertLessEqual(set(sample.labels), {"service", "result", "reason"})
+                self.assertLessEqual(set(sample.labels), {"service", "result", "reason", "cause"})
                 if "service" in sample.labels:
                     self.assertIn(sample.labels["service"], ("holy", *SERVICES))
         self.assertNotIn(b"4X1AA", generate_latest(self.registry))

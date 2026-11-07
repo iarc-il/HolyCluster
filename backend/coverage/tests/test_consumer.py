@@ -5,7 +5,7 @@ import fakeredis.aioredis
 from prometheus_client import CollectorRegistry
 
 from coverage_comparator.adapters import FakeAdapter, Snapshot
-from coverage_comparator.consumer import HolyConsumer
+from coverage_comparator.consumer import HolyConsumer, PipelineConsumer
 from coverage_comparator.matcher import Matcher
 from coverage_comparator.metrics import Metrics
 from coverage_comparator.samples import MemorySampleSink
@@ -24,6 +24,84 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         await self.redis.aclose()
+
+    async def test_pipeline_result_waits_for_comparison_window(self):
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 0)
+            await self.matcher.health(source, True, 60)
+        consumer = PipelineConsumer(self.redis, self.matcher, clock=lambda: 60)
+        await consumer.prepare()
+        await self.redis.xadd("coverage-holy-pipeline", {**SPOT, "result": "invalid_band"}, id="60000-0")
+        records = await self.redis.xreadgroup(consumer.group, consumer.consumer, {"coverage-holy-pipeline": ">"})
+        await consumer.process(records)
+        self.assertEqual(await self.redis.xlen("coverage-holy-pipeline"), 1)
+        self.assertEqual((await self.redis.xpending("coverage-holy-pipeline", consumer.group))["pending"], 1)
+
+        await self.matcher.observe("dxsummit", SPOT, 61)
+        consumer.clock = lambda: 62
+        await consumer.recover()
+        await self.matcher.finalize(121)
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_service_only_causes_total",
+                {"service": "dxsummit", "cause": "invalid_band"},
+            ),
+            1,
+        )
+        self.assertEqual(await self.redis.xlen("coverage-holy-pipeline"), 0)
+
+    async def test_late_pipeline_result_does_not_reach_repeated_identity(self):
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 0)
+            await self.matcher.health(source, True, 60)
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.finalize(120)
+
+        consumer = PipelineConsumer(self.redis, self.matcher, clock=lambda: 121)
+        await consumer.prepare()
+        await self.redis.xadd("coverage-holy-pipeline", {**SPOT, "result": "invalid_band"}, id="121000-0")
+        records = await self.redis.xreadgroup(consumer.group, consumer.consumer, {"coverage-holy-pipeline": ">"})
+        await consumer.process(records)
+        self.assertEqual(await self.redis.xlen("coverage-holy-pipeline"), 0)
+
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 130)
+        await self.matcher.observe("dxsummit", SPOT, 130)
+        await self.matcher.finalize(190)
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_service_only_causes_total",
+                {"service": "dxsummit", "cause": "invalid_band"},
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_service_only_causes_total",
+                {"service": "dxsummit", "cause": "not_observed"},
+            ),
+            2,
+        )
+
+    async def test_pipeline_result_attributes_service_only_outcome(self):
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 0)
+            await self.matcher.health(source, True, 60)
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        consumer = PipelineConsumer(self.redis, self.matcher, clock=lambda: 61)
+        await consumer.prepare()
+        await self.redis.xadd("coverage-holy-pipeline", {**SPOT, "result": "invalid_band"}, id="61000-0")
+        records = await self.redis.xreadgroup(consumer.group, consumer.consumer, {"coverage-holy-pipeline": ">"})
+        await consumer.process(records)
+        await self.matcher.finalize(120)
+        self.assertEqual(
+            self.registry.get_sample_value(
+                "holycluster_coverage_service_only_causes_total",
+                {"service": "dxsummit", "cause": "invalid_band"},
+            ),
+            1,
+        )
+        self.assertEqual(await self.redis.xlen("coverage-holy-pipeline"), 0)
 
     async def test_pending_recovery_after_processing_before_ack(self):
         event_id = await self.redis.xadd("coverage-holy", SPOT, id="60000-0")
