@@ -131,7 +131,8 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
             )
         )
         spots = [{"dx_callsign": "K1ABC"}]
-        await main.broadcast_spots(fake_app, spots)
+        with patch.object(main.time, "time", return_value=10000):
+            await main.broadcast_spots(fake_app, spots)
         self.assertEqual(legacy_healthy.messages, [{"type": "update", "spots": spots}])
         self.assertEqual(
             unified_healthy.messages,
@@ -140,6 +141,7 @@ class WebSocketBroadcastTest(unittest.IsolatedAsyncioTestCase):
                     "version": 1,
                     "type": "spots",
                     "event": "update",
+                    "server_time": 10000,
                     "spots": spots,
                 }
             ],

@@ -193,7 +193,7 @@ async def broadcast_spots(app, spots):
         await send_json_to_websockets(app.state.active_connections, {"type": "update", "spots": spots})
         await send_json_to_websockets(
             app.state.active_ws_spot_connections,
-            build_ws_message(WsMessageType.SPOTS, event=WsSpotEvent.UPDATE.value, spots=spots),
+            build_ws_spot_message(WsSpotEvent.UPDATE, spots=spots),
         )
 
 
@@ -436,6 +436,10 @@ def build_ws_message(message_type: WsMessageType, **data):
     }
     response.update(data)
     return response
+
+
+def build_ws_spot_message(event: WsSpotEvent, **data):
+    return build_ws_message(WsMessageType.SPOTS, event=event.value, server_time=time.time(), **data)
 
 
 def validate_ws_protocol_message(message):
@@ -1287,9 +1291,8 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
         await send_ws_json(
             websocket,
             send_lock,
-            build_ws_message(
-                WsMessageType.SPOTS,
-                event=WsSpotEvent.SUBSCRIBED.value,
+            build_ws_spot_message(
+                WsSpotEvent.SUBSCRIBED,
                 subscription_id=message["subscription_id"],
                 subscription_ack=True,
             ),
@@ -1297,11 +1300,11 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
     metrics.FEATURES.labels("initial_spots" if action == WsSpotAction.INITIAL.value else "spot_catch_up").inc()
     if action == WsSpotAction.INITIAL.value:
         spots = await get_initial_spots()
-        event = WsSpotEvent.INITIAL.value
+        event = WsSpotEvent.INITIAL
     else:
         spots = await get_spots_after(message["last_time"])
-        event = WsSpotEvent.UPDATE.value
-    await send_ws_json(websocket, send_lock, build_ws_message(WsMessageType.SPOTS, event=event, spots=spots))
+        event = WsSpotEvent.UPDATE
+    await send_ws_json(websocket, send_lock, build_ws_spot_message(event, spots=spots))
 
 
 async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
