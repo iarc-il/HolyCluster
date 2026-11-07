@@ -159,8 +159,11 @@ function Heatmap() {
     }, [heatmap_data, colors.theme.text, colors.theme.borders, settings]);
 
     return (
-        <div className="pt-2" data-tour="heatmap-panel">
-            <div className="flex justify-between items-center pb-3" data-tour="heatmap-controls">
+        <div className="flex h-full min-h-0 flex-col pt-2" data-tour="heatmap-panel">
+            <div
+                className="flex shrink-0 items-center justify-between pb-3"
+                data-tour="heatmap-controls"
+            >
                 <div style={{ color: colors.theme.text }}>
                     <span className="text-sm">Continent:</span>
                     <select
@@ -189,18 +192,27 @@ function Heatmap() {
                 </div>
             </div>
 
-            <div data-tour="heatmap-chart">
+            <div
+                className="flex min-h-0 flex-1 items-center justify-center"
+                data-tour="heatmap-chart"
+            >
                 <canvas
                     ref={canvas_ref}
                     style={{
-                        width: "100%",
+                        width: "auto",
                         height: "auto",
+                        maxWidth: "100%",
+                        maxHeight: "100%",
                         backgroundColor: colors.theme.background,
                     }}
                 />
             </div>
 
-            <div className="mt-4" data-tour="heatmap-legend" style={{ color: colors.theme.text }}>
+            <div
+                className="mt-4 shrink-0"
+                data-tour="heatmap-legend"
+                style={{ color: colors.theme.text }}
+            >
                 <div className="flex items-center justify-between text-xs mb-1">
                     <span>0</span>
                     <span>9</span>
@@ -219,7 +231,7 @@ function Heatmap() {
                 />
             </div>
 
-            <div className="text-xs text-center p-4" style={{ color: colors.theme.text }}>
+            <div className="shrink-0 p-4 text-center text-xs" style={{ color: colors.theme.text }}>
                 The heatmap is calculated from the reported spots from/to the selected continent in
                 the last hour.
             </div>

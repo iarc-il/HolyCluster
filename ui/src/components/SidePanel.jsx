@@ -320,7 +320,7 @@ function SidePanel({
             set_cat_to_spot={set_cat_to_spot}
             className={"px-2 h-full"}
         />,
-        <div key="heatmap" className="p-2">
+        <div key="heatmap" className="h-full p-2">
             <Heatmap />
         </div>,
         <DXpeditions key="dxpeditions" />,

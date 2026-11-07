@@ -252,6 +252,17 @@ for (const [width, height] of [
                 ]) {
                     await workspace.getByRole("button", { name: label, exact: true }).click();
                     await expect(workspace.locator(`[data-tour="${target}"]`)).toBeVisible();
+                    if (label === "Heatmap") {
+                        const canvas = workspace.locator('[data-tour="heatmap-chart"] canvas');
+                        const chart = workspace.locator('[data-tour="heatmap-chart"]');
+                        await expect(canvas).toBeVisible();
+                        const [canvas_bounds, chart_bounds] = await Promise.all([
+                            canvas.boundingBox(),
+                            chart.boundingBox(),
+                        ]);
+                        expect(canvas_bounds.width).toBeLessThanOrEqual(chart_bounds.width + 1);
+                        expect(canvas_bounds.height).toBeLessThanOrEqual(chart_bounds.height + 1);
+                    }
                 }
             }
             const bounds = await workspace.boundingBox();
