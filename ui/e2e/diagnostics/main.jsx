@@ -104,7 +104,7 @@ window.run_diagnostic = async scenario => {
         };
         createRoot(document.getElementById("root")).render(
             <WsProvider>
-                <UiRefreshProvider>
+                <UiRefreshProvider navigate={() => {}}>
                     <div>module recovery diagnostics</div>
                 </UiRefreshProvider>
             </WsProvider>,
