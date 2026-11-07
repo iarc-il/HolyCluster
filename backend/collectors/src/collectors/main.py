@@ -40,6 +40,9 @@ from collectors.wwff import run_wwff_collector
 import aiomonitor
 
 STREAM_API = "stream-api"
+COVERAGE_PIPELINE_STREAM = "coverage-holy-pipeline"
+COVERAGE_PIPELINE_MAXLEN = 100_000
+COVERAGE_PIPELINE_TIMEOUT = 0.5
 PERSIST_ATTEMPTS = 3
 LOTW_CACHE_KEY = "collector:lotw:user_activity"
 LOTW_REFRESH_INTERVAL_SECONDS = 3600
@@ -182,6 +185,24 @@ async def add_spot_to_postgres(engine, spot: dict):
         await session.commit()
 
 
+async def publish_coverage_pipeline_result(valkey_client, spot: dict, result: str) -> str:
+    if spot.get("type"):
+        return "excluded"
+    try:
+        record = {field: spot[field] for field in ("time", "dx_callsign", "frequency", "spotter_callsign")}
+        record["result"] = result
+        async with asyncio.timeout(COVERAGE_PIPELINE_TIMEOUT):
+            await valkey_client.xadd(
+                COVERAGE_PIPELINE_STREAM,
+                record,
+                maxlen=COVERAGE_PIPELINE_MAXLEN,
+                approximate=False,
+            )
+    except (KeyError, TypeError, ValueError, TimeoutError, redis.exceptions.RedisError):
+        return "error"
+    return "success"
+
+
 async def persist_spot(engine, valkey_client, spot: dict):
     for attempt in range(PERSIST_ATTEMPTS):
         try:
@@ -260,6 +281,9 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                 raise
             finally:
                 metrics.spots.labels(source, "pipeline", result).inc()
+                if result != "cancelled":
+                    publication = await publish_coverage_pipeline_result(valkey_client, spot, result)
+                    metrics.spots.labels(source, "coverage", publication).inc()
                 input_queue.task_done()
 
     except asyncio.CancelledError:

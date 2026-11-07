@@ -55,6 +55,28 @@ class MetricsTest(IsolatedAsyncioTestCase):
             )
         return queue
 
+    async def test_pipeline_results_publish_bounded_coverage_records(self):
+        valkey = AsyncMock()
+        spot = {
+            "time": "1200Z",
+            "dx_callsign": "K1SECRET",
+            "frequency": 14074.0,
+            "spotter_callsign": "W1PRIVATE",
+        }
+        self.assertEqual(await main.publish_coverage_pipeline_result(valkey, spot, "invalid_band"), "success")
+        valkey.xadd.assert_awaited_once_with(
+            "coverage-holy-pipeline",
+            {**spot, "result": "invalid_band"},
+            maxlen=100_000,
+            approximate=False,
+        )
+        valkey.reset_mock()
+        self.assertEqual(
+            await main.publish_coverage_pipeline_result(valkey, {**spot, "type": "pota"}, "success"),
+            "excluded",
+        )
+        valkey.xadd.assert_not_awaited()
+
     async def test_empty_json_is_success_and_failure_preserves_last_success(self):
         await self.poll([[]])
         timestamp = self.value("poll_last_success_timestamp_seconds", source="pota")
