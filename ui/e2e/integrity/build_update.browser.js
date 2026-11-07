@@ -5,7 +5,7 @@ const html = await readFile(new URL("../../dist/integrity/index.html", import.me
 const entry = html.match(/<script type="module"[^>]*src="([^"]+)"/)[1];
 const newer = html.replaceAll(entry, "/assets/new-release.js");
 
-test.beforeEach(async ({ page }) => {
+async function prepare(page) {
     await page.clock.install();
     await page.addInitScript(() => localStorage.setItem("first_launch", "false"));
     await page.route(/https:\/\//, route =>
@@ -27,67 +27,70 @@ test.beforeEach(async ({ page }) => {
             }),
         );
     }
-});
+}
 
-for (const [state, path] of [
-    ["new", "/"],
-    ["same", "/"],
-    ["offline", "/"],
-    ["new", "/addons"],
-    ["new", "/omnirig-error"],
-]) {
+test.beforeEach(async ({ page }) => prepare(page));
+
+for (const path of ["/", "/addons", "/omnirig-error"]) {
     testWithBrowserErrors(
-        `checks the ${state} build on ${path} without automatic reload`,
-        state === "offline"
-            ? [/^console: Failed to load resource: (?:net::ERR_FAILED|Load failed)$/]
-            : [],
+        `reloads ${path} after one hour of inactivity when a new build is available`,
+        [],
         async ({ page }) => {
             let documents = 0;
             let probes = 0;
-            let completed_probes = 0;
-            await page.route(`**${path}`, async route => {
+            await page.route(`**${path}`, route => {
                 if (route.request().resourceType() === "document") {
                     documents++;
                     return route.fulfill({ contentType: "text/html", body: html });
                 }
                 probes++;
-                if (state === "offline") await route.abort();
-                else {
-                    await route.fulfill({
-                        contentType: "text/html",
-                        body: state === "new" ? newer : html,
-                    });
-                }
-                completed_probes++;
+                return route.fulfill({ contentType: "text/html", body: newer });
             });
+
             await page.goto(path);
             if (path === "/")
                 await expect(page.locator('[data-tour="about-trigger"]')).toBeAttached();
             await expect.poll(() => probes).toBe(1);
-            const update = page.getByRole("button", { name: "Reload now" });
-            if (state === "new") await expect(update).toBeVisible();
-            else await expect(update).toHaveCount(0);
+            await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
+
             await page.clock.fastForward(59 * 60 * 1000);
-            expect(probes).toBe(1);
             expect(documents).toBe(1);
-            if (state === "new") {
-                await expect(update).toHaveCount(1);
-                const navigated = page.waitForEvent(
-                    "framenavigated",
-                    frame => frame === page.mainFrame(),
-                );
-                await update.click();
-                await navigated;
-                await page.waitForLoadState("load");
-                await expect.poll(() => documents).toBe(2);
-                await expect.poll(() => completed_probes).toBe(2);
-                await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
-            } else {
-                await page.clock.fastForward(2 * 60 * 1000);
-                await expect.poll(() => probes).toBe(2);
-                await expect.poll(() => completed_probes).toBe(2);
-                await expect(update).toHaveCount(0);
-            }
+            expect(probes).toBe(1);
+
+            await page.clock.fastForward(2 * 60 * 1000);
+            await expect.poll(() => documents).toBe(2);
+            await expect(page.getByRole("button", { name: "Reload" })).toBeVisible();
+        },
+    );
+}
+
+for (const [state, failure] of [
+    ["same", null],
+    ["offline", /^console: Failed to load resource: (?:net::ERR_FAILED|Load failed)$/],
+]) {
+    testWithBrowserErrors(
+        `keeps the current build when the probe is ${state}`,
+        failure ? [failure] : [],
+        async ({ page }) => {
+            let documents = 0;
+            let probes = 0;
+            await page.route("**/", route => {
+                if (route.request().resourceType() === "document") {
+                    documents++;
+                    return route.fulfill({ contentType: "text/html", body: html });
+                }
+                probes++;
+                return state === "offline"
+                    ? route.abort()
+                    : route.fulfill({ contentType: "text/html", body: html });
+            });
+
+            await page.goto("/");
+            await expect.poll(() => probes).toBe(1);
+            await page.clock.fastForward(61 * 60 * 1000);
+            await expect.poll(() => probes).toBe(2);
+            expect(documents).toBe(1);
+            await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
         },
     );
 }
@@ -103,7 +106,7 @@ test("trusted interaction postpones automatic refresh", async ({ page }) => {
     });
 
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Reload now" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
     await page.clock.fastForward(59 * 60 * 1000);
     await page.mouse.click(2, 2);
     await page.clock.fastForward(2 * 60 * 1000);
@@ -112,7 +115,7 @@ test("trusted interaction postpones automatic refresh", async ({ page }) => {
     await page.clock.fastForward(60 * 60 * 1000);
     await expect.poll(() => documents).toBe(2);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reload" })).toBeVisible();
 });
 
 test("waits another hour after an open modal closes", async ({ page }) => {
@@ -128,19 +131,17 @@ test("waits another hour after an open modal closes", async ({ page }) => {
     await page.goto("/");
     await page.locator('[data-tour="about-trigger"]').evaluate(element => element.click());
     await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(
-        page.getByText("The update is waiting for the current operation to finish."),
-    ).toBeVisible();
     await page.clock.fastForward(61 * 60 * 1000);
     expect(documents).toBe(1);
 
     await page.locator('[data-tour="modal-close-button"]').click();
+    await page.clock.fastForward(59 * 60 * 1000);
     expect(documents).toBe(1);
-    await page.clock.fastForward(60 * 60 * 1000);
+    await page.clock.fastForward(2 * 60 * 1000);
     await expect.poll(() => documents).toBe(2);
 });
 
-test("shows manual recovery after a target mismatch", async ({ page }) => {
+test("shows recovery after a target mismatch", async ({ page }) => {
     await page.addInitScript(
         ({ entry }) =>
             sessionStorage.setItem(
@@ -152,10 +153,8 @@ test("shows manual recovery after a target mismatch", async ({ page }) => {
     await page.route("**/", route => route.fulfill({ contentType: "text/html", body: html }));
 
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
-    await expect
-        .poll(() => page.evaluate(() => sessionStorage.getItem("holycluster_ui_navigation")))
-        .not.toBeNull();
+    await expect(page.getByText("Part of the UI could not be loaded.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reload" })).toBeVisible();
 });
 
 test("classifies a newer loaded entry without showing a mismatch", async ({ page }) => {
@@ -171,8 +170,5 @@ test("classifies a newer loaded entry without showing a mismatch", async ({ page
     await page.route("**/", route => route.fulfill({ contentType: "text/html", body: html }));
 
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Reload manually" })).toHaveCount(0);
-    await expect
-        .poll(() => page.evaluate(() => sessionStorage.getItem("holycluster_ui_navigation")))
-        .not.toBeNull();
+    await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
 });

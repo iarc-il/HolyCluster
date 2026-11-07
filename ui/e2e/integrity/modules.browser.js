@@ -122,18 +122,9 @@ testWithBrowserErrors(
             });
         });
         await page.goto("/addons");
-        await expect(page.getByRole("button", { name: "Reload now" })).toBeVisible();
-        expect(documents).toBe(1);
-        await page.evaluate(() => {
-            Object.defineProperty(document, "visibilityState", {
-                configurable: true,
-                value: "hidden",
-            });
-            document.dispatchEvent(new Event("visibilitychange"));
-        });
         await expect.poll(() => documents).toBe(2);
         await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
-        await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Reload" })).toBeVisible();
         await page.waitForTimeout(700);
         expect(documents).toBe(2);
     },
@@ -182,9 +173,9 @@ testWithBrowserErrors(
         });
 
         await page.goto("/addons");
-        await expect(page.getByRole("button", { name: "Reload now" })).toBeVisible();
-        expect(documents).toBe(1);
-        expect(probes).toBeGreaterThanOrEqual(2);
+        await expect.poll(() => documents).toBe(2);
+        await expect.poll(() => probes).toBeGreaterThanOrEqual(2);
+        await expect(page.getByRole("button", { name: "Reload" })).toBeVisible();
     },
 );
 
