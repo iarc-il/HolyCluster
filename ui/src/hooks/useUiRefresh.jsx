@@ -240,61 +240,65 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         begin_navigation();
     }, [begin_navigation, report, running_entry, target_entry]);
 
-    const automatic_reload = useCallback(() => {
-        automatic_failure_ref.current = null;
-        const target = target_entry_ref.current;
-        const active =
-            document.visibilityState === "visible" &&
-            Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS;
-        if (blockers_ref.current.length > 0) {
-            automatic_failure_ref.current = "blocked";
-            return false;
-        }
-        if (active) {
-            automatic_failure_ref.current = "active_page";
-            return false;
-        }
-        if (!target) {
-            automatic_failure_ref.current = "missing_target";
-            return false;
-        }
-        if (!storage_available()) {
-            automatic_failure_ref.current = "storage_unavailable";
-            return false;
-        }
-        try {
-            if (sessionStorage.getItem(LAST_AUTO_TARGET) === target) {
-                automatic_failure_ref.current = "already_attempted";
+    const reload_target = useCallback(
+        immediate => {
+            automatic_failure_ref.current = null;
+            const target = target_entry_ref.current;
+            const active =
+                document.visibilityState === "visible" &&
+                Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS;
+            if (!immediate && blockers_ref.current.length > 0) {
+                automatic_failure_ref.current = "blocked";
                 return false;
             }
-            sessionStorage.setItem(LAST_AUTO_TARGET, target);
-            sessionStorage.setItem(
-                NAVIGATION_MARKER,
-                JSON.stringify({ source_entry: running_entry, target_entry: target }),
-            );
-        } catch {
-            storage_available_ref.current = false;
-            automatic_failure_ref.current = "storage_unavailable";
-            return false;
-        }
-        const recovery = stale_recovery_ref.current;
-        if (recovery?.diagnostic && !recovery.navigation_reported) {
-            const target_diagnostic = target_diagnostic_ref.current;
-            const diagnostic =
-                target_diagnostic?.target_entry === target
-                    ? { ...recovery.diagnostic, ...target_diagnostic.evidence }
-                    : recovery.target_entry === target
-                      ? recovery.diagnostic
-                      : null;
-            if (diagnostic) {
-                recovery.navigation_reported = true;
-                report_module_recovery(diagnostic, "navigate", "new_build", true);
+            if (!immediate && active) {
+                automatic_failure_ref.current = "active_page";
+                return false;
             }
-        }
-        report("auto_reload");
-        begin_navigation();
-        return true;
-    }, [begin_navigation, report, running_entry, storage_available]);
+            if (!target) {
+                automatic_failure_ref.current = "missing_target";
+                return false;
+            }
+            if (!storage_available()) {
+                automatic_failure_ref.current = "storage_unavailable";
+                return false;
+            }
+            try {
+                if (sessionStorage.getItem(LAST_AUTO_TARGET) === target) {
+                    automatic_failure_ref.current = "already_attempted";
+                    return false;
+                }
+                sessionStorage.setItem(LAST_AUTO_TARGET, target);
+                sessionStorage.setItem(
+                    NAVIGATION_MARKER,
+                    JSON.stringify({ source_entry: running_entry, target_entry: target }),
+                );
+            } catch {
+                storage_available_ref.current = false;
+                automatic_failure_ref.current = "storage_unavailable";
+                return false;
+            }
+            const recovery = stale_recovery_ref.current;
+            if (recovery?.diagnostic && !recovery.navigation_reported) {
+                const target_diagnostic = target_diagnostic_ref.current;
+                const diagnostic =
+                    target_diagnostic?.target_entry === target
+                        ? { ...recovery.diagnostic, ...target_diagnostic.evidence }
+                        : recovery.target_entry === target
+                          ? recovery.diagnostic
+                          : null;
+                if (diagnostic) {
+                    recovery.navigation_reported = true;
+                    report_module_recovery(diagnostic, "navigate", "new_build", true);
+                }
+            }
+            report("auto_reload");
+            begin_navigation();
+            return true;
+        },
+        [begin_navigation, report, running_entry, storage_available],
+    );
+    const automatic_reload = useCallback(() => reload_target(false), [reload_target]);
 
     const recover_stale_module = useCallback(
         async (error, exception_event_id) => {
@@ -324,23 +328,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 return;
             }
             recovery.target_entry = update.target_entry;
-            if (blockers_ref.current.length > 0) {
-                report("blocked", blockers_ref.current[0]);
-                report_module_recovery(diagnostic, "blocked", "blocked");
-                stale_recovery_ref.current = { ...recovery, status: "blocked" };
-                set_stale_recovery(stale_recovery_ref.current);
-                return;
-            }
-            if (
-                document.visibilityState === "visible" &&
-                Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS
-            ) {
-                report_module_recovery(diagnostic, "waiting", "active_page");
-                stale_recovery_ref.current = { ...recovery, status: "waiting" };
-                set_stale_recovery(stale_recovery_ref.current);
-                return;
-            }
-            if (!automatic_reload()) {
+            if (!reload_target(true)) {
                 report_module_recovery(
                     diagnostic,
                     "manual",
@@ -350,7 +338,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
                 set_stale_recovery(stale_recovery_ref.current);
             }
         },
-        [automatic_reload, check_for_update, report, running_entry],
+        [check_for_update, reload_target, report, running_entry],
     );
 
     useLayoutEffect(() => {
@@ -370,26 +358,6 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
         window.addEventListener("vite:preloadError", recover);
         return () => window.removeEventListener("vite:preloadError", recover);
     }, [recover_stale_module]);
-
-    useEffect(() => {
-        if (stale_recovery?.status !== "blocked" || blockers.length > 0) return;
-        if (
-            document.visibilityState === "visible" &&
-            Date.now() - last_interaction_ref.current < CHECK_INTERVAL_MS
-        ) {
-            report_module_recovery(stale_recovery_ref.current.diagnostic, "waiting", "active_page");
-            stale_recovery_ref.current = { ...stale_recovery_ref.current, status: "waiting" };
-            set_stale_recovery(stale_recovery_ref.current);
-        } else if (!automatic_reload()) {
-            report_module_recovery(
-                stale_recovery_ref.current.diagnostic,
-                "manual",
-                automatic_failure_ref.current ?? "missing_target",
-            );
-            stale_recovery_ref.current = { ...stale_recovery_ref.current, status: "manual" };
-            set_stale_recovery(stale_recovery_ref.current);
-        }
-    }, [automatic_reload, blockers.length, stale_recovery?.status]);
 
     const evaluate = useCallback(() => {
         window.clearTimeout(evaluation_timer_ref.current);

@@ -20,26 +20,15 @@ export default function BuildUpdate() {
         };
     }, [container]);
     useEffect(() => {
-        const mismatch = navigation_outcome?.event === "target_mismatch";
-        if (!stale_recovery && !mismatch) return;
-        const manual = mismatch || stale_recovery?.status === "manual";
-        const blocked = stale_recovery?.status === "blocked";
-        const checking = stale_recovery?.status === "checking";
-        let message =
-            "A module failed to load. HolyCluster will refresh when this tab is hidden or after one hour without activity. ";
-        if (stale_recovery?.status === "manual") {
-            message = "Part of the UI could not be loaded. ";
-        } else if (manual) message = "The update could not be loaded automatically. ";
-        else if (blocked) message = "The update is waiting for the current operation to finish. ";
-        else if (checking) message = "A module failed to load. Checking for an update. ";
+        const recovery_failed = stale_recovery?.status === "manual";
+        const reload_failed = navigation_outcome?.event === "target_mismatch";
+        if (!recovery_failed && !reload_failed) return;
         const content = (
             <div>
-                {message}
-                {!checking && (
-                    <button type="button" onClick={manual_reload}>
-                        {manual ? "Reload manually" : "Reload now"}
-                    </button>
-                )}
+                {"Part of the UI could not be loaded. "}
+                <button type="button" onClick={manual_reload}>
+                    Reload
+                </button>
             </div>
         );
         if (notification_shown_ref.current) {
