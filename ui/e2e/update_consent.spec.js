@@ -65,7 +65,7 @@ test("update badge and consent dialog share available and deferred state", async
     await expect(dialog).toHaveCount(0);
     await expect.poll(() => mock.state).toBe("deferred");
     await expect(badge).toContainText("!");
-    await badge.getByRole("link").click();
+    await badge.getByRole("button", { name: "Open CAT Control update" }).click();
     await expect(dialog).toContainText("Version 1.3.2 is ready to install.");
     await expect(dialog.getByRole("button", { name: "Update", exact: true })).toBeVisible();
     expect(mock.checks).toBe(1);
@@ -122,7 +122,10 @@ test("translated update controls survive progress, failure, dismissal and reopen
     mock.session = null;
     await dialog.getByRole("button", { name: "Translated Dismiss", exact: true }).click();
     await expect(dialog).toHaveCount(0);
-    await page.locator('[data-tour="cat-download-link"]').getByRole("link").click();
+    await page
+        .locator('[data-tour="cat-download-link"]')
+        .getByRole("button", { name: "Open CAT Control update" })
+        .click();
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("h2 > font > font")).toHaveCount(1);
     await dialog.getByRole("button", { name: "Translated Later", exact: true }).click();
