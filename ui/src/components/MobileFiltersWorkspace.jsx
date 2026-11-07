@@ -68,7 +68,7 @@ export default function MobileFiltersWorkspace({ visible }) {
                                 style={{ borderColor: colors.theme.borders }}
                             >
                                 <h2 className="font-semibold">Continents</h2>
-                                <SwapButton mobile colors={colors} />
+                                <SwapButton colors={colors} />
                             </div>
                             <ContinentColumn mobile spot_type="dx" colors={colors} />
                             <ContinentColumn mobile spot_type="spotter" colors={colors} />
