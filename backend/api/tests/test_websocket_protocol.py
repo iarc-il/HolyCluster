@@ -190,6 +190,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "version": 1,
                     "type": "spots",
                     "event": "initial",
+                    "server_time": 10000,
                     "spots": spots,
                 },
             )
@@ -201,6 +202,7 @@ class WebSocketProtocolTest(unittest.TestCase):
         with (
             patch("api.main.async_session", new=lambda: FakeSession(spots)),
             patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            patch("api.main.time.time", return_value=10000),
             self.client.websocket_connect("/ws") as websocket,
         ):
             websocket.send_json({"version": 1, "type": "spots", "action": "catch_up", "last_time": 123})
@@ -211,6 +213,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "version": 1,
                     "type": "spots",
                     "event": "update",
+                    "server_time": 10000,
                     "spots": spots,
                 },
             )
@@ -233,6 +236,7 @@ class WebSocketProtocolTest(unittest.TestCase):
             with (
                 patch("api.main.get_initial_spots", new=query),
                 patch("api.main.get_spots_after", new=query),
+                patch("api.main.time.time", return_value=10000),
                 self.client.websocket_connect("/ws") as websocket,
             ):
                 websocket.send_json(
@@ -251,6 +255,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                         "version": 1,
                         "type": "spots",
                         "event": "subscribed",
+                        "server_time": 10000,
                         "subscription_id": "epoch-1",
                         "subscription_ack": True,
                     },
@@ -594,7 +599,8 @@ class WebSocketProtocolTest(unittest.TestCase):
             )
         )
 
-        asyncio.run(broadcast_spots(fake_app, spots))
+        with patch("api.main.time.time", return_value=10000):
+            asyncio.run(broadcast_spots(fake_app, spots))
 
         self.assertEqual(legacy_websocket.messages, [{"type": "update", "spots": spots}])
         self.assertEqual(
@@ -604,6 +610,7 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "version": 1,
                     "type": "spots",
                     "event": "update",
+                    "server_time": 10000,
                     "spots": spots,
                 }
             ],

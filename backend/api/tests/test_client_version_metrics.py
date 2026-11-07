@@ -24,9 +24,14 @@ class ClientVersionMetricsTest(unittest.TestCase):
         self.catch_up.start()
         self.addCleanup(self.catch_up.stop)
 
+    def assert_spot_response(self, socket, event):
+        response = socket.receive_json()
+        self.assertIsInstance(response.pop("server_time"), float)
+        self.assertEqual(response, {"version": 1, "type": "spots", "event": event, "spots": []})
+
     def subscribe(self, socket, **metadata):
         socket.send_json({"version": 1, "type": "spots", "action": "initial", **metadata})
-        self.assertEqual(socket.receive_json(), {"version": 1, "type": "spots", "event": "initial", "spots": []})
+        self.assert_spot_response(socket, "initial")
 
     def test_old_direct_and_cat_clients(self):
         for metadata, ui, cat in (
@@ -59,7 +64,7 @@ class ClientVersionMetricsTest(unittest.TestCase):
             socket.send_json(
                 {"version": 1, "type": "spots", "action": "catch_up", "last_time": 0, "ui_version": "v2.0.0"}
             )
-            self.assertEqual(socket.receive_json(), {"version": 1, "type": "spots", "event": "update", "spots": []})
+            self.assert_spot_response(socket, "update")
             self.assertEqual(value(self.client, REPORTS, **old), old_reports + 1)
             self.subscribe(socket, ui_version="v2.0.1")
             self.assertEqual(value(self.client, ACTIVE, **old), 0)
