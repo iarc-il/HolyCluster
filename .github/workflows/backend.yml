@@ -71,7 +71,9 @@ jobs:
           SENTRY_RELEASE: test
         run: |
           cp .env.example .env
-          mkdir -p "$UI_DIST_PATH/assets"
+          mkdir -p "$UI_DIST_PATH/assets" "$UI_DIST_PATH/icons"
+          cp ../ui/public/manifest.webmanifest "$UI_DIST_PATH/"
+          cp ../ui/public/icons/*.png "$UI_DIST_PATH/icons/"
           uv run pytest
 
       - name: Setup SSH
