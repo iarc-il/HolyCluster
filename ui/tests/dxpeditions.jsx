@@ -55,6 +55,10 @@ vi.mock("@/hooks/useSpotInteraction", () => ({
     }),
 }));
 
+vi.mock("@/hooks/useWs", () => ({
+    useServerClock: () => ({ now_ms: () => Date.now() }),
+}));
+
 describe("DXpeditions", () => {
     afterEach(() => {
         cleanup();

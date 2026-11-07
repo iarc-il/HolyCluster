@@ -15,6 +15,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useVoacap } from "@/hooks/useVoacap.jsx";
+import { useServerClock } from "@/hooks/useWs";
 import {
     calculate_bearing_between_locations,
     get_bearing_origin,
@@ -58,6 +59,7 @@ function CanvasMap({
         useSpotInteraction();
     const { settings } = useSettings();
     const { colors, dev_mode } = useColors();
+    const { now_ms } = useServerClock();
     const { rotator_azimuth, rotator_target_azimuth } = useRotator();
     const [hovered_zone, set_hovered_zone] = useState({ system: null, number: null });
     const [hovered_dxcc, set_hovered_dxcc] = useState(null);
@@ -171,6 +173,7 @@ function CanvasMap({
         rotator_azimuth,
         rotator_target_azimuth,
         night_time,
+        now_ms,
         voacap: voacap_render_state,
     };
 

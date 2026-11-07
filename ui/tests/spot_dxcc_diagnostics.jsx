@@ -20,6 +20,8 @@ vi.mock("@/hooks/useWs", () => ({
         transport: "unified",
         subscribe: websocket.subscribe,
         send_now: () => true,
+        now_ms: () => Date.now(),
+        clock_revision: 0,
     }),
 }));
 vi.mock("@/utils/live_spot_snapshot.js", () => ({

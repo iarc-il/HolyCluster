@@ -102,8 +102,7 @@ export function enrich_spot_zones_if_missing(spot) {
     return Object.keys(updates).length > 0 ? { ...spot, ...updates } : spot;
 }
 
-export function trim_spots_to_last_hour(spots) {
-    const current_time = Date.now() / 1000;
+export function trim_spots_to_last_hour(spots, current_time) {
     return spots.filter(
         spot =>
             Number.isFinite(spot.time) &&
@@ -116,18 +115,28 @@ export function flatten_buffered_spot_batches(spot_batches) {
     return [...spot_batches].reverse().flat();
 }
 
-export function merge_spot_batches(incoming, previous) {
+export function merge_spot_batches(incoming, previous, current_time) {
     const spots = new Map();
     for (const spot of [...incoming, ...previous]) {
         if (!spots.has(spot.id)) spots.set(spot.id, spot);
     }
-    return trim_spots_to_last_hour([...spots.values()]).sort((a, b) => b.time - a.time);
+    return trim_spots_to_last_hour([...spots.values()], current_time).sort(
+        (a, b) => b.time - a.time,
+    );
 }
 
 export default function useSpotWebSocket() {
-    const { send_now, subscribe, spot_socket_epoch, transport, network_state, readyState } =
-        useWs();
-    const [raw_spots, set_spots] = useState(read_live_spot_snapshot);
+    const {
+        send_now,
+        subscribe,
+        spot_socket_epoch,
+        transport,
+        network_state,
+        readyState,
+        now_ms,
+        clock_revision,
+    } = useWs();
+    const [raw_spots, set_spots] = useState(() => read_live_spot_snapshot(now_ms()));
     const [new_spot_ids, set_new_spot_ids] = useState(new Set());
     const cached_ids_ref = useRef(new Set(raw_spots.map(spot => spot.id)));
 
@@ -158,13 +167,13 @@ export default function useSpotWebSocket() {
             }, 3000);
 
             set_spots(previous_spots => {
-                const merged_spots = merge_spot_batches(new_spots, previous_spots);
+                const merged_spots = merge_spot_batches(new_spots, previous_spots, now_ms() / 1000);
                 track_latest_spot_time(merged_spots);
 
                 return merged_spots;
             });
         },
-        [track_latest_spot_time],
+        [now_ms, track_latest_spot_time],
     );
 
     const release_buffered_spots = useCallback(() => {
@@ -192,14 +201,16 @@ export default function useSpotWebSocket() {
 
     useEffect(() => {
         const timer = setInterval(() => {
+            const current_time_ms = now_ms();
             const cached_ids = new Set(cached_ids_ref.current);
             const valid_cached_ids = cached_ids.size
-                ? new Set(read_live_spot_snapshot().map(spot => spot.id))
+                ? new Set(read_live_spot_snapshot(current_time_ms).map(spot => spot.id))
                 : null;
             set_spots(previous_spots => {
-                const retained = trim_spots_to_last_hour(previous_spots).filter(
-                    spot => !cached_ids.has(spot.id) || valid_cached_ids?.has(spot.id),
-                );
+                const retained = trim_spots_to_last_hour(
+                    previous_spots,
+                    current_time_ms / 1000,
+                ).filter(spot => !cached_ids.has(spot.id) || valid_cached_ids?.has(spot.id));
                 return retained.length === previous_spots.length ? previous_spots : retained;
             });
             if (valid_cached_ids) {
@@ -209,7 +220,16 @@ export default function useSpotWebSocket() {
             }
         }, 1000);
         return () => clearInterval(timer);
-    }, []);
+    }, [now_ms]);
+
+    useEffect(() => {
+        if (clock_revision === 0) return;
+        const current_time_ms = now_ms();
+        const cached_spots = read_live_spot_snapshot(current_time_ms);
+        set_spots(previous_spots =>
+            merge_spot_batches(previous_spots, cached_spots, current_time_ms / 1000),
+        );
+    }, [clock_revision, now_ms]);
 
     const receive_spots = useCallback(
         data => {
@@ -235,7 +255,7 @@ export default function useSpotWebSocket() {
                 pending.delivered = true;
                 pending.cancel();
             }
-            const observed_at = Date.now();
+            const observed_at = now_ms();
             let new_spots = data.spots
                 .map(spot => {
                     const mode = spot.mode === "DIGITAL" ? "DIGI" : spot.mode;
@@ -280,7 +300,7 @@ export default function useSpotWebSocket() {
                     return true;
                 });
 
-            new_spots = trim_spots_to_last_hour(new_spots);
+            new_spots = trim_spots_to_last_hour(new_spots, observed_at / 1000);
             void write_live_spot_snapshot(new_spots, observed_at);
             const cached_ids = new Set(cached_ids_ref.current);
             for (const spot of new_spots) cached_ids_ref.current.delete(spot.id);
@@ -299,12 +319,13 @@ export default function useSpotWebSocket() {
                     merge_spot_batches(
                         previous.filter(spot => !cached_ids.has(spot.id)),
                         new_spots,
+                        observed_at / 1000,
                     ),
                 );
                 track_latest_spot_time(new_spots);
             }
         },
-        [apply_spot_update, track_latest_spot_time],
+        [apply_spot_update, now_ms, track_latest_spot_time],
     );
 
     useEffect(() => {

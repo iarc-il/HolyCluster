@@ -228,6 +228,28 @@ describe("WebSocket transport", () => {
         });
     });
 
+    it("synchronizes the session clock from spot messages", () => {
+        vi.useFakeTimers({ now: 8_000_000 });
+        const monotonic_now = vi.spyOn(performance, "now").mockReturnValue(100);
+        const view = render_provider();
+        const unified = websocket_mock.connection_for("/ws");
+        unified.readyState = websocket_mock.ReadyState.OPEN;
+        receive(view, "/radio", { status: "unavailable" });
+
+        receive(view, "/ws", {
+            version: 1,
+            type: "spots",
+            event: "initial",
+            server_time: 2_000,
+            spots: [],
+        });
+
+        expect(TestConsumer.context.is_server_time).toBe(true);
+        expect(TestConsumer.context.now_ms()).toBe(2_000_000);
+        monotonic_now.mockReturnValue(600);
+        expect(TestConsumer.context.now_ms()).toBe(2_000_500);
+    });
+
     it("selects unified transport for a current CAT identity", () => {
         const view = render_provider();
         const unified = websocket_mock.connection_for("/ws");

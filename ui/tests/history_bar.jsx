@@ -6,6 +6,10 @@ import { TimeZoneProvider, useTimeZone } from "@/hooks/useTimeZone";
 
 const test_state = vi.hoisted(() => ({ display_hours: 24 }));
 
+vi.mock("@/hooks/useWs", () => ({
+    useServerClock: () => ({ now_ms: () => Date.now() }),
+}));
+
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
         colors: {

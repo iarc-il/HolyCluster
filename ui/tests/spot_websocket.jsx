@@ -13,6 +13,8 @@ const websocket = vi.hoisted(() => ({
         return () => websocket.handlers.delete(handler);
     },
     snapshot: [],
+    now_ms: () => Date.now(),
+    clock_revision: 0,
 }));
 vi.mock("@/hooks/useWs", () => ({
     ReadyState: { OPEN: 1 },
@@ -22,6 +24,8 @@ vi.mock("@/hooks/useWs", () => ({
         transport: websocket.transport,
         send_now: websocket.send,
         subscribe: websocket.subscribe,
+        now_ms: websocket.now_ms,
+        clock_revision: websocket.clock_revision,
     }),
 }));
 vi.mock("@/utils/live_spot_snapshot.js", () => ({
@@ -78,6 +82,8 @@ describe("spot subscriptions", () => {
         websocket.transport = "unified";
         websocket.send = vi.fn(() => true);
         websocket.snapshot = [];
+        websocket.now_ms = () => Date.now();
+        websocket.clock_revision = 0;
     });
     afterEach(() => {
         cleanup();
@@ -141,6 +147,17 @@ describe("spot subscriptions", () => {
         receive([], { event });
         act(() => vi.advanceTimersByTime(120000));
         expect(websocket.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses server time when the browser clock is wrong", () => {
+        websocket.now_ms = () => spot.time * 1000;
+        vi.setSystemTime((spot.time + 7200) * 1000);
+        const view = renderHook(useSpotWebSocket);
+        connect(view);
+        ack([spot]);
+        expect(view.result.current.raw_spots).toEqual([
+            expect.objectContaining({ dx_callsign: "K2ABC" }),
+        ]);
     });
 
     it("drops spots with invalid locations", () => {

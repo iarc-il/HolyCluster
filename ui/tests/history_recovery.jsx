@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({ ws: null, calls: [] }));
 vi.mock("@/hooks/useWs", () => ({
     ReadyState: { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 },
     useWs: () => state.ws,
+    useServerClock: () => ({ now_ms: () => Date.now() }),
 }));
 vi.mock("@/utils/spot_cache_db.jsx", () => ({
     subscribe: () => () => {},

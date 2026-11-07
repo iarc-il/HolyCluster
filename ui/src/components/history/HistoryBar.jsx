@@ -4,6 +4,7 @@ import Select from "@/components/ui/Select.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useTimeZone } from "@/hooks/useTimeZone";
+import { useServerClock } from "@/hooks/useWs";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const PRESETS = [
@@ -36,6 +37,7 @@ function HistoryBar({
 }) {
     const { colors } = useColors();
     const { hours, offset_ms, to_string } = useTimeZone();
+    const { now_ms: current_time_ms } = useServerClock();
     const {
         active_profile_data: {
             history: { display_hours, time_between_shifts, step_size_ms },
@@ -72,7 +74,7 @@ function HistoryBar({
     const hover_paused_ref = useRef(false);
 
     // Bar always ends at now on the right
-    const now_ms = Date.now();
+    const now_ms = current_time_ms();
     const display_ms = display_hours * 3_600_000;
     const bar_start_ms = now_ms - display_ms;
     const bar_end_ms = now_ms;
@@ -123,7 +125,7 @@ function HistoryBar({
 
     // --- Preset: change display range, clamp window to new bar ---
     function apply_preset(hours) {
-        const new_now = Date.now();
+        const new_now = current_time_ms();
         const new_bar_start = new_now - hours * 3_600_000;
         let s = start.getTime();
         let e = end.getTime();

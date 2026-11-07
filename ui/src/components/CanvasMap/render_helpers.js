@@ -112,6 +112,7 @@ export function do_redraw(
             current_freq_spots,
             overlay_highlights,
             night_time,
+            now_ms,
             voacap,
         } = render_state_ref.current;
 
@@ -148,7 +149,7 @@ export function do_redraw(
                     colors.map_countries,
                     colors.country_color_indices,
                     fast,
-                    night_time,
+                    night_time ?? new Date(now_ms()),
                 );
             });
             cache_ctx.restore();

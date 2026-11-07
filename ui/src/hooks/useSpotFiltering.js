@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { useFilters } from "./useFilters";
 import use_radio from "./useRadio";
 import { useSpotInteraction } from "./useSpotInteraction";
+import { useServerClock } from "./useWs";
 
 const reference_spot_types = new Set(["sota", "pota", "wwff"]);
 
@@ -99,6 +100,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     const { radio_band, radio_freq, radio_status } = use_radio();
     const { settings } = useSettings();
     const { search_query, selected_reference_type } = useSpotInteraction();
+    const { now_ms, clock_revision } = useServerClock();
 
     const [filter_missing_flags, set_filter_missing_flags] = useState(false);
 
@@ -147,7 +149,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     }, [source_spots, alerts, callsign_filters.is_alert_filters_active, missing]);
 
     const spots = useMemo(() => {
-        const current_time = new Date().getTime() / 1000;
+        const current_time = now_ms() / 1000;
         const regular_show_only_filters = show_only_filters.filter(
             filter => filter.type !== "missing",
         );
@@ -267,6 +269,8 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         filters.show_only_latest_spot,
         search_query,
         is_history_mode,
+        now_ms,
+        clock_revision,
     ]);
 
     const spots_per_band_count = useMemo(() => {
