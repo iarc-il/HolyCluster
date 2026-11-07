@@ -97,6 +97,7 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
     const target_entry_ref = useRef(target_entry);
     const target_diagnostic_ref = useRef(null);
     const evaluation_timer_ref = useRef(null);
+    const evaluation_check_ref = useRef(null);
     const evaluate_ref = useRef(null);
     const stale_recovery_ref = useRef(null);
     const storage_available_ref = useRef(null);
@@ -392,7 +393,20 @@ export function UiRefreshProvider({ children, navigate = reload_page }) {
 
     const evaluate = useCallback(() => {
         window.clearTimeout(evaluation_timer_ref.current);
-        if (!target_entry_ref.current || navigating_ref.current) return;
+        if (!target_entry_ref.current || navigating_ref.current || stopped_ref.current) return;
+        const check = check_ref.current;
+        if (check) {
+            if (evaluation_check_ref.current !== check) {
+                evaluation_check_ref.current = check;
+                void check.promise.finally(() => {
+                    if (evaluation_check_ref.current === check) {
+                        evaluation_check_ref.current = null;
+                    }
+                    if (!stopped_ref.current) evaluate_ref.current?.();
+                });
+            }
+            return;
+        }
         const blocked = blockers_ref.current.length > 0;
         const active =
             document.visibilityState === "visible" &&

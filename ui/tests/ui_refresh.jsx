@@ -546,6 +546,31 @@ it("reports blocked and automatic refresh evaluations", async () => {
     expect(navigate).toHaveBeenCalledTimes(1);
 });
 
+it("waits for an active build check before automatically refreshing", async () => {
+    let finish_check;
+    detection.check
+        .mockResolvedValueOnce({
+            current_entry: "/assets/current.js",
+            target_entry: "/assets/next.js",
+        })
+        .mockImplementationOnce(
+            () =>
+                new Promise(resolve => {
+                    finish_check = resolve;
+                }),
+        );
+    const navigate = vi.fn();
+    render_provider({ navigate });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    await act(() => vi.advanceTimersByTimeAsync(60 * 60 * 1000));
+    expect(detection.check).toHaveBeenCalledTimes(2);
+    expect(navigate).not.toHaveBeenCalled();
+
+    await act(async () => finish_check(null));
+    expect(navigate).toHaveBeenCalledTimes(1);
+});
+
 it("automatically refreshes a visible page after one hour without activity", async () => {
     detection.check.mockResolvedValue({
         current_entry: "/assets/current.js",

@@ -111,6 +111,8 @@ test("trusted interaction postpones automatic refresh", async ({ page }) => {
 
     await page.clock.fastForward(60 * 60 * 1000);
     await expect.poll(() => documents).toBe(2);
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("button", { name: "Reload manually" })).toBeVisible();
 });
 
 test("waits another hour after an open modal closes", async ({ page }) => {
