@@ -71,6 +71,13 @@ describe("clock", () => {
         expect(screen.getByRole("button").textContent).toBe("08:05 UTC");
     });
 
+    it("does not depend on browser date separators", () => {
+        vi.spyOn(Date.prototype, "toLocaleString").mockReturnValue("01 Nov 2026 at 04:05:09");
+        render_clock();
+
+        expect(screen.getByRole("button").textContent).toBe("04:05 UTC");
+    });
+
     it("ticks forward", () => {
         render_clock();
 

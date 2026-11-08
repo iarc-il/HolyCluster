@@ -12,23 +12,18 @@ function getTimezoneOffsetLabel(offset) {
         .padStart(2, "0")}:${(Math.abs(offset) % 60).toString().padStart(2, "0")}`;
 }
 
-// Same layout in both zones: "01 Nov 2026, 04:05:09"
-const STRING_OPTIONS = {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-};
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const two_digits = value => value.toString().padStart(2, "0");
+const format_time = (hours, minutes) => `${two_digits(hours)}:${two_digits(minutes)}`;
+const format_date = (day, month) => `${two_digits(day)} ${MONTHS[month]}`;
 
 const UTC = {
     label: "UTC",
     offset_ms: () => 0,
     hours: date => date.getUTCHours(),
     minutes: date => date.getUTCMinutes(),
-    to_string: date => date.toLocaleString("en-GB", { ...STRING_OPTIONS, timeZone: "UTC" }),
+    format_time: date => format_time(date.getUTCHours(), date.getUTCMinutes()),
+    format_date: date => format_date(date.getUTCDate(), date.getUTCMonth()),
 };
 
 const LOCAL = {
@@ -37,7 +32,8 @@ const LOCAL = {
     offset_ms: date => 0 - date.getTimezoneOffset() * 60_000,
     hours: date => date.getHours(),
     minutes: date => date.getMinutes(),
-    to_string: date => date.toLocaleString("en-GB", STRING_OPTIONS),
+    format_time: date => format_time(date.getHours(), date.getMinutes()),
+    format_date: date => format_date(date.getDate(), date.getMonth()),
 };
 
 export function useTimeZone() {

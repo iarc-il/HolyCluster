@@ -356,8 +356,8 @@ const Spot = forwardRef(function Spot(
         set_is_fading(false);
     }, [is_new_spot]);
 
-    const { to_string } = useTimeZone();
-    const formatted_time = to_string(new Date(spot.time * 1000)).slice(13, 18);
+    const { format_time } = useTimeZone();
+    const formatted_time = format_time(new Date(spot.time * 1000));
     const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id === pinned_spot;
     const is_previewed = spot.id === hovered_spot.id;
