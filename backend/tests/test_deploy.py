@@ -528,7 +528,7 @@ class DeployTests(unittest.TestCase):
             calls,
         )
         self.assertIn("image prune --all --force --filter until=720h", calls)
-        self.assertIn("buildx prune --all --force --max-used-space 4gb --reserved-space 2gb", calls)
+        self.assertIn("buildx prune --all --force --max-used-space 4gb", calls)
         self.assertEqual(calls.count("system df"), 2)
 
     def test_cleanup_failure_happens_after_deployment_marker(self):
@@ -572,7 +572,7 @@ class DeployTests(unittest.TestCase):
         root, result = self.run_deploy(CHANGED_FILES="cleanup-docker.sh", deployed_head="lastsuccess")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = (root / "docker.log").read_text().splitlines()
-        self.assertIn("buildx prune --all --force --max-used-space 4gb --reserved-space 2gb", calls)
+        self.assertIn("buildx prune --all --force --max-used-space 4gb", calls)
         self.assertFalse(list(root.glob("start-*")))
 
     def test_grafana_preflight_failure_aborts_before_build_or_start(self):

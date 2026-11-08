@@ -4,7 +4,6 @@ set -euo pipefail
 BACKEND_IMAGE_RETENTION=${BACKEND_IMAGE_RETENTION:-168h}
 GLOBAL_IMAGE_RETENTION=${GLOBAL_IMAGE_RETENTION:-720h}
 BUILD_CACHE_MAX=${BUILD_CACHE_MAX:-4gb}
-BUILD_CACHE_RESERVED=${BUILD_CACHE_RESERVED:-2gb}
 
 project_name=${COMPOSE_PROJECT_NAME:-}
 if [ -z "$project_name" ] && [ -f .env ]; then
@@ -34,9 +33,7 @@ echo "Removing all unused images older than $GLOBAL_IMAGE_RETENTION..."
 docker image prune --all --force --filter "until=$GLOBAL_IMAGE_RETENTION"
 
 echo "Limiting BuildKit cache to $BUILD_CACHE_MAX..."
-docker buildx prune --all --force \
-    --max-used-space "$BUILD_CACHE_MAX" \
-    --reserved-space "$BUILD_CACHE_RESERVED"
+docker buildx prune --all --force --max-used-space "$BUILD_CACHE_MAX"
 
 echo "Docker disk usage after cleanup:"
 docker system df
