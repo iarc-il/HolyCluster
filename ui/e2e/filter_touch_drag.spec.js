@@ -61,6 +61,16 @@ test("moves a custom filter with touch", async ({ context, page }) => {
             ],
         });
     }
+
+    const overlay = page.locator('[data-tour="filter-drag-overlay"]');
+    await expect(overlay).toBeVisible();
+    await expect(overlay.locator('[data-tour="filter-drag-handle-icon"]')).toBeVisible();
+    await expect(overlay).toHaveCSS("box-shadow", "none");
+    await expect(source.locator("xpath=..")).toHaveCSS("opacity", "0");
+    const overlay_box = await overlay.boundingBox();
+    expect(overlay_box).not.toBeNull();
+    expect(overlay_box.width).toBeLessThan(target_box.width);
+
     await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
     await expect(target).toHaveAttribute("data-tour-state", "1");

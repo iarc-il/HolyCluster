@@ -50,6 +50,26 @@ function Indicator({ text }) {
     );
 }
 
+function DragHandleIcon() {
+    return (
+        <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+            data-tour="filter-drag-handle-icon"
+        >
+            <circle cx="7" cy="5" r="1.5" />
+            <circle cx="13" cy="5" r="1.5" />
+            <circle cx="7" cy="10" r="1.5" />
+            <circle cx="13" cy="10" r="1.5" />
+            <circle cx="7" cy="15" r="1.5" />
+            <circle cx="13" cy="15" r="1.5" />
+        </svg>
+    );
+}
+
 function DragHandle({ attributes, listeners, set_activator_node_ref, data_tour }) {
     const { colors } = useColors();
 
@@ -65,14 +85,7 @@ function DragHandle({ attributes, listeners, set_activator_node_ref, data_tour }
             {...attributes}
             {...listeners}
         >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <circle cx="7" cy="5" r="1.5" />
-                <circle cx="13" cy="5" r="1.5" />
-                <circle cx="7" cy="10" r="1.5" />
-                <circle cx="13" cy="10" r="1.5" />
-                <circle cx="7" cy="15" r="1.5" />
-                <circle cx="13" cy="15" r="1.5" />
-            </svg>
+            <DragHandleIcon />
         </button>
     );
 }
@@ -115,7 +128,7 @@ function EditSymbol({ size }) {
 
 function SpecialFilterBadge({ type }) {
     const label = SPECIAL_FILTER_LABELS[type];
-    return <FilterBadge className="w-24">{label}</FilterBadge>;
+    return <FilterBadge className="w-24 whitespace-nowrap">{label}</FilterBadge>;
 }
 
 function ZoneFilterBadge({ filter }) {
@@ -247,7 +260,7 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
 
     const style = {
         transform: CSS.Translate.toString(transform),
-        opacity: is_dragging ? 0.5 : 1,
+        opacity: is_dragging ? 0 : 1,
         color: colors.theme.text,
     };
 
@@ -452,17 +465,17 @@ function Filters({ open_import_filter = false, on_import_filter_open = null }) {
             <DragOverlay>
                 {active_id && activeFilter && (
                     <div
-                        className="flex items-center mb-1 w-full opacity-90 shadow-lg"
-                        style={{
-                            color: colors.theme.text,
-                            backgroundColor: colors.theme.background,
-                            padding: "0.25rem",
-                            borderRadius: "0.375rem",
-                        }}
+                        className="flex w-fit items-center cursor-grabbing"
+                        style={{ color: colors.theme.text }}
+                        data-tour="filter-drag-overlay"
                     >
-                        <div className="flex items-center flex-1 min-w-0">
-                            <FilterContent filter={activeFilter} colors={colors} />
+                        <div
+                            className="flex h-11 w-11 shrink-0 items-center justify-center md:h-7 md:w-6"
+                            style={{ color: colors.buttons.utility }}
+                        >
+                            <DragHandleIcon />
                         </div>
+                        <FilterContent filter={activeFilter} colors={colors} />
                     </div>
                 )}
             </DragOverlay>
