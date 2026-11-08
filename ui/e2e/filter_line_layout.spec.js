@@ -25,10 +25,6 @@ const FILTER_CASES = [
     { name: "DXpeditions", filter: { type: "dxpeditions" } },
 ];
 
-function rectangles_overlap(a, b) {
-    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-}
-
 test("filter content does not overlap its edit button", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.goto("/");
@@ -57,35 +53,28 @@ test("filter content does not overlap its edit button", async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
 
-        for (const [index, filter_case] of FILTER_CASES.entries()) {
-            const row = handles.nth(index).locator("xpath=..");
-            const content = row.locator(":scope > div").first();
-            const edit_button = row.locator('[data-tour="edit-filter-button"]');
-            const content_rects = await content.locator(":scope > *").evaluateAll(elements =>
-                elements.map(element => {
-                    const rect = element.getBoundingClientRect();
-                    return {
-                        left: rect.left,
-                        right: rect.right,
-                        top: rect.top,
-                        bottom: rect.bottom,
-                    };
-                }),
-            );
-            const edit_rect = await edit_button.evaluate(element => {
-                const rect = element.getBoundingClientRect();
-                return {
-                    left: rect.left,
-                    right: rect.right,
-                    top: rect.top,
-                    bottom: rect.bottom,
-                };
-            });
+        const overlapping_filters = await handles.evaluateAll((handle_elements, filter_cases) => {
+            return handle_elements.flatMap((handle, index) => {
+                const row = handle.parentElement;
+                const content = row?.querySelector(":scope > div");
+                const edit_button = row?.querySelector('[data-tour="edit-filter-button"]');
+                if (!content || !edit_button) return [];
 
-            if (content_rects.some(rect => rectangles_overlap(rect, edit_rect))) {
-                overlaps.push({ width, filter: filter_case.name });
-            }
-        }
+                const edit_rect = edit_button.getBoundingClientRect();
+                const has_overlap = [...content.children].some(element => {
+                    const content_rect = element.getBoundingClientRect();
+                    return (
+                        content_rect.left < edit_rect.right &&
+                        content_rect.right > edit_rect.left &&
+                        content_rect.top < edit_rect.bottom &&
+                        content_rect.bottom > edit_rect.top
+                    );
+                });
+
+                return has_overlap ? [filter_cases[index].name] : [];
+            });
+        }, FILTER_CASES);
+        overlaps.push(...overlapping_filters.map(filter => ({ width, filter })));
     }
 
     expect(overlaps, "Filter types whose rendered content overlaps the edit button").toEqual([]);

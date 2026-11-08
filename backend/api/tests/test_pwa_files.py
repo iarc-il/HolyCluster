@@ -16,6 +16,7 @@ class PwaFilesTest(unittest.TestCase):
         self.assertEqual(response.headers["content-type"], "application/manifest+json")
         self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertEqual(response.json()["name"], "HolyCluster")
+        self.assertEqual(response.json()["orientation"], "portrait")
 
     def test_icons_are_served_as_pngs(self):
         for path in (
