@@ -1,5 +1,5 @@
 import { annotateDiagnosticError, recordDiagnosticAction } from "@/sentry";
-import { client_type } from "@/utils/client_type.js";
+import { browser_type, client_type } from "@/utils/client_type.js";
 import { create_server_clock } from "@/utils/server_clock.js";
 import { captureException } from "@sentry/react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -308,6 +308,7 @@ export function WsProvider({ children }) {
             ui_version: import.meta.env.VITE_UI_VERSION ?? null,
             catserver_version: catserver_version_ref.current,
             client_type: client_type(),
+            browser_type: browser_type(),
         };
     }, []);
 
