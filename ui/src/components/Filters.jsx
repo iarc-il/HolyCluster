@@ -50,11 +50,36 @@ function Indicator({ text }) {
     );
 }
 
-function FilterBadge({ children, className = "", title, listeners, attributes, data_tour = null }) {
+function DragHandle({ attributes, listeners, set_activator_node_ref, data_tour }) {
+    const { colors } = useColors();
+
+    return (
+        <button
+            ref={set_activator_node_ref}
+            type="button"
+            className="flex h-11 w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-md active:cursor-grabbing md:h-7 md:w-7"
+            style={{ color: colors.buttons.utility }}
+            aria-label="Move filter"
+            title="Drag to change action"
+            data-tour={data_tour}
+            {...attributes}
+            {...listeners}
+        >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <circle cx="7" cy="5" r="1.5" />
+                <circle cx="13" cy="5" r="1.5" />
+                <circle cx="7" cy="10" r="1.5" />
+                <circle cx="13" cy="10" r="1.5" />
+                <circle cx="7" cy="15" r="1.5" />
+                <circle cx="13" cy="15" r="1.5" />
+            </svg>
+        </button>
+    );
+}
+
+function FilterBadge({ children, className = "", title, data_tour = null }) {
     return (
         <div
-            {...listeners}
-            {...attributes}
             className={`flex border border-gray-700 items-center justify-center p-1 h-7 rounded-md text-xs font-bold bg-green-600 text-white ${className}`}
             title={title}
             data-tour={data_tour ?? "filter-badge"}
@@ -88,21 +113,12 @@ function EditSymbol({ size }) {
     );
 }
 
-function SpecialFilterBadge({ type, listeners, attributes, data_tour = null }) {
+function SpecialFilterBadge({ type }) {
     const label = SPECIAL_FILTER_LABELS[type];
-    return (
-        <FilterBadge
-            listeners={listeners}
-            attributes={attributes}
-            className="cursor-grab active:cursor-grabbing w-24"
-            data_tour={data_tour}
-        >
-            {label}
-        </FilterBadge>
-    );
+    return <FilterBadge className="w-24">{label}</FilterBadge>;
 }
 
-function ZoneFilterBadge({ filter, listeners, attributes, data_tour = null }) {
+function ZoneFilterBadge({ filter }) {
     const system_label =
         {
             cq: "CQ",
@@ -125,13 +141,7 @@ function ZoneFilterBadge({ filter, listeners, attributes, data_tour = null }) {
     if (is_region_filter) {
         return (
             <>
-                <FilterBadge
-                    listeners={listeners}
-                    attributes={attributes}
-                    className="cursor-grab active:cursor-grabbing w-10"
-                    title={system_label}
-                    data_tour={data_tour}
-                >
+                <FilterBadge className="w-10" title={system_label}>
                     {system_label}
                 </FilterBadge>
                 <FilterBadge
@@ -145,19 +155,13 @@ function ZoneFilterBadge({ filter, listeners, attributes, data_tour = null }) {
     }
 
     return (
-        <FilterBadge
-            listeners={listeners}
-            attributes={attributes}
-            className="cursor-grab active:cursor-grabbing w-24"
-            title={`Zone ${system_label} ${filter.value}`}
-            data_tour={data_tour}
-        >
+        <FilterBadge className="w-24" title={`Zone ${system_label} ${filter.value}`}>
             {system_label} {filter.value}
         </FilterBadge>
     );
 }
 
-function MissingFilterBadge({ filter, listeners, attributes, data_tour = null }) {
+function MissingFilterBadge({ filter }) {
     const {
         active_profile_data: { missing },
     } = useProfiles();
@@ -168,13 +172,7 @@ function MissingFilterBadge({ filter, listeners, attributes, data_tour = null })
 
     return (
         <div className="flex items-center gap-1">
-            <FilterBadge
-                listeners={listeners}
-                attributes={attributes}
-                className="cursor-grab active:cursor-grabbing w-22"
-                title={`Missing ${section_label}`}
-                data_tour={data_tour}
-            >
+            <FilterBadge className="w-22" title={`Missing ${section_label}`}>
                 Missing
             </FilterBadge>
             <FilterBadge className="px-2 w-fit max-w-40" title={section_label}>
@@ -187,50 +185,29 @@ function MissingFilterBadge({ filter, listeners, attributes, data_tour = null })
     );
 }
 
-function FilterContent({ filter, listeners, attributes, colors, data_tour = null }) {
+function FilterContent({ filter, colors }) {
     const is_special_filter =
         filter.type === "self_spotters" || filter.type === "dxpeditions" || filter.type === "lotw";
     const filter_value = filter.type === "entity" ? get_dxcc_label(filter.value) : filter.value;
 
     if (is_special_filter) {
-        return (
-            <SpecialFilterBadge
-                type={filter.type}
-                listeners={listeners}
-                attributes={attributes}
-                data_tour={data_tour}
-            />
-        );
+        return <SpecialFilterBadge type={filter.type} />;
     }
 
     if (filter.type === "zone") {
-        return (
-            <ZoneFilterBadge
-                filter={filter}
-                listeners={listeners}
-                attributes={attributes}
-                data_tour={data_tour}
-            />
-        );
+        return <ZoneFilterBadge filter={filter} />;
     }
 
     if (filter.type === "missing") {
-        return (
-            <MissingFilterBadge
-                filter={filter}
-                listeners={listeners}
-                attributes={attributes}
-                data_tour={data_tour}
-            />
-        );
+        return <MissingFilterBadge filter={filter} />;
     }
 
     if (filter.type === "comment") {
         return (
             <div className="flex items-center gap-1">
-                <div {...listeners} {...attributes} data-tour={data_tour}>
+                <div>
                     <Input
-                        className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
+                        className="h-7 text-sm w-24"
                         disabled
                         disabled_text_color={colors.theme.text}
                         title={filter_value}
@@ -244,9 +221,9 @@ function FilterContent({ filter, listeners, attributes, colors, data_tour = null
 
     return (
         <div className="flex items-center gap-1">
-            <div {...listeners} {...attributes} data-tour={data_tour}>
+            <div>
                 <Input
-                    className="h-7 text-sm w-24 cursor-grab active:cursor-grabbing"
+                    className="h-7 text-sm w-24"
                     disabled
                     disabled_text_color={colors.theme.text}
                     title={filter_value}
@@ -263,7 +240,7 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
 
-    const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform } = useDraggable({
         id: `filter-${id}`,
         data: { filterId: id, currentAction: filter.action, filter: filter },
     });
@@ -288,14 +265,14 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
 
     return (
         <div ref={setNodeRef} className="flex items-center mb-1 w-full" style={style}>
+            <DragHandle
+                attributes={attributes}
+                listeners={listeners}
+                set_activator_node_ref={setActivatorNodeRef}
+                data_tour={data_tour}
+            />
             <div className="flex items-center gap-1 flex-1 min-w-0">
-                <FilterContent
-                    filter={filter}
-                    listeners={listeners}
-                    attributes={attributes}
-                    colors={colors}
-                    data_tour={data_tour}
-                />
+                <FilterContent filter={filter} colors={colors} />
             </div>
             <div className="flex items-center gap-1 ml-2">
                 <FilterModal
