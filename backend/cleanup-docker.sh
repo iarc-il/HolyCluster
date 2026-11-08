@@ -34,7 +34,7 @@ echo "Removing all unused images older than $GLOBAL_IMAGE_RETENTION..."
 docker image prune --all --force --filter "until=$GLOBAL_IMAGE_RETENTION"
 
 echo "Limiting BuildKit cache to $BUILD_CACHE_MAX..."
-docker buildx prune --force \
+docker buildx prune --all --force \
     --max-used-space "$BUILD_CACHE_MAX" \
     --reserved-space "$BUILD_CACHE_RESERVED"
 

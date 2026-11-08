@@ -213,6 +213,7 @@ SERVICE_LIST="${!SERVICES[*]}"
 if [ -z "$SERVICE_LIST" ]; then
     mark_deployed
     echo "Changed files don't map to any services. Nothing to deploy."
+    bash cleanup-docker.sh
     exit 0
 fi
 
