@@ -256,6 +256,12 @@ for (const [width, height] of [
                         const canvas = workspace.locator('[data-tour="heatmap-chart"] canvas');
                         const chart = workspace.locator('[data-tour="heatmap-chart"]');
                         await expect(canvas).toBeVisible();
+                        await expect(
+                            workspace.locator('[data-tour="heatmap-legend"]'),
+                        ).toBeHidden();
+                        await expect(
+                            workspace.locator('[data-tour="heatmap-description"]'),
+                        ).toBeHidden();
                         const [canvas_bounds, chart_bounds] = await Promise.all([
                             canvas.boundingBox(),
                             chart.boundingBox(),

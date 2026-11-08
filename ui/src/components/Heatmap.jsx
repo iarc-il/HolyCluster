@@ -209,7 +209,7 @@ function Heatmap() {
             </div>
 
             <div
-                className="mt-4 shrink-0"
+                className="mt-4 hidden shrink-0 md:block"
                 data-tour="heatmap-legend"
                 style={{ color: colors.theme.text }}
             >
@@ -231,7 +231,11 @@ function Heatmap() {
                 />
             </div>
 
-            <div className="shrink-0 p-4 text-center text-xs" style={{ color: colors.theme.text }}>
+            <div
+                className="hidden shrink-0 p-4 text-center text-xs md:block"
+                data-tour="heatmap-description"
+                style={{ color: colors.theme.text }}
+            >
                 The heatmap is calculated from the reported spots from/to the selected continent in
                 the last hour.
             </div>
