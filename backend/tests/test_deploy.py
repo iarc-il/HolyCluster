@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy.sh"
+CLEANUP = Path(__file__).resolve().parents[1] / "cleanup-docker.sh"
 INITIAL_ENV = "DUMMY_SETTING=test\nSENTRY_RELEASE=oldhead\n"
 BACKGROUND_SERVICES = {"api", "collector", "coverage", "postgres", "valkey", "victoriametrics", "grafana"}
 
@@ -118,6 +119,12 @@ if [[ "$*" == 'compose build '* ]]; then
     if [[ -z "$project_name" ]]; then exit 14; fi
     exit "$BUILD_STATUS"
 fi
+if [[ "$*" == 'image prune '* ]]; then
+    exit "$IMAGE_PRUNE_STATUS"
+fi
+if [[ "$*" == 'buildx prune '* ]]; then
+    exit "$CACHE_PRUNE_STATUS"
+fi
 if [[ "$*" == 'compose up '* && "$MISSING_NETWORK" == "$proxy_network" ]]; then exit 15; fi
 if [[ "$*" == 'compose up --abort-on-container-exit --exit-code-from migrate migrate' ]]; then
     exit "$MIGRATION_STATUS"
@@ -158,6 +165,7 @@ class DeployTests(unittest.TestCase):
         root = Path(temporary.name)
         (root / "bin").mkdir()
         (root / "deploy.sh").write_text(DEPLOY.read_text())
+        (root / "cleanup-docker.sh").write_text(CLEANUP.read_text())
         (root / ".env").write_text(overrides.pop("dotenv", INITIAL_ENV))
         (root / "wait.sh").write_text(WAIT_STUB)
         for name, content in (("git", GIT_STUB), ("docker", DOCKER_STUB), ("mv", MV_STUB)):
@@ -180,6 +188,8 @@ class DeployTests(unittest.TestCase):
             "COMPOSE_PROJECT_NAME": "holycluster-backend-dev",
             "CONFIG_STATUS": "0",
             "BUILD_STATUS": "0",
+            "IMAGE_PRUNE_STATUS": "0",
+            "CACHE_PRUNE_STATUS": "0",
             "MARKER_WRITE_STATUS": "0",
             "ENVIRONMENT_CONFIG_STATUS": "0",
             "MISSING_NETWORK": "",
@@ -238,6 +248,7 @@ class DeployTests(unittest.TestCase):
                 backend = repo / "backend"
                 backend.mkdir(parents=True)
                 (backend / "deploy.sh").write_text(DEPLOY.read_text())
+                (backend / "cleanup-docker.sh").write_text(CLEANUP.read_text())
                 (backend / ".env").write_text(INITIAL_ENV)
                 (repo / "shared").mkdir()
                 source = repo / "shared/band_plans.json"
@@ -491,7 +502,7 @@ class DeployTests(unittest.TestCase):
     def test_success_marker_advances_only_after_health_and_uses_atomic_rename(self):
         root, result = self.run_deploy(deployed_head="lastsuccess")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(set((root / "marker-at-docker.log").read_text().splitlines()), {"lastsuccess"})
+        self.assertEqual(set((root / "marker-at-docker.log").read_text().splitlines()), {"lastsuccess", "newhead"})
         self.assertEqual((root / "deployed").read_text(), "newhead\n")
         baseline_write, marker_write = (root / "mv.log").read_text().splitlines()
         self.assertEqual(baseline_write.split("|")[1:], [str(root / "deployed.base"), "lastsuccess"])
@@ -502,6 +513,30 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(revision, "newhead")
         self.assertFalse(Path(source).exists())
         self.assertIn("diff --name-only --relative lastsuccess newhead -- .", (root / "git.log").read_text())
+
+    def test_success_cleans_images_and_bounds_build_cache(self):
+        root, result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = (root / "docker.log").read_text().splitlines()
+        self.assertIn(
+            "image prune --all --force --filter label=com.docker.compose.project=holycluster-backend-dev "
+            "--filter until=168h",
+            calls,
+        )
+        self.assertIn(
+            "image prune --all --force --filter label=com.docker.compose.project=backend --filter until=168h",
+            calls,
+        )
+        self.assertIn("image prune --all --force --filter until=720h", calls)
+        self.assertIn("buildx prune --force --max-used-space 4gb --reserved-space 2gb", calls)
+        self.assertEqual(calls.count("system df"), 2)
+
+    def test_cleanup_failure_happens_after_deployment_marker(self):
+        root, result = self.run_deploy(IMAGE_PRUNE_STATUS="47")
+        self.assertEqual(result.returncode, 47, result.stderr)
+        self.assertEqual((root / "deployed").read_text(), "newhead\n")
+        self.assertIn("Deploy complete.", result.stdout)
+        self.assertNotIn("buildx prune", (root / "docker.log").read_text())
 
     def test_failures_do_not_advance_existing_success_marker(self):
         for overrides in (

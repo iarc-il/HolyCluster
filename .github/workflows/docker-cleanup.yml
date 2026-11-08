@@ -1,0 +1,59 @@
+name: Clean Docker Deployment Hosts
+
+on:
+  schedule:
+    - cron: "30 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-host-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Clean Docker deployment hosts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_INT }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> ~/.ssh/known_hosts
+
+      - name: Clean hosts
+        env:
+          DEPLOY_USER_DEV: ${{ secrets.DEPLOY_USER_DEV }}
+          DEPLOY_HOST_DEV: ${{ secrets.DEPLOY_HOST_DEV }}
+          REPO_ROOT_DEV: ${{ secrets.REPO_ROOT_DEV }}
+          DEPLOY_USER_INT: ${{ secrets.DEPLOY_USER_INT }}
+          DEPLOY_HOST_INT: ${{ secrets.DEPLOY_HOST_INT }}
+          REPO_ROOT_INT: ${{ secrets.REPO_ROOT_INT }}
+          DEPLOY_USER_PROD: ${{ secrets.DEPLOY_USER_PROD }}
+          DEPLOY_HOST_PROD: ${{ secrets.DEPLOY_HOST_PROD }}
+          REPO_ROOT_PROD: ${{ secrets.REPO_ROOT_PROD }}
+        run: |
+          cleanup_host() {
+            name=$1
+            user=$2
+            host=$3
+            root=$4
+            remote_backend=$(printf '%q' "$root/backend")
+
+            echo "Cleaning $name host..."
+            ssh "$user@$host" "cd $remote_backend && bash -s" < backend/cleanup-docker.sh
+          }
+
+          status=0
+          cleanup_host development "$DEPLOY_USER_DEV" "$DEPLOY_HOST_DEV" "$REPO_ROOT_DEV" || status=1
+          cleanup_host integration "$DEPLOY_USER_INT" "$DEPLOY_HOST_INT" "$REPO_ROOT_INT" || status=1
+          cleanup_host production "$DEPLOY_USER_PROD" "$DEPLOY_HOST_PROD" "$REPO_ROOT_PROD" || status=1
+          exit "$status"

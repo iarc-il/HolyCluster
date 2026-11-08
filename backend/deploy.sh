@@ -321,3 +321,4 @@ fi
 
 mark_deployed
 echo "Deploy complete."
+bash cleanup-docker.sh
