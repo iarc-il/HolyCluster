@@ -20,10 +20,14 @@ HTTP_DURATION = Histogram(
     buckets=HTTP_BUCKETS,
 )
 CLIENT_VERSION_ACTIVE = Gauge(
-    PREFIX + "client_version_active", "Open spot subscribers by client release", ["ui_version", "catserver_version"]
+    PREFIX + "client_version_active",
+    "Open spot subscribers by client release and device class",
+    ["ui_version", "catserver_version", "client_type"],
 )
 CLIENT_VERSION_REPORTS = Counter(
-    PREFIX + "client_version_reports_total", "Changed client release reports", ["ui_version", "catserver_version"]
+    PREFIX + "client_version_reports_total",
+    "Changed client release or device class reports",
+    ["ui_version", "catserver_version", "client_type"],
 )
 CLIENT_VERSION_PAIRS = set()
 CLIENT_VERSION_PAIR_LOCK = Lock()
@@ -122,14 +126,25 @@ def client_version(message, field):
     return value if CAT_TAG.fullmatch(value) else "invalid"
 
 
+def client_type(message):
+    if "client_type" not in message:
+        return "not_reported"
+    value = message["client_type"]
+    return value if isinstance(value, str) and value in {"mobile", "desktop"} else "invalid"
+
+
 def client_version_pair(message):
-    pair = (client_version(message, "ui_version"), client_version(message, "catserver_version"))
+    pair = (
+        client_version(message, "ui_version"),
+        client_version(message, "catserver_version"),
+        client_type(message),
+    )
     # Keep admission atomic when multiple ASGI threads share the registry.
     with CLIENT_VERSION_PAIR_LOCK:
         if pair in CLIENT_VERSION_PAIRS:
             return pair
         if len(CLIENT_VERSION_PAIRS) >= 100:
-            return ("other", "other")
+            return ("other", "other", "other")
         CLIENT_VERSION_PAIRS.add(pair)
     return pair
 
@@ -138,7 +153,7 @@ def client_version_pair(message):
 class Connection:
     endpoint: str
     active: bool = True
-    client_versions: tuple[str, str] | None = None
+    client_versions: tuple[str, str, str] | None = None
 
     def report_client_versions(self, message):
         if not self.active:

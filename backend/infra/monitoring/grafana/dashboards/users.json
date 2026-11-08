@@ -3,7 +3,7 @@
   "title": "HolyCluster / Users",
   "description": "Anonymous subscriptions, version adoption and aggregate feature usage. No unique user counts.",
   "schemaVersion": 41,
-  "version": 7,
+  "version": 8,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -42,7 +42,7 @@
       "title": "Users",
       "options": {
         "mode": "markdown",
-        "content": "All counts are anonymous subscriptions, connections or requests \u2014 **never unique users**. Direct web means CAT version `none`; unreported CAT versions cannot be classified. Version adoption uses active subscriptions, not report events. Missing series show **No data**, not zero. Rates need two scrapes."
+        "content": "All counts are anonymous subscriptions, connections or requests \u2014 **never unique users**. Direct web means CAT version `none`; unreported CAT versions cannot be classified. Device class is reported as mobile or desktop by the browser; old clients appear as `not_reported`. Version and device adoption use active subscriptions, not report events. Missing series show **No data**, not zero. Rates need two scrapes."
       },
       "gridPos": {
         "x": 0,
@@ -963,6 +963,130 @@
         }
       },
       "id": 21
+    },
+    {
+      "type": "piechart",
+      "title": "Active clients by device class",
+      "description": "Open spot subscriptions classified by the browser as mobile or desktop. Legacy and invalid reports remain visible. These are not unique users.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (client_type) (holycluster_api_client_version_active)",
+          "legendFormat": "{{client_type}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 8,
+        "h": 8
+      },
+      "options": {
+        "pieType": "donut",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        }
+      },
+      "id": 22
+    },
+    {
+      "type": "timeseries",
+      "title": "Device class over time",
+      "description": "Open spot subscriptions by browser-reported device class. These are not unique users.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (client_type) (holycluster_api_client_version_active)",
+          "legendFormat": "{{client_type}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 72,
+        "w": 16,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23
     }
   ]
 }

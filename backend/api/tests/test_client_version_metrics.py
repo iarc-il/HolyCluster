@@ -34,17 +34,27 @@ class ClientVersionMetricsTest(unittest.TestCase):
         self.assert_spot_response(socket, "initial")
 
     def test_old_direct_and_cat_clients(self):
-        for metadata, ui, cat in (
-            ({}, "not_reported", "not_reported"),
-            ({"ui_version": None, "catserver_version": None}, "development", "none"),
-            ({"ui_version": "ABCDEF1234567", "catserver_version": None}, "abcdef1234567", "none"),
+        for metadata, ui, cat, client_type in (
+            ({}, "not_reported", "not_reported", "not_reported"),
+            ({"ui_version": None, "catserver_version": None}, "development", "none", "not_reported"),
             (
-                {"ui_version": "v1.2.3", "catserver_version": "catserver-v1.2.3-12-gabc1234"},
+                {"ui_version": "ABCDEF1234567", "catserver_version": None, "client_type": "mobile"},
+                "abcdef1234567",
+                "none",
+                "mobile",
+            ),
+            (
+                {
+                    "ui_version": "v1.2.3",
+                    "catserver_version": "catserver-v1.2.3-12-gabc1234",
+                    "client_type": "desktop",
+                },
                 "v1.2.3",
                 "catserver-v1.2.3-12-gabc1234",
+                "desktop",
             ),
         ):
-            labels = {"ui_version": ui, "catserver_version": cat}
+            labels = {"ui_version": ui, "catserver_version": cat, "client_type": client_type}
             before = value(self.client, REPORTS, **labels)
             with self.client.websocket_connect("/ws") as socket:
                 self.assertEqual(value(self.client, ACTIVE, **labels), 0)
@@ -54,19 +64,34 @@ class ClientVersionMetricsTest(unittest.TestCase):
             self.assertEqual(value(self.client, ACTIVE, **labels), 0)
 
     def test_retry_and_version_change(self):
-        old = {"ui_version": "v2.0.0", "catserver_version": "not_reported"}
-        new = {"ui_version": "v2.0.1", "catserver_version": "not_reported"}
+        old = {
+            "ui_version": "v2.0.0",
+            "catserver_version": "not_reported",
+            "client_type": "desktop",
+        }
+        new = {
+            "ui_version": "v2.0.1",
+            "catserver_version": "not_reported",
+            "client_type": "desktop",
+        }
         old_reports = value(self.client, REPORTS, **old)
         new_reports = value(self.client, REPORTS, **new)
         with self.client.websocket_connect("/ws") as socket:
-            self.subscribe(socket, ui_version="v2.0.0")
-            self.subscribe(socket, ui_version="v2.0.0")
+            self.subscribe(socket, ui_version="v2.0.0", client_type="desktop")
+            self.subscribe(socket, ui_version="v2.0.0", client_type="desktop")
             socket.send_json(
-                {"version": 1, "type": "spots", "action": "catch_up", "last_time": 0, "ui_version": "v2.0.0"}
+                {
+                    "version": 1,
+                    "type": "spots",
+                    "action": "catch_up",
+                    "last_time": 0,
+                    "ui_version": "v2.0.0",
+                    "client_type": "desktop",
+                }
             )
             self.assert_spot_response(socket, "update")
             self.assertEqual(value(self.client, REPORTS, **old), old_reports + 1)
-            self.subscribe(socket, ui_version="v2.0.1")
+            self.subscribe(socket, ui_version="v2.0.1", client_type="desktop")
             self.assertEqual(value(self.client, ACTIVE, **old), 0)
             self.assertEqual(value(self.client, ACTIVE, **new), 1)
             self.assertEqual(value(self.client, REPORTS, **new), new_reports + 1)
@@ -87,16 +112,27 @@ class ClientVersionMetricsTest(unittest.TestCase):
         self.assertEqual(after, before)
 
     def test_legacy_and_broadcast_eviction(self):
-        labels = {"ui_version": "v3.0.0", "catserver_version": "none"}
+        labels = {
+            "ui_version": "v3.0.0",
+            "catserver_version": "none",
+            "client_type": "mobile",
+        }
         for endpoint in ("/ws", "/spots_ws"):
             before = value(self.client, REPORTS, **labels)
             with self.client.websocket_connect(endpoint) as socket:
                 if endpoint == "/spots_ws":
-                    socket.send_json({"initial": True, "ui_version": "v3.0.0", "catserver_version": None})
+                    socket.send_json(
+                        {
+                            "initial": True,
+                            "ui_version": "v3.0.0",
+                            "catserver_version": None,
+                            "client_type": "mobile",
+                        }
+                    )
                     self.assertEqual(socket.receive_json(), {"type": "initial", "spots": []})
                     connections = app.state.active_connections
                 else:
-                    self.subscribe(socket, ui_version="v3.0.0", catserver_version=None)
+                    self.subscribe(socket, ui_version="v3.0.0", catserver_version=None, client_type="mobile")
                     connections = app.state.active_ws_spot_connections
                 self.assertEqual(value(self.client, ACTIVE, **labels), 1)
                 server = next(iter(connections))
@@ -107,7 +143,7 @@ class ClientVersionMetricsTest(unittest.TestCase):
             self.assertEqual(value(self.client, REPORTS, **labels), before + 1)
 
     def test_malformed_versions_never_expose_raw_values(self):
-        labels = {"ui_version": "invalid", "catserver_version": "invalid"}
+        labels = {"ui_version": "invalid", "catserver_version": "invalid", "client_type": "invalid"}
         for ui, cat in (
             ("attacker/private\nvalue", "catserver-v1.2.3-attacker"),
             ("v1.2.3-" + "x" * 100, "catserver-v" + "9" * 100 + ".2.3"),
@@ -115,10 +151,18 @@ class ClientVersionMetricsTest(unittest.TestCase):
             (True, 12),
         ):
             with self.client.websocket_connect("/ws") as socket:
-                self.subscribe(socket, ui_version=ui, catserver_version=cat)
+                self.subscribe(socket, ui_version=ui, catserver_version=cat, client_type={"private": ui})
                 self.assertEqual(value(self.client, ACTIVE, **labels), 1)
         text = self.client.get("/metrics").text
-        for raw in ("attacker", "private-array", "private-key", "private-value", "x" * 100, "9" * 100):
+        for raw in (
+            "attacker",
+            "private-array",
+            "private-key",
+            "private-value",
+            "private",
+            "x" * 100,
+            "9" * 100,
+        ):
             self.assertNotIn(raw, text)
 
     def test_hard_pair_cap(self):
@@ -128,11 +172,12 @@ class ClientVersionMetricsTest(unittest.TestCase):
                 labels = {
                     "ui_version": ui if number < 100 else "other",
                     "catserver_version": "none" if number < 100 else "other",
+                    "client_type": "desktop" if number < 100 else "other",
                 }
                 before = value(self.client, REPORTS, **labels)
                 with self.client.websocket_connect("/ws") as socket:
-                    self.subscribe(socket, ui_version=ui, catserver_version=None)
-                    self.subscribe(socket, ui_version=ui, catserver_version=None)
+                    self.subscribe(socket, ui_version=ui, catserver_version=None, client_type="desktop")
+                    self.subscribe(socket, ui_version=ui, catserver_version=None, client_type="desktop")
                     self.assertEqual(value(self.client, ACTIVE, **labels), 1)
                     self.assertEqual(value(self.client, REPORTS, **labels), before + 1)
                 self.assertEqual(value(self.client, ACTIVE, **labels), 0)
@@ -141,5 +186,14 @@ class ClientVersionMetricsTest(unittest.TestCase):
             self.assertNotIn("v99.0.100", text)
             self.assertNotIn("v99.0.101", text)
             with self.client.websocket_connect("/ws") as socket:
-                self.subscribe(socket, ui_version="v99.0.0", catserver_version=None)
-                self.assertEqual(value(self.client, ACTIVE, ui_version="v99.0.0", catserver_version="none"), 1)
+                self.subscribe(socket, ui_version="v99.0.0", catserver_version=None, client_type="desktop")
+                self.assertEqual(
+                    value(
+                        self.client,
+                        ACTIVE,
+                        ui_version="v99.0.0",
+                        catserver_version="none",
+                        client_type="desktop",
+                    ),
+                    1,
+                )

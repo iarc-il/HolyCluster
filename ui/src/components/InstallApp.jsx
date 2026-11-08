@@ -1,5 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
+import { is_mobile_client } from "@/utils/client_type.js";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
@@ -7,13 +8,6 @@ function is_standalone() {
     return (
         window.matchMedia?.("(display-mode: standalone)").matches ||
         window.navigator.standalone === true
-    );
-}
-
-function is_mobile() {
-    return (
-        window.navigator.userAgentData?.mobile === true ||
-        /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent)
     );
 }
 
@@ -28,7 +22,7 @@ export default function InstallApp() {
     const { colors } = useColors();
     const [install_prompt, set_install_prompt] = useState(null);
     const [installed, set_installed] = useState(is_standalone);
-    const [available, set_available] = useState(() => !is_standalone() && is_mobile());
+    const [available, set_available] = useState(() => !is_standalone() && is_mobile_client());
 
     useEffect(() => {
         const display_mode = window.matchMedia?.("(display-mode: standalone)");

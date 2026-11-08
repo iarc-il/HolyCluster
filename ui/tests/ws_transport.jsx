@@ -337,6 +337,7 @@ describe("WebSocket transport", () => {
                 action: "initial",
                 ui_version: null,
                 catserver_version: candidate === "unified" ? null : "catserver-v1.2.0",
+                client_type: "desktop",
             },
             false,
         );
@@ -379,6 +380,7 @@ describe("WebSocket transport", () => {
             ...request,
             ui_version: "v1.2.3",
             catserver_version,
+            client_type: "desktop",
         });
         expect(send("spots", request)).toBe(true);
         expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
@@ -449,6 +451,7 @@ describe("WebSocket transport", () => {
                 type: "spots",
                 ui_version: null,
                 catserver_version: null,
+                client_type: "desktop",
             });
         },
     );
@@ -477,6 +480,7 @@ describe("WebSocket transport", () => {
             action: "initial",
             ui_version: null,
             catserver_version: "catserver-v1.2.0",
+            client_type: "desktop",
         };
         expect(TestConsumer.context.send_now("spots", { action: "initial" }, epoch)).toBe(true);
         expect(spots.sendJsonMessage).toHaveBeenLastCalledWith(expected, false);
@@ -500,6 +504,7 @@ describe("WebSocket transport", () => {
             type: "spots",
             ui_version: null,
             catserver_version: null,
+            client_type: "desktop",
         });
     });
 
