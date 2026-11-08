@@ -126,13 +126,10 @@ const no_spotlight_interaction_steps = new Set([
 export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
-    radio_state: [{ status: "unavailable" }, { option: true }],
-    page: async ({ page, tour_spots, auto_start_tour, radio_state }, use) => {
+    page: async ({ page, tour_spots, auto_start_tour }, use) => {
         await page.addInitScript(auto_start => {
-            if (sessionStorage.getItem("tour_fixture_initialized")) return;
             localStorage.clear();
             sessionStorage.clear();
-            sessionStorage.setItem("tour_fixture_initialized", "true");
             localStorage.setItem("first_launch", JSON.stringify(auto_start));
             localStorage.setItem("active_view", "0");
             localStorage.setItem("mobile_tab", JSON.stringify("map"));
@@ -159,7 +156,7 @@ export const test = base.extend({
                     version: 1,
                     type: "radio",
                     event: "status",
-                    ...radio_state,
+                    status: "unavailable",
                     catserver_version: "catserver-v2.0.0",
                 }),
             );
@@ -192,10 +189,7 @@ export async function open_tour_launcher(page) {
     const launcher = page.locator(tour_target("tour-launcher"));
     const launcher_button = launcher.locator("button");
     if (!(await launcher_button.isVisible())) {
-        const menu_button =
-            page.viewportSize().width < 768
-                ? page.locator(tour_target("mobile-main-tab-filters"))
-                : page.locator(tour_target("top-bar-left-menu")).locator("button");
+        const menu_button = page.locator(tour_target("top-bar-left-menu")).locator("button");
         await expect(menu_button).toBeVisible();
         await menu_button.click();
     }
@@ -208,11 +202,7 @@ export async function start_tour(page, chapter_title) {
     await open_tour_launcher(page);
 
     const panel = page.locator(tour_target("tour-launcher-panel"));
-    await panel
-        .getByRole("button", {
-            name: `Select ${page.viewportSize().width < 768 ? ({ "Spots Table": "Spots" }[chapter_title] ?? chapter_title) : chapter_title} tour`,
-        })
-        .click();
+    await panel.getByRole("button", { name: `Select ${chapter_title} tour` }).click();
     await panel.getByRole("button", { name: "Start tour", exact: true }).click();
 }
 

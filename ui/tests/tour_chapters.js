@@ -100,7 +100,7 @@ describe("tour chapters", () => {
         expect(step_for("[data-tour='top-bar-submit-spot']")?.content).toContain("sharing");
         expect(step_for("[data-tour='left-column']")?.content).toContain("relevant");
         expect(step_for("[data-tour='mobile-main-tabs']")?.content).toContain(
-            "Map, Spots, Filters, and Tools",
+            "choose a spot and act on it",
         );
         expect(step_for("[data-tour='map-panel']")?.content).toContain("geographic clusters");
         expect(step_for("[data-tour='table-panel']")?.content).toContain("inspect");
@@ -271,13 +271,13 @@ describe("tour chapters", () => {
         }
     });
 
-    it("centers the mobile band and mode filter spotlight", () => {
+    it("uses one safe placement for the band and mode filter spotlight", () => {
         const step = TOUR_CHAPTERS.quick_start.steps.find(
             candidate => candidate.title === "Band And Mode Filters",
         );
 
         expect(step?.placement).toBe("auto");
-        expect(step?.mobilePlacement).toBe("center");
+        expect(step?.mobilePlacement).toBeUndefined();
         expect(step?.mobileWidth).toBe(280);
     });
 
@@ -302,11 +302,12 @@ describe("tour chapters", () => {
             ["filters", "Filter Type", "[data-tour='filter-modal-type-prefix']"],
             ["filters", "DX Or Spotter", "[data-tour='filter-modal-spot-role-dx']"],
             ["filters", "Add A Filter", "[data-tour='modal-apply-button']"],
-            ["side_panel", "Tools Tabs", "[data-tour='side-panel-tabs']"],
+            ["side_panel", "Panel Tabs", "[data-tour='side-panel-tabs']"],
             ["side_panel", "Filters View", "[data-tour='side-panel-tab-filters']"],
             ["side_panel", "Band Bar View", "[data-tour='side-panel-tab-band-bar']"],
             ["side_panel", "Band Selector", "[data-tour='band-bar-selector']"],
             ["side_panel", "Heatmap View", "[data-tour='side-panel-tab-heatmap']"],
+            ["side_panel", "Heatmap Region", "[data-tour='heatmap-continent-selector']"],
             ["side_panel", "DXpeditions View", "[data-tour='side-panel-tab-dxpeditions']"],
             ["side_panel", "Missing", "[data-tour='side-panel-tab-missing']"],
         ];
@@ -348,8 +349,8 @@ describe("tour chapters", () => {
 
     it("keeps interactive mobile placements target-clickable", () => {
         const interactive_mobile_targets = [
-            ["map", "[data-tour='mobile-main-tab-map']", "top"],
-            ["spots_table", "[data-tour='mobile-main-tab-table']", "top"],
+            ["map", "[data-tour='mobile-main-tab-map']", "bottom"],
+            ["spots_table", "[data-tour='mobile-main-tab-table']", "bottom"],
             ["spots_table", "[data-tour='table-header-dx_callsign']", "auto"],
             ["spots_table", "[data-tour='spot-row']", "auto"],
             ["spots_table", "[data-tour='spot-row-dx-callsign']", "auto"],
@@ -447,21 +448,21 @@ describe("tour chapters", () => {
 
     it("highlights the mobile map and table tabs in quick start", () => {
         const tabs_step = TOUR_CHAPTERS.quick_start.steps.find(
-            step => step.id === "quick_start_map_and_table_tabs",
+            step => step.title === "Map And Table Tabs",
         );
 
         expect(tabs_step?.target).toBe("[data-tour='mobile-main-tabs']");
-        expect(tabs_step?.placement).toBe("top");
+        expect(tabs_step?.placement).toBe("center");
         expect(tabs_step?.mobileHideOverlay).not.toBe(true);
     });
 
     it("highlights the table tab when asking mobile users to show it", () => {
         const step = TOUR_CHAPTERS.spots_table.steps.find(
-            candidate => candidate.id === "spots_table_show_the_table",
+            candidate => candidate.title === "Show The Table",
         );
 
         expect(step?.target).toBe("[data-tour='mobile-main-tab-table']");
-        expect(step?.placement).toBe("top");
+        expect(step?.placement).toBe("bottom");
         expect(step?.mobileHideOverlay).not.toBe(true);
     });
 
@@ -469,7 +470,7 @@ describe("tour chapters", () => {
         const step = TOUR_CHAPTERS.map.steps.find(candidate => candidate.title === "Show The Map");
 
         expect(step?.target).toBe("[data-tour='mobile-main-tab-map']");
-        expect(step?.placement).toBe("top");
+        expect(step?.placement).toBe("bottom");
         expect(step?.mobileHideOverlay).not.toBe(true);
     });
 

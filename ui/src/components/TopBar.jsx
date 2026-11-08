@@ -11,12 +11,15 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useSpotData } from "@/hooks/useSpotData";
+import { useMediaQuery } from "@uidotdev/usehooks";
 
 import Icon from "@/assets/icon.png";
+import OpenMenu from "@/components/OpenMenu.jsx";
 import RotatorState from "@/components/RotatorState.jsx";
 
 import use_radio from "@/hooks/useRadio";
 import useRotator from "@/hooks/useRotator";
+import { useEffect } from "react";
 
 const spots_time_limits = {
     "5 Minutes": 300,
@@ -25,52 +28,11 @@ const spots_time_limits = {
     "1 Hour": 3600,
 };
 
-function PanelControl({ panel, label, open_panel, toggle_panel }) {
-    const { colors } = useColors();
-    const is_open = open_panel === panel;
-    return (
-        <button
-            type="button"
-            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center cursor-pointer rounded border px-2 py-2 text-sm font-semibold hover:brightness-125 focus-visible:outline focus-visible:outline-2"
-            style={{ color: colors.theme.text, borderColor: colors.theme.borders }}
-            aria-label={`${is_open ? "Close" : "Open"} ${label}`}
-            aria-expanded={is_open}
-            aria-controls={`${panel}-panel`}
-            onClick={event => toggle_panel(panel, event.currentTarget)}
-        >
-            <span className="hidden md:inline">{label}</span>
-            <svg
-                className="md:hidden"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-            >
-                {panel === "filters" ? (
-                    <path d="M3 4h18l-7 8v7l-4 2v-9z" />
-                ) : (
-                    <>
-                        <path d="M4 7h16M4 17h16" />
-                        <rect x="7" y="4" width="4" height="6" rx="1" />
-                        <rect x="14" y="14" width="4" height="6" rx="1" />
-                    </>
-                )}
-            </svg>
-        </button>
-    );
-}
-
-function DesktopTopBar({
+function TopBar({
     set_map_controls,
     set_radius_in_km,
-    is_compact,
-    open_panel,
-    toggle_panel,
+    toggled_ui,
+    set_toggled_ui,
     dev_mode,
     can_undo_cat,
     undo_cat,
@@ -96,25 +58,36 @@ function DesktopTopBar({
 
     const { radio_freq } = use_radio();
 
+    // Reset the toggle state when resizing the screen
+    const is_max_2xl_device = useMediaQuery("only screen and (max-width : 96rem)");
+    useEffect(() => {
+        if (is_max_2xl_device) {
+            set_toggled_ui({ left_visible: false, right_visible: false });
+        } else {
+            set_toggled_ui({ left_visible: true, right_visible: true });
+        }
+    }, [is_max_2xl_device]);
+
     return (
         <div
-            className="flex flex-row shrink-0 z-[60] justify-between items-center h-[4rem] border-b-2"
+            className="flex flex-row z-[60] justify-between items-center h-[4rem] border-b-2"
             data-tour="top-bar"
             style={{
                 backgroundColor: colors.theme.background,
                 borderColor: colors.theme.borders,
             }}
         >
-            {is_compact && (
-                <div className="p-1 md:p-2 shrink-0" data-tour="top-bar-left-menu">
-                    <PanelControl
-                        panel="filters"
-                        label="Filters"
-                        open_panel={open_panel}
-                        toggle_panel={toggle_panel}
-                    />
-                </div>
-            )}
+            <div className="p-2 hidden max-2xl:block" data-tour="top-bar-left-menu">
+                <OpenMenu
+                    size="32"
+                    on_click={() =>
+                        set_toggled_ui({
+                            ...toggled_ui,
+                            left_visible: !toggled_ui.left_visible,
+                        })
+                    }
+                />
+            </div>
             <div className="hidden xs:flex h-full p-2 gap-3" data-tour="top-bar-logo">
                 <img
                     className="object-contain max-h-12 w-10 m-auto"
@@ -130,7 +103,7 @@ function DesktopTopBar({
                 The Holy Cluster
             </h1>
 
-            <div className="flex items-center h-full p-1 gap-1 md:p-2 md:gap-2 lg:gap-3">
+            <div className="flex items-center h-full p-2 gap-3">
                 {radio_status !== "unavailable" && can_undo_cat && (
                     <Button
                         color="utility"
@@ -161,22 +134,8 @@ function DesktopTopBar({
                     on_click={toggle_rotator_tuning}
                 />
                 {radio_status !== "unavailable" ? (
-                    <div
-                        data-tour="top-bar-radio-frequency"
-                        className="shrink-0"
-                        style={{ color: colors.theme.text }}
-                    >
-                        <div className="md:hidden max-w-24 text-xs leading-4">
-                            <div>Radio {radio_status}</div>
-                            {radio_status === "connected" && (
-                                <div className="whitespace-nowrap font-semibold tabular-nums">
-                                    {radio_freq
-                                        ? `${Number((radio_freq / 1_000_000).toFixed(6))} MHz`
-                                        : "Frequency unknown"}
-                                </div>
-                            )}
-                        </div>
-                        <div className="hidden md:block" data-tour="radio-full-frequency">
+                    <>
+                        <div data-tour="top-bar-radio-frequency">
                             <SevenSegmentDisplay
                                 height="10"
                                 display_size={radio_freq ? radio_freq.toString().length : 8}
@@ -184,9 +143,10 @@ function DesktopTopBar({
                                 error={radio_status !== "connected"}
                             />
                         </div>
-                    </div>
-                ) : null}
-
+                    </>
+                ) : (
+                    ""
+                )}
                 {profiles.length > 1 && (
                     <div className="hidden md:block" data-tour="top-bar-profile-selector">
                         <Select
@@ -203,13 +163,10 @@ function DesktopTopBar({
                     </div>
                 )}
                 <SubmitSpot dev_mode={dev_mode} />
-                <div className={radio_status !== "unavailable" ? "hidden md:block" : ""}>
-                    <Clock />
-                </div>
+                <Clock />
 
                 <Select
                     data-tour="top-bar-time-limit"
-                    className={radio_status !== "unavailable" ? "max-md:w-20 max-md:px-1" : ""}
                     value={filters.time_limit}
                     onChange={event =>
                         setFilters(state => ({
@@ -242,117 +199,20 @@ function DesktopTopBar({
                 </div>
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ColorPicker /> : ""}
-                {is_compact && (
-                    <div className="md:p-2 shrink-0" data-tour="top-bar-right-menu">
-                        <PanelControl
-                            panel="tools"
-                            label="Tools"
-                            open_panel={open_panel}
-                            toggle_panel={toggle_panel}
-                        />
-                    </div>
-                )}
+                <div className="p-2 hidden max-2xl:block" data-tour="top-bar-right-menu">
+                    <OpenMenu
+                        size="32"
+                        on_click={() =>
+                            set_toggled_ui({
+                                ...toggled_ui,
+                                right_visible: !toggled_ui.right_visible,
+                            })
+                        }
+                    />
+                </div>
             </div>
         </div>
     );
 }
 
-function MobileTaskBar({ set_map_controls, set_radius_in_km, dev_mode, can_undo_cat, undo_cat }) {
-    const { colors } = useColors();
-    const { filters, setFilters } = useFilters();
-    const { network_state } = useSpotData();
-    const { radio_status, radio_freq } = use_radio();
-    const {
-        rotator_status,
-        rotator_name,
-        rotator_heading,
-        rotator_target_azimuth,
-        rotator_tuning_enabled,
-        toggle_rotator_tuning,
-    } = useRotator();
-    return (
-        <header
-            data-tour="top-bar"
-            className="flex flex-col shrink-0 z-[60] border-b px-2 py-1 gap-1"
-            style={{
-                backgroundColor: colors.theme.background,
-                borderColor: colors.theme.borders,
-                color: colors.theme.text,
-            }}
-        >
-            <div className="flex items-center justify-between gap-2 min-w-0">
-                <div data-tour="top-bar-network-state" className="shrink-0" title={network_state}>
-                    {network_state === "connecting" ? (
-                        <Spinner size="24" color="lightblue" />
-                    ) : (
-                        <NetworkState
-                            size="24"
-                            color={network_state === "connected" ? "#00EE00" : "#EE0000"}
-                            title={network_state}
-                        />
-                    )}
-                </div>
-                <Select
-                    data-tour="top-bar-time-limit"
-                    aria-label="Spot window"
-                    className="flex-1 min-w-0"
-                    value={filters.time_limit}
-                    onChange={event =>
-                        setFilters(state => ({ ...state, time_limit: event.target.value }))
-                    }
-                >
-                    {Object.entries(spots_time_limits).map(([label, value]) => (
-                        <option key={value} value={value}>
-                            {label}
-                        </option>
-                    ))}
-                </Select>
-                <SubmitSpot dev_mode={dev_mode} />
-                <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
-            </div>
-            {(radio_status !== "unavailable" ||
-                (colors.rotator[rotator_status] && rotator_name !== "unconfigured")) && (
-                <div className="flex items-center gap-2 min-w-0 text-xs">
-                    {radio_status !== "unavailable" && (
-                        <div
-                            data-tour="top-bar-radio-frequency"
-                            className="flex-1 min-w-0 flex flex-wrap gap-x-2 items-center"
-                        >
-                            <span>Radio {radio_status}</span>
-                            {radio_status === "connected" && (
-                                <strong className="tabular-nums">
-                                    {radio_freq
-                                        ? `${Number((radio_freq / 1_000_000).toFixed(6))} MHz`
-                                        : "Frequency unknown"}
-                                </strong>
-                            )}
-                        </div>
-                    )}
-                    {radio_status !== "unavailable" && can_undo_cat && (
-                        <Button
-                            color="utility"
-                            className="min-h-11 min-w-11 p-1"
-                            aria-label="Undo CAT change"
-                            data-tour="top-bar-cat-undo"
-                            on_click={undo_cat}
-                        >
-                            ↶
-                        </Button>
-                    )}
-                    <RotatorState
-                        status={rotator_status}
-                        name={rotator_name}
-                        azimuth={rotator_heading}
-                        moving={rotator_target_azimuth != null}
-                        tuning_enabled={rotator_tuning_enabled}
-                        on_click={toggle_rotator_tuning}
-                    />
-                </div>
-            )}
-        </header>
-    );
-}
-
-export default function TopBar(props) {
-    return props.is_mobile ? <MobileTaskBar {...props} /> : <DesktopTopBar {...props} />;
-}
+export default TopBar;

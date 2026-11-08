@@ -39,34 +39,27 @@ async function open_band_options(page) {
 
 async function reach_filter_editor(page, { mobile = false } = {}) {
     if (mobile) {
-        await expect_tour_step(
-            page,
-            "filters_open_filter_rail",
-            tour_target("mobile-main-tab-filters"),
-        );
-        await page.locator(tour_target("mobile-main-tab-filters")).click();
+        await expect_tour_step(page, "filters_open_filter_rail", tour_target("top-bar-left-menu"));
+        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
         await expect(page.locator(tour_target("left-column"))).toBeVisible();
     }
 
     await expect_tour_step(page, "filters_quick_filters", tour_target("left-column"));
     await next_tour_step(page);
-    if (mobile) {
-        const band = page.locator(tour_target("band-filter-20"));
-        await expect_tour_step(page, "filters_band_filters", tour_target("band-filter-20"));
-        await expect_state_change(band, () => band.click());
-    } else await open_band_options(page);
+    await open_band_options(page);
 
     const mode_filter = page.locator(tour_target("mode-filter-SSB"));
     await expect_tour_step(page, "filters_mode_filters", tour_target("mode-filter-SSB"));
     await expect_state_change(mode_filter, () => mode_filter.click());
 
     if (mobile) {
-        await expect_tour_step(page, "filters_filters_tab", tour_target("mobile-custom-filters"));
-        await page.locator(tour_target("mobile-custom-filters")).click();
-    } else {
-        await expect_tour_step(page, "filters_filters_tab", tour_target("side-panel-tab-filters"));
-        await next_tour_step(page);
+        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
+        await page.locator(tour_target("top-bar-right-menu")).locator("button").click();
+        await expect(page.locator(tour_target("side-panel"))).toBeVisible();
     }
+
+    await expect_tour_step(page, "filters_filters_tab", tour_target("side-panel-tab-filters"));
+    await next_tour_step(page);
     await expect_tour_step(page, "filters_advanced_filters", tour_target("filters-panel"));
     await next_tour_step(page);
 
@@ -126,12 +119,9 @@ test.describe("Filters tour", () => {
         await complete_filters(page);
     });
 
-    test("completes every applicable mobile step from Custom filters", async ({ page }) => {
+    test("completes every applicable mobile step", async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto("/");
-        await page.locator(tour_target("mobile-main-tab-filters")).click();
-        await page.getByRole("button", { name: "Custom filters", exact: true }).click();
-        await expect(page.locator(tour_target("filters-panel"))).toBeVisible();
         await start_tour(page, "Filters");
         await complete_filters(page, { mobile: true });
     });
@@ -273,34 +263,4 @@ async function drag_filter_to_show_only(page) {
     }
 
     await expect(target).toHaveAttribute("data-tour-state", "1");
-}
-
-for (const width of [768, 1535]) {
-    test(`restores Filters across the Tools boundary at ${width}px`, async ({ page }) => {
-        await page.setViewportSize({ width, height: 900 });
-        await page.goto("/");
-        await start_tour(page, "Filters");
-        await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
-        await expect_tour_step(page, "filters_quick_filters", tour_target("left-column"));
-        await next_tour_step(page);
-        await open_band_options(page);
-        await expect_state_change(page.locator(tour_target("mode-filter-SSB")), () =>
-            page.locator(tour_target("mode-filter-SSB")).click(),
-        );
-        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
-        await expect(page.locator(tour_target("left-column"))).toBeHidden();
-        await page.locator(tour_target("top-bar-right-menu")).locator("button").click();
-        await expect_tour_step(page, "filters_filters_tab", tour_target("side-panel-tab-filters"));
-        await back_tour_step(page);
-        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
-        await expect(page.locator(tour_target("side-panel"))).toBeHidden();
-        await back_tour_step(page);
-        await expect_tour_step(page, "filters_mode_filters", tour_target("mode-filter-SSB"));
-        await expect(page.locator(tour_target("left-column"))).toBeVisible();
-        await expect_state_change(page.locator(tour_target("mode-filter-SSB")), () =>
-            page.locator(tour_target("mode-filter-SSB")).click(),
-        );
-        await expect_tour_step(page, "filters_open_side_panel", tour_target("top-bar-right-menu"));
-        await expect(page.locator(tour_target("left-column"))).toBeHidden();
-    });
 }

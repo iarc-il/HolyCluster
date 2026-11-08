@@ -63,7 +63,7 @@ test.describe("Quick Start Back navigation", () => {
             const submit_spots = { id: "quick_start_submit_spots", target: "top-bar-submit-spot" };
             const open_filter_rail = {
                 id: "quick_start_open_filter_rail",
-                target: "mobile-main-tab-filters",
+                target: "top-bar-left-menu",
             };
             const band_filters = {
                 id: "quick_start_band_and_mode_filters",
@@ -86,28 +86,15 @@ test.describe("Quick Start Back navigation", () => {
             await next_tour_step(page);
             await expect_tour_step(page, open_filter_rail.id, tour_target(open_filter_rail.target));
 
-            await page.locator(tour_target("mobile-main-tab-filters")).click();
+            await page.locator(tour_target("top-bar-left-menu")).locator("button").click();
             await expect(page.locator(tour_target("left-column"))).toBeVisible();
             await expect_tour_step(page, band_filters.id, tour_target(band_filters.target));
             await back_tour_step(page);
             await expect_tour_step(page, open_filter_rail.id, tour_target(open_filter_rail.target));
-            await expect(page.locator(tour_target("left-column"))).toBeHidden();
-            await page.getByRole("button", { name: "Filters", exact: true }).click();
+            await next_tour_step(page);
             await expect_tour_step(page, band_filters.id, tour_target(band_filters.target));
             await next_tour_step(page);
-            await expect_tour_step(page, mobile_tabs.id, tour_target(mobile_tabs.target));
-            await expect(page.locator(tour_target("left-column"))).toBeHidden();
-            await page.locator(tour_target("mobile-main-tab-table")).click();
-            await back_tour_step(page);
-            await expect_tour_step(page, band_filters.id, tour_target(band_filters.target));
-            await expect(page.locator(tour_target("left-column"))).toBeVisible();
-            await next_tour_step(page);
-            await expect_tour_step(page, mobile_tabs.id, tour_target(mobile_tabs.target));
-            await expect(page.locator(tour_target("left-column"))).toBeHidden();
-            await expect(page.locator(tour_target("mobile-main-tab-table"))).toHaveAttribute(
-                "aria-pressed",
-                "true",
-            );
+            await go_back_and_forward(page, mobile_tabs, band_filters);
 
             await finish_tour(page);
         });

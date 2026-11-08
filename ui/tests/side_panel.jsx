@@ -35,17 +35,17 @@ import {
 } from "@/utils/profile_data.js";
 
 function SidePanelHarness() {
-    const [visible, set_visible] = useState(false);
+    const [toggled_ui, set_toggled_ui] = useState({ right_visible: false });
     const [active_view, set_active_view] = useState(4);
 
     return (
         <>
-            <output data-testid="right-panel-state">{visible ? "open" : "closed"}</output>
+            <output data-testid="right-panel-state">
+                {toggled_ui.right_visible ? "open" : "closed"}
+            </output>
             <SidePanel
-                visible={visible}
-                overlay={true}
-                on_close={() => set_visible(false)}
-                on_open={() => set_visible(true)}
+                toggled_ui={toggled_ui}
+                set_toggled_ui={set_toggled_ui}
                 set_cat_to_spot={() => {}}
                 active_view={active_view}
                 set_active_view={set_active_view}

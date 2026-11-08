@@ -9,6 +9,7 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
+import { useMediaQuery } from "@uidotdev/usehooks";
 import Bands from "./Bands";
 import CatControl from "./CatControl";
 import General from "./General";
@@ -42,6 +43,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_cat_available } = use_radio();
+    const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
 
     useEffect(() => {
         function select_tab(event) {
@@ -114,17 +116,21 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        {
-            label: "Layout",
-            data_tour: "settings-tab-layout",
-            content: (
-                <Layout
-                    temp_settings={temp_settings}
-                    set_temp_settings={set_temp_settings}
-                    colors={colors}
-                />
-            ),
-        },
+        ...(!is_mobile_settings
+            ? [
+                  {
+                      label: "Layout",
+                      data_tour: "settings-tab-layout",
+                      content: (
+                          <Layout
+                              temp_settings={temp_settings}
+                              set_temp_settings={set_temp_settings}
+                              colors={colors}
+                          />
+                      ),
+                  },
+              ]
+            : []),
         {
             label: "Bands & Modes",
             data_tour: "settings-tab-bands-modes",
@@ -206,7 +212,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 reset_temp_settings();
             }}
         >
-            <div className="h-full w-[min(21rem,calc(100vw-2rem))] md:w-[42rem] [&_[data-tour=settings-tabs-tabs]]:grid [&_[data-tour=settings-tabs-tabs]]:grid-cols-3 md:[&_[data-tour=settings-tabs-tabs]]:flex">
+            <div className="h-full w-[21rem] md:w-[42rem]">
                 <Tabs tabs={tabs} data_tour="settings-tabs" />
             </div>
         </Modal>

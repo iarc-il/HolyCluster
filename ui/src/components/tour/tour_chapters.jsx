@@ -1,31 +1,13 @@
-import { flushSync } from "react-dom";
-import {
-    TOUR_CLOSE_LEFT_PANEL_EVENT,
-    TOUR_CLOSE_SIDE_PANEL_EVENT,
-    TOUR_OPEN_FILTERS_EVENT,
-} from "./tour_events.js";
+import { TOUR_CLOSE_LEFT_PANEL_EVENT } from "./tour_events.js";
 
 export const TOUR_COMPLETED_CHAPTERS_KEY = "tour_completed_chapters";
 export const DEFAULT_TOUR_CHAPTER_ID = "quick_start";
 
 const action_buttons = ["back", "close"];
-const close_drawers = () => {
-    document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
-    document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
-    return new Promise(resolve => requestAnimationFrame(resolve));
-};
-const open_filters = async () => {
-    // Joyride calls this hook in an effect; commit Filters before it measures the target.
-    await Promise.resolve();
-    flushSync(() => document.dispatchEvent(new Event(TOUR_OPEN_FILTERS_EVENT)));
-};
-const open_custom_filters = async () => {
-    await open_filters();
-    const summary = document.querySelector("[data-tour='mobile-custom-filters']");
-    if (summary?.getAttribute("aria-pressed") !== "true") summary?.click();
-};
 const scroll_target_to_center = selector => () => {
-    close_drawers();
+    if (window.innerWidth <= 768) {
+        document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
+    }
 
     return new Promise(resolve => {
         requestAnimationFrame(() => {
@@ -73,43 +55,42 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "quick_start_open_filter_rail",
-                mobile: { target: "[data-tour='mobile-main-tab-filters']" },
                 target: "[data-tour='top-bar-left-menu']",
-                title: "Open Filters",
-                content: "Select Filters to choose bands and modes.",
+                title: "Open The Filter Rail",
+                content:
+                    "Open the filter rail if it is hidden, then narrow the live feed to what you can work.",
                 optional: true,
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
-                mobilePlacement: "top",
                 showWhenAlreadySatisfied: true,
             },
             {
                 id: "quick_start_band_and_mode_filters",
-                mobilePlacement: "center",
-                before: open_filters,
                 target: "[data-tour='left-column']",
                 title: "Band And Mode Filters",
                 content:
                     "Use the one-click band and mode filters to keep only the spots relevant to your station.",
                 hideOverlay: true,
+                optional: true,
                 placement: "auto",
                 mobileWidth: 280,
             },
             {
                 id: "quick_start_map_and_table_tabs",
-                before: close_drawers,
                 target: "[data-tour='mobile-main-tabs']",
-                title: "Mobile Workspaces",
-                content: "Switch between Map, Spots, Filters, and Tools.",
+                title: "Map And Table Tabs",
+                content:
+                    "On narrow screens, use Map to find activity and Table to inspect it, then choose a spot and act on it.",
                 hideOverlay: true,
                 mobileOnly: true,
                 optional: true,
-                placement: "top",
+                // The tabs sit directly below the fixed top bar; centering keeps Joyride from
+                // flipping the tooltip above the viewport and leaves the tabs clickable.
+                placement: "center",
             },
             {
                 id: "quick_start_find_activity",
-                before: close_drawers,
                 target: "[data-tour='map-panel']",
                 title: "Find Activity",
                 content:
@@ -121,7 +102,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "quick_start_inspect_a_spot",
-                before: close_drawers,
                 target: "[data-tour='table-panel']",
                 title: "Inspect A Spot",
                 content:
@@ -142,12 +122,12 @@ export const TOUR_CHAPTERS = {
                 id: "map_show_the_map",
                 target: "[data-tour='mobile-main-tab-map']",
                 title: "Show The Map",
-                content: "Select Map to explore activity.",
+                content: "Tap the Map tab if the map is not currently visible.",
                 mobileOnly: true,
                 optional: true,
                 waitFor: "[data-tour='map-controls']",
                 buttons: action_buttons,
-                placement: "top",
+                placement: "bottom",
                 showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
@@ -299,19 +279,18 @@ export const TOUR_CHAPTERS = {
     spots_table: {
         id: "spots_table",
         title: "Spots Table",
-        mobileTitle: "Spots",
         description: "Learn the live spots table, search, sorting, and spot row fields.",
         steps: [
             {
                 id: "spots_table_show_the_table",
                 target: "[data-tour='mobile-main-tab-table']",
-                title: "Show Spots",
-                content: "Select Spots to inspect live spots.",
+                title: "Show The Table",
+                content: "Tap the Table tab if the spots table is not currently visible.",
                 mobileOnly: true,
                 optional: true,
                 waitFor: "[data-tour='spots-table']",
                 buttons: action_buttons,
-                placement: "top",
+                placement: "bottom",
                 showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
@@ -516,24 +495,22 @@ export const TOUR_CHAPTERS = {
         steps: [
             {
                 id: "filters_open_filter_rail",
-                mobile: { target: "[data-tour='mobile-main-tab-filters']" },
                 target: "[data-tour='top-bar-left-menu']",
-                title: "Open Filters",
-                content: "Select Filters to choose bands and modes.",
+                title: "Open The Filter Rail",
+                content: "Click this menu button if the band and mode filter rail is hidden.",
                 optional: true,
                 waitFor: "[data-tour='left-column']",
                 buttons: action_buttons,
                 placement: "bottom",
-                mobilePlacement: "top",
                 showWhenAlreadySatisfied: true,
                 skipBeacon: true,
             },
             {
                 id: "filters_quick_filters",
-                before: open_filters,
                 target: "[data-tour='left-column']",
                 title: "Quick Filters",
-                content: "Choose bands and modes for the live spots.",
+                content:
+                    "The left rail contains fast band and mode filters for the live spot stream.",
                 placement: "right",
                 // The mobile rail fills the available width, so a side tooltip would overflow.
                 mobilePlacement: "center",
@@ -554,7 +531,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_open_band_options",
-                desktopOnly: true,
                 target: "[data-tour='filter-options-trigger-bands-20']",
                 title: "Open Band Options",
                 content: "Hover over the 20m band button to open its ONLY and ALL shortcuts.",
@@ -567,7 +543,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_only_and_all",
-                desktopOnly: true,
                 target: "[data-tour='filter-options-popup']",
                 title: "ONLY And ALL",
                 content:
@@ -581,7 +556,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_mode_filters",
-                before: open_filters,
                 target: "[data-tour='mode-filter-SSB']",
                 title: "Mode Filters",
                 content: "Click SSB to toggle that mode in the table and map.",
@@ -603,32 +577,16 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_open_side_panel",
-                desktopOnly: true,
-                before: close_drawers,
                 target: "[data-tour='top-bar-right-menu']",
-                title: "Open Tools",
-                content: "Select Tools to use advanced filters.",
+                title: "Open The Side Panel",
+                content: "Click this menu button if the advanced filter panel is hidden.",
                 optional: true,
                 waitFor: "[data-tour='side-panel']",
                 buttons: action_buttons,
                 placement: "bottom",
-                mobilePlacement: "top",
             },
             {
                 id: "filters_filters_tab",
-                mobile: {
-                    target: "[data-tour='mobile-custom-filters']",
-                    title: "Custom Filters",
-                    content: "Open Custom filters to manage Alert, Show Only, and Hide filters.",
-                    before: async () => {
-                        await open_filters();
-                        document
-                            .querySelector("[data-tour='mobile-custom-filters']")
-                            ?.scrollIntoView({ block: "center" });
-                    },
-                    waitForChange: undefined,
-                    waitFor: "[data-tour='filters-panel']",
-                },
                 target: "[data-tour='side-panel-tab-filters']",
                 title: "Filters Tab",
                 content:
@@ -643,7 +601,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "filters_advanced_filters",
-                mobile: { before: open_custom_filters },
                 target: "[data-tour='filters-panel']",
                 title: "Advanced Filters",
                 content:
@@ -768,34 +725,26 @@ export const TOUR_CHAPTERS = {
     },
     side_panel: {
         id: "side_panel",
-        title: "Tools",
-        mobileTitle: "Tools",
-        mobileDescription: "Inspect Band activity, Heatmap, DXpeditions, and Missing.",
-        description: "Explore Filters, Band Bar, Heatmap, DXpeditions, and Missing.",
+        title: "Side Panel",
+        description: "Tour the side panel tools and tabs.",
         steps: [
             {
                 id: "side_panel_open_side_panel",
-                mobile: {
-                    target: "[data-tour='mobile-main-tab-explore']",
-                    title: "Open Tools",
-                    content: "Select Tools to inspect activity.",
-                },
                 target: "[data-tour='top-bar-right-menu']",
-                title: "Open Tools",
-                content: "Select Tools to explore the operating tools.",
+                title: "Open The Side Panel",
+                content: "Click this menu button if the side panel is hidden.",
                 optional: true,
                 waitFor: "[data-tour='side-panel']",
                 buttons: action_buttons,
                 placement: "bottom",
-                mobilePlacement: "top",
                 skipBeacon: true,
             },
             {
                 id: "side_panel_overview",
-                mobile: { title: "Tools", content: "Choose a view to inspect activity." },
                 target: "[data-tour='side-panel']",
-                title: "Tools",
-                content: "Choose a tool to inspect activity or manage filters.",
+                title: "Side Panel",
+                content:
+                    "The side panel groups deeper tools that do not fit in the main map/table view.",
                 placement: "left",
                 // Side-panel overview/content targets fill a narrow scrolling panel on mobile.
                 mobilePlacement: "center",
@@ -803,18 +752,13 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "side_panel_tabs",
-                mobile: {
-                    title: "Tool Views",
-                    content: "Choose Band, Heatmap, DX, or Missing.",
-                },
                 target: "[data-tour='side-panel-tabs']",
-                title: "Tools Tabs",
-                content: "Choose Filters, Band Bar, Heatmap, DXpeditions, or Missing.",
+                title: "Panel Tabs",
+                content: "Use these tabs to switch between the side panel tools.",
                 placement: "auto",
             },
             {
                 id: "side_panel_filters_tab",
-                desktopOnly: true,
                 target: "[data-tour='side-panel-tab-filters']",
                 title: "Filters View",
                 content: "Click the Filters tab to show the advanced filter builder.",
@@ -828,7 +772,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "side_panel_filters_view",
-                desktopOnly: true,
                 target: "[data-tour='side-panel-view-filters']",
                 title: "Filters View",
                 content: "This view contains advanced alert, show-only, and hide filter sections.",
@@ -897,8 +840,6 @@ export const TOUR_CHAPTERS = {
             },
             {
                 id: "side_panel_heatmap_region",
-                mobilePlacement: "bottom",
-                mobileWidth: 280,
                 target: "[data-tour='heatmap-continent-selector']",
                 title: "Heatmap Region",
                 content: "Change the selected continent to focus the heatmap.",

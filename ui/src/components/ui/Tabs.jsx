@@ -1,6 +1,6 @@
 import { useColors } from "@/hooks/useColors";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSwipeable } from "react-swipeable";
 
 function get_clamped_tab_index(index, tab_count) {
@@ -12,30 +12,22 @@ function get_clamped_tab_index(index, tab_count) {
     return Math.min(numeric_index, tab_count - 1);
 }
 
-function Tabs(props) {
-    return props.local_storage_name != null ? <StoredTabs {...props} /> : <LocalTabs {...props} />;
-}
-
-function StoredTabs(props) {
-    const [active_tab, set_active_tab] = useLocalStorage(props.local_storage_name, 0);
-    return <TabsContent {...props} active_tab={active_tab} set_active_tab={set_active_tab} />;
-}
-
-function LocalTabs(props) {
-    const [active_tab, set_active_tab] = useState(0);
-    return <TabsContent {...props} active_tab={active_tab} set_active_tab={set_active_tab} />;
-}
-
-function TabsContent({
+function Tabs({
     tabs,
     active_color = null,
-    active_tab,
-    set_active_tab,
+    local_storage_name = null,
     external_tab = null,
     data_tour = null,
 }) {
     const { colors } = useColors();
+    const [active_tab, set_active_tab] = useLocalStorage(local_storage_name, 0);
     const active_tab_index = get_clamped_tab_index(active_tab, tabs.length);
+
+    useEffect(() => {
+        if (local_storage_name == null) {
+            set_active_tab(0);
+        }
+    }, []);
 
     useEffect(() => {
         if (external_tab != null) {

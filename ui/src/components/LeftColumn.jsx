@@ -56,7 +56,7 @@ function mode_to_symbol(mode) {
     return shape_to_symbol[get_mode_shape(mode)];
 }
 
-function SpotCount({ count, visible, overlay_el }) {
+function SpotCount({ count, toggled_ui, overlay_el }) {
     const anchor_ref = useRef(null);
     const badge_ref = useRef(null);
 
@@ -91,9 +91,9 @@ function SpotCount({ count, visible, overlay_el }) {
             window.removeEventListener("resize", update_position);
             observer.disconnect();
         };
-    }, [update_position, visible, count]);
+    }, [update_position, toggled_ui.left_visible, count]);
 
-    const is_visible = visible && count !== 0;
+    const is_visible = toggled_ui.left_visible && count !== 0;
 
     return (
         <>
@@ -183,7 +183,7 @@ function use_scroll_sync(scroll_ref, overlay_el) {
     }, [scroll_ref, overlay_el]);
 }
 
-function LeftColumn({ visible, overlay, on_close, children, mobile = false, content }) {
+function LeftColumn({ toggled_ui, children }) {
     const { spots_per_band_count, spots_per_mode_count } = useSpotData();
     const { set_hovered_band } = useSpotInteraction();
     const { filters, setFilters, setRadioModeFilter } = useFilters();
@@ -196,14 +196,10 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
 
     use_scroll_sync(scroll_ref, overlay_el);
 
-    const filter_group_classes = mobile
-        ? "p-3 flex flex-wrap text-center gap-3 "
-        : "p-1 flex flex-col text-center gap-2 ";
-    const panel_classes = visible
-        ? overlay
-            ? "absolute left-0 top-0 z-50 flex border-r"
-            : "relative z-50 flex"
-        : "hidden";
+    const filter_group_classes = "p-1 flex flex-col text-center gap-2 ";
+    const toggled_classes = toggled_ui.left_visible
+        ? "max-2xl:absolute max-2xl:flex z-50 border-r border-slate-300 "
+        : "hidden ";
 
     const { colors } = useColors();
 
@@ -218,42 +214,18 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
     const visible_modes = modes.filter(mode => !settings.disabled_modes[mode]);
 
     return (
-        <aside
-            id="filters-panel"
-            aria-label="Filters"
-            className={`${panel_classes} ${mobile ? "w-full min-w-0" : "w-18"} flex-col h-full shrink-0`}
+        <div
+            className={`${toggled_classes}2xl:flex w-18 flex-col h-full shrink-0 relative`}
             data-tour="left-column"
             style={{
                 backgroundColor: colors.theme.columns,
                 borderColor: colors.theme.borders,
             }}
         >
-            {overlay && (
-                <div
-                    className="flex shrink-0 flex-col items-center border-b p-1"
-                    style={{ color: colors.theme.text, borderColor: colors.theme.borders }}
-                >
-                    <span className="text-xs font-semibold">Filters</span>
-                    <button
-                        id="filters-panel-close"
-                        type="button"
-                        aria-label="Close Filters"
-                        onClick={on_close}
-                        className="cursor-pointer rounded px-3 py-1 text-xl"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
             <div
                 ref={scroll_ref}
-                className={`flex min-h-0 flex-1 flex-col ${mobile ? "items-stretch" : "items-center"} overflow-y-auto`}
+                className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto"
             >
-                {mobile && (
-                    <h2 className="px-3 pt-3 font-semibold" style={{ color: colors.theme.text }}>
-                        Bands
-                    </h2>
-                )}
                 <div
                     className={`${filter_group_classes}pb-4 border-b-2 border-slate-300`}
                     data-tour="band-filter-group"
@@ -263,7 +235,6 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                         const label = Number.isInteger(band) ? `${band}m` : band;
                         return (
                             <FilterOptions
-                                touch={mobile}
                                 key={band}
                                 filter_key="bands"
                                 filter_value={band}
@@ -274,7 +245,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                                 {!filters.radio_band && (
                                     <SpotCount
                                         count={spots_per_band_count[band]}
-                                        visible={visible && !mobile}
+                                        toggled_ui={toggled_ui}
                                         overlay_el={overlay_el}
                                     />
                                 )}
@@ -294,7 +265,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                                                 },
                                             }));
                                     }}
-                                    className={`${mobile ? "min-h-11 min-w-16" : ""} ${filters.radio_band ? "opacity-50" : ""}`}
+                                    className={filters.radio_band && "opacity-50"}
                                     on_mouse_enter={_ => {
                                         if (!filters.radio_band) set_hovered_band(band);
                                     }}
@@ -314,11 +285,10 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                         <div data-tour="radio-band-filter">
                             <SpotCount
                                 count={spots_per_band_count[radio_band]}
-                                visible={visible && !mobile}
+                                toggled_ui={toggled_ui}
                                 overlay_el={overlay_el}
                             />
                             <FilterButton
-                                className={mobile ? "min-h-11 min-w-16" : ""}
                                 text={"Radio"}
                                 is_active={filters.radio_band}
                                 color={colors.bands[radio_band] ?? "black"}
@@ -339,16 +309,10 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                     ""
                 )}
 
-                {mobile && (
-                    <h2 className="px-3 pt-3 font-semibold" style={{ color: colors.theme.text }}>
-                        Modes
-                    </h2>
-                )}
                 <div className={`${filter_group_classes} pt-4`} data-tour="mode-filter-group">
                     {visible_modes.map(mode => {
                         return (
                             <FilterOptions
-                                touch={mobile}
                                 key={mode}
                                 filter_key="modes"
                                 filter_value={mode}
@@ -356,7 +320,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                             >
                                 <SpotCount
                                     count={spots_per_mode_count[mode]}
-                                    visible={visible && !mobile}
+                                    toggled_ui={toggled_ui}
                                     overlay_el={overlay_el}
                                 />
                                 <FilterButton
@@ -383,14 +347,13 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                                         }))
                                     }
                                     color={colors.buttons.modes}
-                                    className={`text-[0.94rem] ${mobile ? "min-h-11 min-w-16" : ""}`}
+                                    className="text-[0.94rem]"
                                     data_tour={`mode-filter-${mode}`}
                                 />
                             </FilterOptions>
                         );
                     })}
                 </div>
-                {content}
             </div>
             {children && (
                 <div
@@ -406,7 +369,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
             >
                 <div ref={setOverlayEl} />
             </div>
-        </aside>
+        </div>
     );
 }
 

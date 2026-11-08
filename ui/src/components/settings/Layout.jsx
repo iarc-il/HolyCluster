@@ -1,5 +1,3 @@
-import { useMediaQuery } from "@uidotdev/usehooks";
-
 const layout_options = [
     {
         value: "map",
@@ -64,33 +62,31 @@ function MiniTable({ colors }) {
     );
 }
 
-function PreviewPanel({ panel, colors, border, mobile }) {
+function PreviewPanel({ panel, colors, border }) {
     const is_map = panel === "map";
     const border_class = border ? "border" : "";
 
     return (
         <div
-            className={`flex grow basis-1/2 flex-col items-center justify-center gap-2 rounded-md px-1 md:px-2 ${border_class}`}
+            className={`flex grow basis-1/2 flex-col items-center justify-center gap-2 rounded-md px-2 ${border_class}`}
             style={{
                 borderColor: colors.theme.borders,
                 backgroundColor: colors.theme.background,
             }}
         >
             {is_map ? <MiniMap colors={colors} /> : <MiniTable colors={colors} />}
-            <span className="text-xs font-semibold">
-                {is_map ? "Map" : mobile ? "Spots" : "Table"}
-            </span>
+            <span className="text-xs font-semibold">{is_map ? "Map" : "Table"}</span>
         </div>
     );
 }
 
-function OptionCard({ option, selected, colors, on_select, mobile }) {
+function OptionCard({ option, selected, colors, on_select }) {
     return (
         <button
             type="button"
             aria-pressed={selected}
             onClick={on_select}
-            className="min-w-0 rounded-xl border-2 p-2 md:p-3 text-left transition hover:-translate-y-0.5"
+            className="rounded-xl border-2 p-3 text-left transition hover:-translate-y-0.5"
             data-tour={`settings-layout-${option.value}`}
             style={{
                 color: colors.theme.text,
@@ -100,28 +96,24 @@ function OptionCard({ option, selected, colors, on_select, mobile }) {
             }}
         >
             <div
-                className="mb-3 flex h-24 gap-1 rounded-lg border p-1 md:gap-2 md:p-2"
+                className="mb-3 flex h-24 gap-2 rounded-lg border p-2"
                 style={{ borderColor: colors.theme.borders }}
             >
                 {option.panels.map(panel => (
                     <PreviewPanel
                         key={panel}
                         panel={panel}
-                        mobile={mobile}
                         colors={colors}
                         border={option.panels.length > 1}
                     />
                 ))}
             </div>
-            <div className="font-semibold">
-                {mobile ? option.title.replaceAll("Table", "Spots") : option.title}
-            </div>
+            <div className="font-semibold">{option.title}</div>
         </button>
     );
 }
 
 function Layout({ temp_settings, set_temp_settings, colors }) {
-    const mobile = useMediaQuery("(max-width: 767px)");
     const main_view_mode = temp_settings.main_view_mode ?? "both";
     const main_view_order = temp_settings.main_view_order ?? "map_table";
     const selected_layout =
@@ -148,12 +140,11 @@ function Layout({ temp_settings, set_temp_settings, colors }) {
             style={{ color: colors.theme.text }}
         >
             <section>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-4">
                     {layout_options.map(option => (
                         <OptionCard
                             key={option.value}
                             option={option}
-                            mobile={mobile}
                             selected={selected_layout === option.value}
                             colors={colors}
                             on_select={() => select_layout(option)}

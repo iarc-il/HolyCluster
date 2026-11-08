@@ -16,7 +16,6 @@ const FILTER_TYPES = new Set([
     "missing",
     "self_spotters",
     "dxpeditions",
-    "lotw",
 ]);
 const SPOT_SIDES = new Set(["spotter", "dx"]);
 const ZONE_SYSTEMS = new Set(["cq", "itu", "us_state", "ca_province"]);
@@ -97,10 +96,6 @@ function sanitize_filter_rule(value) {
     const filter = { action, type };
 
     if (type === "self_spotters" || type === "dxpeditions") {
-        return filter;
-    }
-
-    if (type === "lotw") {
         return filter;
     }
 

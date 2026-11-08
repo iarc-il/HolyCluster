@@ -8,7 +8,6 @@ import { useFilters } from "@/hooks/useFilters";
 import { useSettings } from "@/hooks/useSettings";
 
 function FilterOptions({
-    touch = false,
     filter_key,
     filter_value,
     orientation,
@@ -91,7 +90,7 @@ function FilterOptions({
             className="relative"
             data-tour={`filter-options-trigger-${filter_key}-${filter_value}`}
             onMouseEnter={() => {
-                if (!disabled && !touch) {
+                if (!disabled) {
                     set_is_parent_hovered(true);
                 }
             }}

@@ -126,13 +126,7 @@ describe("MapControls GPS", () => {
     it("shows playback only on desktop", () => {
         const { rerender } = render_map_controls({ is_mobile: false });
 
-        const playback_button = screen.getByRole("button", { name: "Enter playback mode" });
-        expect(playback_button).toBeTruthy();
-        const playback_icon = playback_button.querySelector("svg");
-        expect(playback_icon?.getAttribute("viewBox")).toBe("-1 -1 18 18");
-        expect(playback_icon?.querySelector("path:last-child")?.getAttribute("d")).toBe(
-            "M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z",
-        );
+        expect(screen.getByRole("button", { name: "Enter playback mode" })).toBeTruthy();
 
         rerender(
             <MapControls
