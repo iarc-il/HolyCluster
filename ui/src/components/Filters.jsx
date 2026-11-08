@@ -12,7 +12,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 const FILTER_TYPE_LABELS = {
     prefix: "Pfx",
@@ -249,6 +249,26 @@ function FilterContent({ filter, colors }) {
     );
 }
 
+function FilterDropPlaceholder({ filter }) {
+    const { colors } = useColors();
+
+    return (
+        <div
+            className="mb-1 flex w-full items-center opacity-30"
+            data-tour="filter-drop-placeholder"
+            aria-hidden="true"
+        >
+            <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center md:h-7 md:w-6"
+                style={{ color: colors.buttons.utility }}
+            >
+                <DragHandleIcon />
+            </div>
+            <FilterContent filter={filter} colors={colors} />
+        </div>
+    );
+}
+
 function FilterLine({ filter, id, is_dragging, data_tour = null }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
@@ -310,12 +330,23 @@ function FilterSection({
     action,
     toggle_field,
     active_filter_id,
+    active_filter,
     external_initial_data = null,
     on_external_open = null,
 }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
     const { setNodeRef, isOver } = useDroppable({ id: action });
+    const active_filter_index = active_filter_id
+        ? Number.parseInt(active_filter_id.replace("filter-", ""), 10)
+        : null;
+    const show_drop_placeholder =
+        isOver && active_filter_index != null && active_filter?.action !== action;
+    const drop_placeholder_index = show_drop_placeholder
+        ? filters.findIndex(([id]) => id > active_filter_index)
+        : -1;
+    const normalized_drop_placeholder_index =
+        drop_placeholder_index === -1 ? filters.length : drop_placeholder_index;
 
     const drop_zone_inner_style = {
         backgroundColor: isOver ? `${colors.theme.accent}20` : "transparent",
@@ -366,14 +397,22 @@ function FilterSection({
                         />
                     </div>
                 </div>
-                {filters.map(([id, filter], index) => (
-                    <FilterLine
-                        key={id}
-                        id={id}
-                        filter={filter}
-                        is_dragging={active_filter_id === `filter-${id}`}
-                        data_tour={index === filters.length - 1 ? `filter-line-${action}` : null}
-                    />
+                {Array.from({ length: filters.length + 1 }, (_, index) => (
+                    <Fragment key={index < filters.length ? filters[index][0] : "end"}>
+                        {show_drop_placeholder && normalized_drop_placeholder_index === index && (
+                            <FilterDropPlaceholder filter={active_filter} />
+                        )}
+                        {index < filters.length && (
+                            <FilterLine
+                                id={filters[index][0]}
+                                filter={filters[index][1]}
+                                is_dragging={active_filter_id === `filter-${filters[index][0]}`}
+                                data_tour={
+                                    index === filters.length - 1 ? `filter-line-${action}` : null
+                                }
+                            />
+                        )}
+                    </Fragment>
                 ))}
             </div>
         </div>
@@ -439,6 +478,7 @@ function Filters({ open_import_filter = false, on_import_filter_open = null }) {
                         filters={filters_by_action.alert}
                         toggle_field="is_alert_filters_active"
                         active_filter_id={active_id}
+                        active_filter={activeFilter}
                         external_initial_data={
                             open_import_filter
                                 ? { action: "alert", type: "missing", missing_section: "dxcc" }
@@ -452,6 +492,7 @@ function Filters({ open_import_filter = false, on_import_filter_open = null }) {
                         filters={filters_by_action.show_only}
                         toggle_field="is_show_only_filters_active"
                         active_filter_id={active_id}
+                        active_filter={activeFilter}
                     />
                     <FilterSection
                         title="Hide"
@@ -459,6 +500,7 @@ function Filters({ open_import_filter = false, on_import_filter_open = null }) {
                         filters={filters_by_action.hide}
                         toggle_field="is_hide_filters_active"
                         active_filter_id={active_id}
+                        active_filter={activeFilter}
                     />
                 </div>
             </div>
