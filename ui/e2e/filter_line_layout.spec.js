@@ -25,7 +25,7 @@ const FILTER_CASES = [
     { name: "DXpeditions", filter: { type: "dxpeditions" } },
 ];
 
-test("filter content does not overlap its edit button", async ({ page }) => {
+async function open_desktop_filters(page, filter_cases) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.goto("/");
     await page.evaluate(filter_cases => {
@@ -39,11 +39,15 @@ test("filter content does not overlap its edit button", async ({ page }) => {
         }));
         localStorage.setItem("profiles_missing", JSON.stringify(store));
         localStorage.setItem("first_launch", JSON.stringify(false));
-    }, FILTER_CASES);
+    }, filter_cases);
     await page.reload();
     await page.locator('[data-tour="top-bar-right-menu"] button').click();
     await page.locator('[data-tour="side-panel-tab-filters"]').click();
     await expect(page.locator('[data-tour="filters-panel"]')).toBeVisible();
+}
+
+test("filter content does not overlap its edit button", async ({ page }) => {
+    await open_desktop_filters(page, FILTER_CASES);
 
     const handles = page.getByRole("button", { name: "Move filter" });
     await expect(handles).toHaveCount(FILTER_CASES.length);
@@ -78,4 +82,36 @@ test("filter content does not overlap its edit button", async ({ page }) => {
     }
 
     expect(overlaps, "Filter types whose rendered content overlaps the edit button").toEqual([]);
+});
+
+test("dragging a filter does not add horizontal scrolling", async ({ page }) => {
+    await open_desktop_filters(page, [FILTER_CASES.find(item => item.name === "self spotters")]);
+
+    const scroller = page.locator('[data-tour="side-panel-view-filters"]');
+    const handle = page.getByRole("button", { name: "Move filter" });
+    const target = page.locator('[data-tour="filter-section-show_only"]');
+    const handle_box = await handle.boundingBox();
+    const target_box = await target.boundingBox();
+    expect(handle_box).not.toBeNull();
+    expect(target_box).not.toBeNull();
+
+    await page.mouse.move(
+        handle_box.x + handle_box.width / 2,
+        handle_box.y + handle_box.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+        target_box.x + target_box.width / 2,
+        target_box.y + target_box.height / 2,
+        { steps: 8 },
+    );
+    await expect(target.locator('[data-tour="filter-drop-placeholder"]')).toBeVisible();
+
+    const dimensions = await scroller.evaluate(element => ({
+        client_width: element.clientWidth,
+        scroll_width: element.scrollWidth,
+    }));
+    expect(dimensions.scroll_width).toBe(dimensions.client_width);
+
+    await page.mouse.up();
 });

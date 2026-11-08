@@ -11,7 +11,6 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { DndContext, DragOverlay, useDraggable, useDroppable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { Fragment, useState } from "react";
 
 const FILTER_TYPE_LABELS = {
@@ -273,13 +272,12 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
     const { colors } = useColors();
     const { callsign_filters, setCallsignFilters } = useFilters();
 
-    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform } = useDraggable({
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({
         id: `filter-${id}`,
         data: { filterId: id, currentAction: filter.action, filter: filter },
     });
 
     const style = {
-        transform: CSS.Translate.toString(transform),
         opacity: is_dragging ? 0 : 1,
         color: colors.theme.text,
     };
