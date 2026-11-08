@@ -1,4 +1,5 @@
 import Clock from "@/components/Clock.jsx";
+import InstallApp from "@/components/InstallApp.jsx";
 import NetworkState from "@/components/NetworkState.jsx";
 import SevenSegmentDisplay from "@/components/SevenSegmentDisplay.jsx";
 import SubmitSpot from "@/components/SubmitSpot.jsx";
@@ -202,6 +203,7 @@ function DesktopTopBar({
                         </Select>
                     </div>
                 )}
+                <InstallApp />
                 <SubmitSpot dev_mode={dev_mode} />
                 <div className={radio_status !== "unavailable" ? "hidden md:block" : ""}>
                     <Clock />
@@ -307,6 +309,7 @@ function MobileTaskBar({ set_map_controls, set_radius_in_km, dev_mode, can_undo_
                         </option>
                     ))}
                 </Select>
+                <InstallApp />
                 <SubmitSpot dev_mode={dev_mode} />
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
             </div>
