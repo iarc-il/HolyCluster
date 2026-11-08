@@ -57,7 +57,7 @@ function DragHandle({ attributes, listeners, set_activator_node_ref, data_tour }
         <button
             ref={set_activator_node_ref}
             type="button"
-            className="flex h-11 w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-md active:cursor-grabbing md:h-7 md:w-7"
+            className="flex h-11 w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-md active:cursor-grabbing md:h-7 md:w-6"
             style={{ color: colors.buttons.utility }}
             aria-label="Move filter"
             title="Drag to change action"
@@ -172,13 +172,13 @@ function MissingFilterBadge({ filter }) {
 
     return (
         <div className="flex items-center gap-1">
-            <FilterBadge className="w-22" title={`Missing ${section_label}`}>
+            <FilterBadge className="w-22 md:w-16" title={`Missing ${section_label}`}>
                 Missing
             </FilterBadge>
-            <FilterBadge className="px-2 w-fit max-w-40" title={section_label}>
+            <FilterBadge className="w-14 px-2 md:w-12" title={section_label}>
                 {section_label}
             </FilterBadge>
-            <FilterBadge className="px-2 w-fit" title={`${missing_count} missing`}>
+            <FilterBadge className="w-fit px-2 md:px-1" title={`${missing_count} missing`}>
                 {missing_count}
             </FilterBadge>
         </div>
@@ -274,7 +274,7 @@ function FilterLine({ filter, id, is_dragging, data_tour = null }) {
             <div className="flex items-center gap-1 flex-1 min-w-0">
                 <FilterContent filter={filter} colors={colors} />
             </div>
-            <div className="flex items-center gap-1 ml-2">
+            <div className="flex items-center gap-1 ml-1">
                 <FilterModal
                     initial_data={filter}
                     button={<EditSymbol size="24" />}
