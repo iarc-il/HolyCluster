@@ -39,7 +39,7 @@ export function ContinentColumn({ spot_type, colors, mobile = false }) {
                     orientation="left"
                 >
                     <FilterButton
-                        className={mobile ? "min-h-11 min-w-16" : ""}
+                        className={mobile ? "min-w-16" : ""}
                         color={color}
                         text={continent}
                         text_color={colors.theme.text}

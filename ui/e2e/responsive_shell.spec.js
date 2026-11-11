@@ -191,6 +191,19 @@ test.describe("disconnected radio", () => {
     }
 });
 
+test("mobile quick-filter buttons match desktop height", async ({ page }) => {
+    await page.setViewportSize({ width: 1536, height: 900 });
+    await page.goto("/");
+    const filter = page.locator('[data-tour="band-filter-20"]');
+    const desktop_bounds = await filter.boundingBox();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
+    const mobile_bounds = await filter.boundingBox();
+
+    expect(mobile_bounds.height).toBeCloseTo(desktop_bounds.height, 0);
+});
+
 for (const [width, height] of [
     [390, 844],
     [500, 900],
@@ -424,11 +437,15 @@ for (const width of [390, 500]) {
         await expect(dx).toHaveAttribute("aria-pressed", de_before);
         await expect(de).not.toHaveAttribute("aria-pressed", dx_before);
         const scroll = page.locator("#filters-panel .overflow-y-auto");
+        const has_overflow = await scroll.evaluate(
+            element => element.scrollHeight > element.clientHeight,
+        );
         await scroll.evaluate(element => {
             element.scrollTop = 160;
         });
         const offset = await scroll.evaluate(element => element.scrollTop);
-        expect(offset).toBeGreaterThan(0);
+        if (has_overflow) expect(offset).toBeGreaterThan(0);
+        else expect(offset).toBe(0);
         await select("Spots");
         await select("Filters");
         await expect(band).not.toHaveAttribute("aria-pressed", before);

@@ -294,7 +294,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                                                 },
                                             }));
                                     }}
-                                    className={`${mobile ? "min-h-11 min-w-16" : ""} ${filters.radio_band ? "opacity-50" : ""}`}
+                                    className={`${mobile ? "min-w-16" : ""} ${filters.radio_band ? "opacity-50" : ""}`}
                                     on_mouse_enter={_ => {
                                         if (!filters.radio_band) set_hovered_band(band);
                                     }}
@@ -318,7 +318,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                                 overlay_el={overlay_el}
                             />
                             <FilterButton
-                                className={mobile ? "min-h-11 min-w-16" : ""}
+                                className={mobile ? "min-w-16" : ""}
                                 text={"Radio"}
                                 is_active={filters.radio_band}
                                 color={colors.bands[radio_band] ?? "black"}
@@ -383,7 +383,7 @@ function LeftColumn({ visible, overlay, on_close, children, mobile = false, cont
                                         }))
                                     }
                                     color={colors.buttons.modes}
-                                    className={`text-[0.94rem] ${mobile ? "min-h-11 min-w-16" : ""}`}
+                                    className={`text-[0.94rem] ${mobile ? "min-w-16" : ""}`}
                                     data_tour={`mode-filter-${mode}`}
                                 />
                             </FilterOptions>
