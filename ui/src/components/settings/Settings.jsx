@@ -1,3 +1,4 @@
+import { useMediaQuery } from "@uidotdev/usehooks";
 import Maidenhead from "maidenhead";
 import { useEffect, useRef, useState } from "react";
 
@@ -42,6 +43,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_cat_available } = use_radio();
+    const is_mobile = useMediaQuery("(max-width: 767px)");
 
     useEffect(() => {
         function select_tab(event) {
@@ -136,19 +138,23 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        {
-            label: "Profiles",
-            data_tour: "settings-tab-profiles",
-            content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
-        },
-        {
-            label: "Import/Export",
-            data_tour: "settings-tab-import-export",
-            content: <ImportExport set_temp_settings={set_temp_settings} />,
-        },
+        ...(!is_mobile
+            ? [
+                  {
+                      label: "Profiles",
+                      data_tour: "settings-tab-profiles",
+                      content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
+                  },
+                  {
+                      label: "Import/Export",
+                      data_tour: "settings-tab-import-export",
+                      content: <ImportExport set_temp_settings={set_temp_settings} />,
+                  },
+              ]
+            : []),
     ];
 
-    if (is_cat_available()) {
+    if (!is_mobile && is_cat_available()) {
         tabs.splice(1, 0, {
             label: "CAT Control",
             data_tour: "settings-tab-cat-control",
@@ -206,7 +212,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 reset_temp_settings();
             }}
         >
-            <div className="h-full w-[min(21rem,calc(100vw-2rem))] md:w-[42rem] [&_[data-tour=settings-tabs-tabs]]:grid [&_[data-tour=settings-tabs-tabs]]:grid-cols-3 md:[&_[data-tour=settings-tabs-tabs]]:flex">
+            <div className="h-full w-[min(21rem,calc(100vw-2rem))] md:w-[42rem]">
                 <Tabs tabs={tabs} data_tour="settings-tabs" />
             </div>
         </Modal>

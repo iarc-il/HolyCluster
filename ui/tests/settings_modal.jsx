@@ -10,9 +10,11 @@ import { ProfilesProvider } from "@/hooks/useProfiles.jsx";
 import { SettingsProvider } from "@/hooks/useSettings.jsx";
 import { PROFILE_STORE_KEY } from "@/utils/profile_data.js";
 
+const radio_state = vi.hoisted(() => ({ is_cat_available: false }));
+
 vi.mock("@/hooks/useRadio", () => ({
     default: () => ({
-        is_cat_available: () => false,
+        is_cat_available: () => radio_state.is_cat_available,
     }),
 }));
 
@@ -75,6 +77,7 @@ function set_geolocation(getCurrentPosition) {
 describe("settings modal", () => {
     beforeEach(() => {
         mock_match_media(false);
+        radio_state.is_cat_available = false;
         window.localStorage.clear();
     });
 
@@ -137,6 +140,32 @@ describe("settings modal", () => {
             expect(store.profiles[0].data.settings.main_view_mode).toBe("both");
             expect(store.profiles[0].data.settings.main_view_order).toBe("table_map");
         });
+    });
+
+    it("shows desktop-only settings on desktop", async () => {
+        const user = userEvent.setup();
+        radio_state.is_cat_available = true;
+        const { container } = render_settings_modal();
+
+        await user.click(container.querySelector(".cursor-pointer"));
+
+        expect(screen.getByText("CAT Control")).not.toBeNull();
+        expect(screen.getByText("Profiles")).not.toBeNull();
+        expect(screen.getByText("Import/Export")).not.toBeNull();
+    });
+
+    it("hides desktop-only settings on mobile", async () => {
+        const user = userEvent.setup();
+        mock_match_media(true);
+        radio_state.is_cat_available = true;
+        const { container } = render_settings_modal();
+
+        await user.click(container.querySelector(".cursor-pointer"));
+
+        expect(screen.queryByText("Profiles")).toBeNull();
+        expect(screen.queryByText("Import/Export")).toBeNull();
+        expect(screen.queryByText("CAT Control")).toBeNull();
+        expect(screen.getByText("Bands & Modes")).not.toBeNull();
     });
 
     it("does not open the settings modal on first launch", () => {
