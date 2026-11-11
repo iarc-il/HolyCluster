@@ -63,9 +63,8 @@ export default function MobileFiltersWorkspace({ visible }) {
                     content={
                         <>
                             <div
-                                className="flex items-center justify-between gap-3 border-t px-3 pt-3"
+                                className="flex items-center justify-between gap-3 border-t-2 border-slate-300 px-3 pt-3"
                                 data-tour="continent-filter-header"
-                                style={{ borderColor: colors.theme.borders }}
                             >
                                 <h2 className="font-semibold">Continents</h2>
                                 <SwapButton colors={colors} />

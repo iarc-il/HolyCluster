@@ -204,6 +204,25 @@ test("mobile quick-filter buttons match desktop height", async ({ page }) => {
     expect(mobile_bounds.height).toBeCloseTo(desktop_bounds.height, 0);
 });
 
+test("mobile quick-filter separators match", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
+
+    const separators = await page.evaluate(() => {
+        const bands = getComputedStyle(document.querySelector('[data-tour="band-filter-group"]'));
+        const continents = getComputedStyle(
+            document.querySelector('[data-tour="continent-filter-header"]'),
+        );
+        return {
+            bands: [bands.borderBottomWidth, bands.borderBottomColor],
+            continents: [continents.borderTopWidth, continents.borderTopColor],
+        };
+    });
+
+    expect(separators.continents).toEqual(separators.bands);
+});
+
 for (const [width, height] of [
     [390, 844],
     [500, 900],
