@@ -223,6 +223,20 @@ test("mobile quick-filter separators match", async ({ page }) => {
     expect(separators.continents).toEqual(separators.bands);
 });
 
+test("mobile filter tabs are shorter than tool tabs", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const navigation = page.getByRole("navigation", { name: "Workspace" });
+    await navigation.getByRole("button", { name: "Filters", exact: true }).click();
+    const filter_tab = await page.locator('[data-tour="mobile-quick-filters"]').boundingBox();
+
+    await navigation.getByRole("button", { name: "Tools", exact: true }).click();
+    const tool_tab = await page.locator('[data-tour="side-panel-tab-band-bar"]').boundingBox();
+
+    expect(filter_tab.height).toBeGreaterThanOrEqual(40);
+    expect(filter_tab.height).toBeLessThan(tool_tab.height);
+});
+
 for (const [width, height] of [
     [390, 844],
     [500, 900],

@@ -35,7 +35,7 @@ export default function MobileFiltersWorkspace({ visible }) {
                         <button
                             key={view.id}
                             type="button"
-                            className={`flex min-h-14 flex-1 items-center justify-center border-b-2 text-sm font-semibold transition-colors ${active ? "" : "opacity-60"}`}
+                            className={`flex min-h-10 flex-1 items-center justify-center border-b-2 text-sm font-semibold transition-colors ${active ? "" : "opacity-60"}`}
                             aria-label={view.aria_label}
                             aria-controls={`mobile-${view.id}-filters`}
                             aria-pressed={active}
