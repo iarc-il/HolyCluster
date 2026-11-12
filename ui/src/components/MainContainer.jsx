@@ -27,6 +27,7 @@ import {
     get_spots_center,
     get_station_location,
 } from "@/utils.js";
+import { fullscreen_portal_target } from "@/utils/fullscreen_portal.js";
 import { open_db_and_evict as open_db_and_evict_propagation } from "@/utils/propagation_cache_db.jsx";
 import { open_db_and_evict as open_db_and_evict_spots } from "@/utils/spot_cache_db.jsx";
 import Maidenhead from "maidenhead";
@@ -465,7 +466,7 @@ function MainContent({
                     position="bottom-right"
                     theme={settings.theme === "Light" ? "light" : "dark"}
                 />,
-                is_map_fullscreen ? map_wrapper_ref.current : document.body,
+                fullscreen_portal_target(is_map_fullscreen, map_wrapper_ref.current, document.body),
             )}
             <TopBar
                 set_map_controls={set_map_controls}
