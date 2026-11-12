@@ -15,6 +15,7 @@ import { get_dxcc_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import useRadio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
@@ -352,6 +353,7 @@ const Spot = forwardRef(function Spot(
         set_pinned_spot,
         set_hovered_spot,
         set_cat_to_spot,
+        can_set_cat,
         on_context_menu,
         is_new_spot,
         cell_classes,
@@ -627,7 +629,7 @@ const Spot = forwardRef(function Spot(
                 <div className="w-full md:hidden">
                     <FitText
                         value={spot.freq}
-                        className="rounded-full px-1 cursor-pointer tabular-nums"
+                        className={`rounded-full px-1 tabular-nums ${can_set_cat ? "cursor-pointer" : ""}`}
                         style={{ backgroundColor: color, color: colors.text[spot.band] }}
                         title={String(spot.freq)}
                     >
@@ -637,7 +639,7 @@ const Spot = forwardRef(function Spot(
                 <div className="hidden w-full md:block">
                     <FitText
                         value={spot.freq}
-                        className="rounded-full px-1 cursor-pointer tabular-nums"
+                        className={`rounded-full px-1 tabular-nums ${can_set_cat ? "cursor-pointer" : ""}`}
                         title={String(spot.freq)}
                     >
                         {spot.freq}
@@ -814,6 +816,8 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
+    const { is_cat_available } = useRadio();
+    const can_set_cat = is_cat_available();
     const {
         spots,
         empty_state,
@@ -1239,6 +1243,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     set_pinned_spot={set_pinned_spot}
                                     set_hovered_spot={set_hovered_spot}
                                     set_cat_to_spot={set_cat_to_spot}
+                                    can_set_cat={can_set_cat}
                                     on_context_menu={handle_context_menu}
                                     is_new_spot={new_spot_ids.has(spot.id)}
                                     cell_classes={table_cell_classes}

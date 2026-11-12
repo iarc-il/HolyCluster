@@ -134,6 +134,31 @@ test.describe("Tuned frequency indicator", () => {
     }
 });
 
+test.describe("Spot frequency affordance", () => {
+    test("does not show a pointer outside CAT Control", async ({ page }) => {
+        await page.goto("/");
+
+        const frequency = page.locator(tour_target("spot-row-frequency"));
+        await expect(frequency).toBeVisible();
+        await expect(frequency.locator("span.inline-block:visible")).toHaveCSS("cursor", "auto");
+    });
+
+    test.describe("with CAT Control", () => {
+        test.use({ radio_state: { status: "connected", freq: 14_000_000, mode: "USB" } });
+
+        test("shows a pointer", async ({ page }) => {
+            await page.goto("/");
+
+            const frequency = page.locator(tour_target("spot-row-frequency"));
+            await expect(frequency).toBeVisible();
+            await expect(frequency.locator("span.inline-block:visible")).toHaveCSS(
+                "cursor",
+                "pointer",
+            );
+        });
+    });
+});
+
 test.describe("Spot frequency selection", () => {
     test.use({ radio_state: { status: "connected", freq: 14_000_000, mode: "USB" } });
 
