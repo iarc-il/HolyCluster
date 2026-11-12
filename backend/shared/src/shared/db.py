@@ -2,7 +2,7 @@ from datetime import date, datetime, time
 from typing import Literal, Optional
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Column, DateTime, Index, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Index, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -13,6 +13,30 @@ class AnonymousUserPresence(SQLModel, table=True):
     user_id: UUID = Field(primary_key=True)
     first_seen_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     last_seen_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    last_cat_seen_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    last_direct_seen_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    latest_ui_version: str = Field(max_length=64, sa_type=String(64))
+    latest_catserver_version: str = Field(max_length=64, sa_type=String(64))
+    latest_client_type: str = Field(max_length=16, sa_type=String(16))
+    latest_browser_type: str = Field(max_length=16, sa_type=String(16))
+
+
+class AnonymousUserDay(SQLModel, table=True):
+    __tablename__ = "anonymous_user_day"
+    __table_args__ = (Index("ix_anonymous_user_day_day", "day"),)
+
+    day: date = Field(primary_key=True)
+    user_id: UUID = Field(primary_key=True)
+    first_seen_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    last_seen_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    used_cat: bool = Field(sa_column=Column(Boolean(), nullable=False))
+    used_direct: bool = Field(sa_column=Column(Boolean(), nullable=False))
+    ui_version: str = Field(max_length=64, sa_type=String(64))
+    catserver_version: str = Field(max_length=64, sa_type=String(64))
+    client_type: str = Field(max_length=16, sa_type=String(16))
+    browser_type: str = Field(max_length=16, sa_type=String(16))
 
 
 class GeoCache(SQLModel, table=True):

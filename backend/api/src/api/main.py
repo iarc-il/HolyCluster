@@ -36,7 +36,7 @@ from .release_cache import ReleaseCacheMiddleware
 from .release_response import validated_response
 from .settings import settings
 from .static_files import ImmutableStaticFiles
-from .user_presence import parse_user_id, upsert_user_presence
+from .user_presence import parse_user_presence, upsert_user_presence
 
 initialize_sentry(settings, "api")
 Info("holycluster_api_build", "API build release").info({"release": settings.sentry_release})
@@ -282,10 +282,10 @@ async def spots_broadcast_task(app):
         await valkey_client.aclose()
 
 
-async def record_user_presence(websocket: fastapi.WebSocket, user_id):
-    websocket.scope["user_id"] = user_id
+async def record_user_presence(websocket: fastapi.WebSocket, observation):
+    websocket.scope["user_presence"] = observation
     try:
-        await upsert_user_presence(async_session, {user_id})
+        await upsert_user_presence(async_session, {observation})
     except (SQLAlchemyError, OSError, TimeoutError) as exc:
         logger.opt(exception=exc).warning("Failed to record anonymous user presence")
         capture_exception(exc, operation="api.user_presence")
@@ -295,10 +295,10 @@ async def user_presence_task(app: fastapi.FastAPI):
     while True:
         await asyncio.sleep(300)
         connections = app.state.active_connections | app.state.active_ws_spot_connections
-        user_ids = {websocket.scope.get("user_id") for websocket in connections}
-        user_ids.discard(None)
+        observations = {websocket.scope.get("user_presence") for websocket in connections}
+        observations.discard(None)
         try:
-            await upsert_user_presence(async_session, user_ids)
+            await upsert_user_presence(async_session, observations)
         except (SQLAlchemyError, OSError, TimeoutError) as exc:
             logger.opt(exception=exc).warning("Failed to refresh anonymous user presence")
             capture_exception(exc, operation="api.user_presence")
@@ -1313,10 +1313,13 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
     # Registration must not depend on the duration of the snapshot query.
     app.state.active_ws_spot_connections.add(websocket)
-    if user_id := parse_user_id(message):
-        await record_user_presence(websocket, user_id)
+    observation = parse_user_presence(message)
+    if observation:
+        await record_user_presence(websocket, observation)
     if connection := websocket.scope.get("metrics_connection"):
         connection.report_client_versions(message)
+        if observation:
+            connection.report_user_id(str(observation.user_id))
     if isinstance(message.get("subscription_id"), str):
         await send_ws_json(
             websocket,
@@ -1339,10 +1342,13 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
 async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     if "initial" in message or "last_time" in message:
-        if user_id := parse_user_id(message):
-            await record_user_presence(websocket, user_id)
+        observation = parse_user_presence(message)
+        if observation:
+            await record_user_presence(websocket, observation)
         if connection := websocket.scope.get("metrics_connection"):
             connection.report_client_versions(message)
+            if observation:
+                connection.report_user_id(str(observation.user_id))
     if "initial" in message:
         metrics.FEATURES.labels("initial_spots").inc()
         spots = await get_initial_spots()

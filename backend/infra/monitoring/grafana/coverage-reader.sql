@@ -45,5 +45,11 @@ SELECT format('GRANT USAGE ON SCHEMA public TO %I', :'reader') \gexec
 -- would expose unrelated application tables. Run this again after table recreation.
 SELECT format('GRANT SELECT ON TABLE public.spot_coverage_samples TO %I', :'reader') \gexec
 SELECT format('GRANT SELECT ON TABLE public.anonymous_user_counts TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_user_activity_history TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_user_retention TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_ui_version_counts TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_catserver_version_counts TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_ui_version_history TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_catserver_version_history TO %I', :'reader') \gexec
 
 COMMIT;

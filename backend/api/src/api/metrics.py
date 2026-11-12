@@ -29,6 +29,12 @@ CLIENT_VERSION_REPORTS = Counter(
     "Changed software, client release, device class or browser family reports",
     ["software_id", "ui_version", "catserver_version", "client_type", "browser_type"],
 )
+ANONYMOUS_USER_ACTIVE = Gauge(PREFIX + "anonymous_user_active", "Distinct identified open browser installations")
+ANONYMOUS_USER_CONNECTIONS_ACTIVE = Gauge(
+    PREFIX + "anonymous_user_connections_active", "Open spot subscriptions with a browser installation identity"
+)
+ANONYMOUS_USER_CONNECTION_COUNTS: dict[str, int] = {}
+ANONYMOUS_USER_CONNECTION_LOCK = Lock()
 CLIENT_VERSION_PAIRS = set()
 CLIENT_VERSION_PAIR_LOCK = Lock()
 SOFTWARE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
@@ -171,6 +177,26 @@ class Connection:
     endpoint: str
     active: bool = True
     client_versions: tuple[str, str, str, str, str] | None = None
+    user_id: str | None = None
+
+    def report_user_id(self, user_id: str):
+        if not self.active or user_id == self.user_id:
+            return
+        with ANONYMOUS_USER_CONNECTION_LOCK:
+            if self.user_id is None:
+                ANONYMOUS_USER_CONNECTIONS_ACTIVE.inc()
+            else:
+                previous = ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] - 1
+                if previous:
+                    ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] = previous
+                else:
+                    del ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id]
+                    ANONYMOUS_USER_ACTIVE.dec()
+            self.user_id = user_id
+            count = ANONYMOUS_USER_CONNECTION_COUNTS.get(user_id, 0)
+            ANONYMOUS_USER_CONNECTION_COUNTS[user_id] = count + 1
+            if count == 0:
+                ANONYMOUS_USER_ACTIVE.inc()
 
     def report_client_versions(self, message):
         if not self.active:
@@ -189,6 +215,15 @@ class Connection:
             self.active = False
             if self.client_versions is not None:
                 CLIENT_VERSION_ACTIVE.labels(*self.client_versions).dec()
+            if self.user_id is not None:
+                with ANONYMOUS_USER_CONNECTION_LOCK:
+                    remaining = ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] - 1
+                    if remaining:
+                        ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] = remaining
+                    else:
+                        del ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id]
+                        ANONYMOUS_USER_ACTIVE.dec()
+                    ANONYMOUS_USER_CONNECTIONS_ACTIVE.dec()
             WS_ACTIVE.labels(self.endpoint).dec()
             WS_DISCONNECTS.labels(self.endpoint).inc()
 
