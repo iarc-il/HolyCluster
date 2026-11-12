@@ -141,13 +141,16 @@ describe("spot subscriptions", () => {
         expect(websocket.send).toHaveBeenCalledTimes(count);
     });
 
-    it.each(["initial", "update"])("stops retries after an empty legacy %s response", event => {
-        const view = renderHook(useSpotWebSocket);
-        connect(view);
-        receive([], { event });
-        act(() => vi.advanceTimersByTime(120000));
-        expect(websocket.send).toHaveBeenCalledTimes(1);
-    });
+    it.each(["initial", "update"])(
+        "continues retries after an unacknowledged %s response",
+        event => {
+            const view = renderHook(useSpotWebSocket);
+            connect(view);
+            receive([], { event });
+            act(() => vi.advanceTimersByTime(1200));
+            expect(websocket.send).toHaveBeenCalledTimes(2);
+        },
+    );
 
     it("uses server time when the browser clock is wrong", () => {
         websocket.now_ms = () => spot.time * 1000;
@@ -231,29 +234,23 @@ describe("spot subscriptions", () => {
         expect(websocket.send.mock.lastCall[1].subscription_id).not.toBe(first);
     });
 
-    it.each(["explicit", "legacy"])(
-        "handles synchronous %s registration through StrictMode cleanup",
-        protocol => {
-            websocket.send.mockImplementation((_type, request) => {
-                for (const handler of websocket.handlers)
-                    handler(
-                        protocol === "explicit"
-                            ? {
-                                  event: "subscribed",
-                                  subscription_ack: true,
-                                  subscription_id: request.subscription_id,
-                              }
-                            : { event: "initial", spots: [] },
-                    );
-                return true;
-            });
-            websocket.readyState = 1;
-            websocket.epoch = 1;
-            renderHook(useSpotWebSocket, { wrapper: StrictMode });
-            act(() => vi.advanceTimersByTime(120000));
-            expect(websocket.send).toHaveBeenCalledTimes(1);
-        },
-    );
+    it("handles synchronous registration through StrictMode cleanup", () => {
+        websocket.send.mockImplementation((_type, request) => {
+            for (const handler of websocket.handlers) {
+                handler({
+                    event: "subscribed",
+                    subscription_ack: true,
+                    subscription_id: request.subscription_id,
+                });
+            }
+            return true;
+        });
+        websocket.readyState = 1;
+        websocket.epoch = 1;
+        renderHook(useSpotWebSocket, { wrapper: StrictMode });
+        act(() => vi.advanceTimersByTime(120000));
+        expect(websocket.send).toHaveBeenCalledTimes(1);
+    });
 
     it("keeps the cached snapshot and tour buffer while merging an initial batch", () => {
         websocket.snapshot = [

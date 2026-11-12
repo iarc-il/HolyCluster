@@ -18,7 +18,7 @@ function spot(time, dx_callsign) {
     };
 }
 
-for (const scenario of ["dropped", "delayed", "legacy"]) {
+for (const scenario of ["dropped", "delayed"]) {
     test(`recovers ${scenario} spot subscription without reloading`, async ({
         page,
         mock_socket_delays,
@@ -40,26 +40,16 @@ for (const scenario of ["dropped", "delayed", "legacy"]) {
                 }),
             );
         }
-        await page.routeWebSocket("**/radio", socket => {
-            if (scenario === "legacy")
-                socket.send(
-                    JSON.stringify({
-                        status: "connected",
-                        version: "catserver-v1.2.1",
-                    }),
-                );
-        });
         const handle = socket => {
-            if (scenario !== "legacy")
-                socket.send(
-                    JSON.stringify({
-                        version: 1,
-                        type: "radio",
-                        event: "status",
-                        status: "unavailable",
-                        catserver_version: "catserver-v2.0.0",
-                    }),
-                );
+            socket.send(
+                JSON.stringify({
+                    version: 1,
+                    type: "radio",
+                    event: "status",
+                    status: "unavailable",
+                    catserver_version: "catserver-v2.0.0",
+                }),
+            );
             socket.onMessage(message => {
                 const request = JSON.parse(message);
                 if (request.type !== "spots") return;
@@ -71,17 +61,15 @@ for (const scenario of ["dropped", "delayed", "legacy"]) {
                     spots: [spot(time, "JA1REC")],
                 };
                 if (requests.length === 1 && scenario !== "delayed") return;
-                if (scenario !== "legacy") {
-                    socket.send(
-                        JSON.stringify({
-                            version: 1,
-                            type: "spots",
-                            event: "subscribed",
-                            subscription_id: request.subscription_id,
-                            subscription_ack: true,
-                        }),
-                    );
-                }
+                socket.send(
+                    JSON.stringify({
+                        version: 1,
+                        type: "spots",
+                        event: "subscribed",
+                        subscription_id: request.subscription_id,
+                        subscription_ack: true,
+                    }),
+                );
                 if (scenario === "delayed") {
                     socket.send(
                         JSON.stringify({
@@ -101,28 +89,11 @@ for (const scenario of ["dropped", "delayed", "legacy"]) {
                     );
                     return;
                 }
-                if (scenario === "legacy") {
-                    socket.send(
-                        JSON.stringify({ version: 1, type: "spots", event: "initial", spots: [] }),
-                    );
-                    mock_socket_delays(
-                        socket,
-                        () => {
-                            socket.send(JSON.stringify(response));
-                            socket.send(JSON.stringify(response));
-                        },
-                        2500,
-                    );
-                    return;
-                }
                 socket.send(JSON.stringify(response));
                 socket.send(JSON.stringify(response));
             });
         };
-        await page.routeWebSocket("**/ws", socket => {
-            if (scenario !== "legacy") handle(socket);
-        });
-        await page.routeWebSocket("**/submit_spot", handle);
+        await page.routeWebSocket("**/ws", handle);
         await page.goto("/");
         await expect(page.getByText("JA1REC", { exact: true })).toBeVisible();
         if (scenario === "delayed") {

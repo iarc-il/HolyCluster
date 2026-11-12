@@ -246,15 +246,6 @@ export default function useSpotWebSocket() {
                 return;
             }
             if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;
-            if (
-                pending?.active &&
-                data.subscription_id === undefined &&
-                data.subscription_ack === undefined
-            ) {
-                // Old responses prove registration, not correlated catch-up completion.
-                pending.delivered = true;
-                pending.cancel();
-            }
             const observed_at = now_ms();
             let new_spots = data.spots
                 .map(spot => {
@@ -348,7 +339,6 @@ export default function useSpotWebSocket() {
                 },
                 attempts: 0,
                 acknowledged: false,
-                delivered: false,
             };
             subscription_ref.current = pending;
         }
@@ -356,7 +346,7 @@ export default function useSpotWebSocket() {
         pending.active = true;
         pending.cancel = () => clearTimeout(timer);
         const attempt = () => {
-            if (!pending.active || pending.acknowledged || pending.delivered) return;
+            if (!pending.active || pending.acknowledged) return;
             const sent = send_now("spots", pending.request, pending.epoch);
             pending.attempts += 1;
             if ([1, 2, 5].includes(pending.attempts)) {
@@ -367,11 +357,10 @@ export default function useSpotWebSocket() {
                         action: pending.request.action,
                         attempt: pending.attempts,
                         sent,
-                        delivered: pending.delivered,
                     },
                 });
             }
-            if (!pending.active || pending.acknowledged || pending.delivered) return;
+            if (!pending.active || pending.acknowledged) return;
             const delay = Math.min(1000 * 2 ** Math.min(pending.attempts - 1, 5), 30000);
             timer = setTimeout(attempt, Math.min(30000, delay * (0.8 + Math.random() * 0.4)));
         };
