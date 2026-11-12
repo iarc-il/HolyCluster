@@ -801,7 +801,7 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
     error = validate_ws_protocol_message(message)
     if error is not None:
         await send_ws_json(websocket, send_lock, error)
-        return
+        return WsErrorType(error["error_type"])
 
     if message.get("type") == WsMessageType.SPOTS.value:
         await send_ws_spots(websocket, send_lock, message)
@@ -865,7 +865,10 @@ async def ws(websocket: fastapi.WebSocket):
                 )
                 continue
 
-            await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
+            error_type = await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
+            if error_type == WsErrorType.MISSING_VERSION:
+                await websocket.close(code=1008)
+                break
     except websockets.WebSocketDisconnect:
         pass
     finally:

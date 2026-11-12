@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from api.main import app, broadcast_spots
 from shared.geo import GeoData, GeoException
@@ -113,6 +114,9 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "message": "Missing websocket protocol version",
                 },
             )
+            with self.assertRaises(WebSocketDisconnect) as disconnect:
+                websocket.receive_json()
+            self.assertEqual(disconnect.exception.code, 1008)
 
     def test_ws_rejects_unsupported_version(self):
         with self.client.websocket_connect("/ws") as websocket:
