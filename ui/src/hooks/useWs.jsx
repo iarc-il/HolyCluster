@@ -9,57 +9,7 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 export { ReadyState };
 
 const WS_BASE_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
-const WS_PROBE_TIMEOUT_MS = 1500;
 const WsContext = createContext(null);
-
-function is_unified_identity(message) {
-    return (
-        message?.type === "radio" &&
-        message.event === "status" &&
-        (typeof message.catserver_version === "string" ||
-            (message.version === 1 && message.status === "unavailable"))
-    );
-}
-
-function is_cat_v1_2_identity(message) {
-    return (
-        typeof message?.status === "string" &&
-        typeof message.version === "string" &&
-        message.version.startsWith("catserver-v")
-    );
-}
-
-function is_direct_backend_identity(message) {
-    return message?.status === "unavailable" && message.version == null;
-}
-
-/** @deprecated CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2. */
-function normalize_cat_v1_2_radio_message(message) {
-    const { version: catserver_version, ...data } = message;
-    let event = "status";
-    if (message.focus) {
-        event = "focus";
-    } else if (message.close) {
-        event = "close";
-    }
-
-    return {
-        version: 1,
-        type: "radio",
-        event,
-        ...data,
-        ...(catserver_version ? { catserver_version } : {}),
-    };
-}
-
-/** @deprecated CAT <=1.2 compatibility; remove when the minimum supported CAT version exceeds 1.2. */
-function cat_v1_2_message(type, data) {
-    if (type === "radio") {
-        const { action, ...message } = data;
-        return { type: action, ...message };
-    }
-    return { version: 1, type, ...data };
-}
 
 const reconnect_options = {
     reconnectAttempts: Number.POSITIVE_INFINITY,
@@ -68,7 +18,7 @@ const reconnect_options = {
 };
 
 export function WsProvider({ children }) {
-    const [transport, set_transport] = useState("probing");
+    const transport = "unified";
     const [connection_generation, set_connection_generation] = useState(0);
     const [spot_socket_epochs, set_spot_socket_epochs] = useState({});
     const spot_socket_epochs_ref = useRef({});
@@ -87,7 +37,6 @@ export function WsProvider({ children }) {
     const server_clock_ref = useRef(null);
     if (server_clock_ref.current === null) server_clock_ref.current = create_server_clock();
     const [clock_revision, set_clock_revision] = useState(0);
-    const transport_ref = useRef("probing");
     const subscribers_ref = useRef(new Map());
     const ready_state_ref = useRef(ReadyState.CONNECTING);
     const ready_waiters_ref = useRef([]);
@@ -117,25 +66,11 @@ export function WsProvider({ children }) {
                         operation: "websocket_message",
                         stage: "subscriber",
                         message_type: message.type,
-                        transport: transport_ref.current,
+                        transport,
                     });
                 }
             }
         }
-    }, []);
-
-    const select_transport = useCallback(candidate => {
-        if (transport_ref.current !== "probing") return false;
-        transport_ref.current = candidate;
-        set_transport(candidate);
-        return true;
-    }, []);
-
-    const reset_transport = useCallback(candidate => {
-        if (transport_ref.current !== candidate) return;
-        catserver_version_ref.current = null;
-        transport_ref.current = "probing";
-        set_transport("probing");
     }, []);
 
     const {
@@ -149,7 +84,7 @@ export function WsProvider({ children }) {
             onOpen: () => open_spot_socket("unified"),
             onClose: () => {
                 close_spot_socket("unified");
-                reset_transport("unified");
+                catserver_version_ref.current = null;
             },
             onMessage: event => {
                 let message;
@@ -158,7 +93,7 @@ export function WsProvider({ children }) {
                 } catch {
                     return;
                 }
-                if (message?.type === "update" && transport_ref.current === "unified") {
+                if (message?.type === "update") {
                     try {
                         dispatch(message);
                     } catch (error) {
@@ -168,74 +103,21 @@ export function WsProvider({ children }) {
                     }
                 }
             },
-            shouldReconnect: () => transport_ref.current !== "cat_v1_2",
         },
-        transport !== "cat_v1_2",
+        true,
     );
 
     useEffect(() => {
-        if (transport_ref.current === "probing" && unified_ready_state === ReadyState.OPEN) {
+        if (unified_ready_state === ReadyState.OPEN) {
             send_unified_message({ version: 1, type: "radio", action: "GetCapabilities" }, false);
         }
     }, [send_unified_message, unified_ready_state]);
 
-    const {
-        sendJsonMessage: send_compatibility_message,
-        readyState: compatibility_ready_state,
-        lastJsonMessage: compatibility_message,
-    } = useWebSocket(
-        `${WS_BASE_URL}/submit_spot`,
-        {
-            ...reconnect_options,
-            onOpen: () => open_spot_socket("cat_v1_2"),
-            onClose: () => close_spot_socket("cat_v1_2"),
-        },
-        transport === "cat_v1_2",
-    );
-
-    const {
-        sendJsonMessage: send_compatibility_radio_message,
-        readyState: compatibility_radio_ready_state,
-        lastJsonMessage: compatibility_radio_message,
-    } = useWebSocket(
-        `${WS_BASE_URL}/radio`,
-        {
-            ...reconnect_options,
-            onClose: () => reset_transport("cat_v1_2"),
-            shouldReconnect: () => transport_ref.current !== "unified",
-        },
-        transport !== "unified",
-    );
-
-    const readyState =
-        transport === "probing"
-            ? ReadyState.CONNECTING
-            : transport === "cat_v1_2"
-              ? compatibility_ready_state
-              : unified_ready_state;
-    const radioReadyState =
-        transport === "probing"
-            ? ReadyState.CONNECTING
-            : transport === "cat_v1_2"
-              ? compatibility_radio_ready_state
-              : unified_ready_state;
-
-    useEffect(() => {
-        if (transport !== "probing") return;
-        const timeout = setTimeout(() => select_transport("unified"), WS_PROBE_TIMEOUT_MS);
-        return () => clearTimeout(timeout);
-    }, [select_transport, transport]);
+    const readyState = unified_ready_state;
+    const radioReadyState = unified_ready_state;
 
     ready_state_ref.current = readyState;
-    send_state_ref.current = {
-        transport,
-        compatibility_radio_ready_state,
-        compatibility_ready_state,
-        unified_ready_state,
-        send_compatibility_message,
-        send_compatibility_radio_message,
-        send_unified_message,
-    };
+    send_state_ref.current = { unified_ready_state, send_unified_message };
 
     useEffect(() => {
         switch (readyState) {
@@ -255,39 +137,8 @@ export function WsProvider({ children }) {
 
     useEffect(() => {
         if (!unified_message?.type || unified_message.type === "update") return;
-        if (transport_ref.current === "unified") {
-            dispatch(unified_message);
-        } else if (
-            transport_ref.current === "probing" &&
-            is_unified_identity(unified_message) &&
-            select_transport("unified")
-        ) {
-            dispatch(unified_message);
-        }
-    }, [dispatch, select_transport, unified_message]);
-
-    useEffect(() => {
-        if (transport_ref.current === "cat_v1_2" && compatibility_message?.type) {
-            dispatch(compatibility_message);
-        }
-    }, [compatibility_message, dispatch]);
-
-    useEffect(() => {
-        if (!compatibility_radio_message) return;
-        const message = normalize_cat_v1_2_radio_message(compatibility_radio_message);
-        if (transport_ref.current === "cat_v1_2") {
-            dispatch(message);
-        } else if (transport_ref.current === "probing") {
-            if (is_cat_v1_2_identity(compatibility_radio_message) && select_transport("cat_v1_2")) {
-                dispatch(message);
-            } else if (
-                is_direct_backend_identity(compatibility_radio_message) &&
-                select_transport("unified")
-            ) {
-                dispatch(message);
-            }
-        }
-    }, [compatibility_radio_message, dispatch, select_transport]);
+        dispatch(unified_message);
+    }, [dispatch, unified_message]);
 
     const subscribe = useCallback((type, handler) => {
         const handlers = subscribers_ref.current.get(type) || [];
@@ -318,31 +169,8 @@ export function WsProvider({ children }) {
     const send = useCallback(
         (type, data) => {
             if (type === "radio" || type === "rotator") recordDiagnosticAction(data?.action);
-            const {
-                transport,
-                compatibility_radio_ready_state,
-                compatibility_ready_state,
-                unified_ready_state,
-                send_compatibility_message,
-                send_compatibility_radio_message,
-                send_unified_message,
-            } = send_state_ref.current;
-            if (transport === "probing") return false;
+            const { unified_ready_state, send_unified_message } = send_state_ref.current;
             data = with_versions(type, data);
-
-            if (transport === "cat_v1_2") {
-                if (type === "radio") {
-                    if (compatibility_radio_ready_state === ReadyState.OPEN) {
-                        send_compatibility_radio_message(cat_v1_2_message(type, data));
-                        return true;
-                    }
-                } else if (compatibility_ready_state === ReadyState.OPEN) {
-                    send_compatibility_message(cat_v1_2_message(type, data));
-                    return true;
-                }
-                return false;
-            }
-
             if (unified_ready_state === ReadyState.OPEN) {
                 send_unified_message({ version: 1, type, ...data });
                 return true;
@@ -358,15 +186,10 @@ export function WsProvider({ children }) {
     const send_now = useCallback(
         (type, data, epoch) => {
             const state = send_state_ref.current;
-            const candidate = transport_ref.current;
-            if (epoch == null || spot_socket_epochs_ref.current[candidate] !== epoch) return false;
+            if (epoch == null || spot_socket_epochs_ref.current.unified !== epoch) return false;
             data = with_versions(type, data);
-            if (candidate === "unified" && state.unified_ready_state === ReadyState.OPEN) {
+            if (state.unified_ready_state === ReadyState.OPEN) {
                 state.send_unified_message({ version: 1, type, ...data }, false);
-                return true;
-            }
-            if (candidate === "cat_v1_2" && state.compatibility_ready_state === ReadyState.OPEN) {
-                state.send_compatibility_message(cat_v1_2_message(type, data), false);
                 return true;
             }
             return false;

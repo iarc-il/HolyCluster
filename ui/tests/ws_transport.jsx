@@ -61,9 +61,9 @@ function render_provider(messages = []) {
     return { ...view, messages };
 }
 
-function receive(view, path, message) {
+function receive(view, message) {
     act(() => {
-        websocket_mock.connection_for(path).lastJsonMessage = message;
+        websocket_mock.connection_for("/ws").lastJsonMessage = message;
         view.rerender(
             <WsProvider>
                 <TestConsumer messages={view.messages} />
@@ -71,6 +71,23 @@ function receive(view, path, message) {
         );
     });
 }
+
+function open(view) {
+    const connection = websocket_mock.connection_for("/ws");
+    connection.readyState = websocket_mock.ReadyState.OPEN;
+    act(() => connection.options.onOpen({ target: { send: vi.fn() } }));
+    receive(view, null);
+    return connection;
+}
+
+const spot_identity = {
+    software_id: "HolyCluster",
+    ui_version: null,
+    catserver_version: null,
+    client_type: "desktop",
+    browser_type: "other",
+    user_id: "123e4567-e89b-42d3-a456-426614174000",
+};
 
 describe("WebSocket transport", () => {
     beforeEach(() => {
@@ -85,33 +102,35 @@ describe("WebSocket transport", () => {
         vi.unstubAllEnvs();
     });
 
-    it.each(["unified", "legacy"])(
-        "uses current %s readiness from a send captured while probing",
-        async candidate => {
-            const view = render_provider();
-            const captured_send = TestConsumer.context.send;
-            const open = TestConsumer.context.wait_for_open();
-            captured_send("history", { event: "spots" });
-            const path = candidate === "unified" ? "/ws" : "/submit_spot";
-            const connection = websocket_mock.connection_for(path);
-            connection.readyState = websocket_mock.ReadyState.OPEN;
-            if (candidate === "unified") receive(view, "/radio", { status: "unavailable" });
-            else receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
-            await open;
-            captured_send("history", { event: "spots" });
-            expect(connection.sendJsonMessage).toHaveBeenCalledWith({
-                version: 1,
-                type: "history",
-                event: "spots",
-            });
-            connection.readyState = websocket_mock.ReadyState.CLOSED;
-            receive(view, path, null);
-            expect(captured_send("history", { event: "spots" })).toBe(false);
-            expect(connection.sendJsonMessage).toHaveBeenCalledTimes(
-                candidate === "unified" ? 2 : 1,
-            );
-        },
-    );
+    it("uses the unified WebSocket exclusively", () => {
+        render_provider();
+
+        expect(TestConsumer.context.transport).toBe("unified");
+        expect(websocket_mock.connection_for("/ws").connect).toBe(true);
+        expect(websocket_mock.connections.has("/radio")).toBe(false);
+        expect(websocket_mock.connections.has("/submit_spot")).toBe(false);
+    });
+
+    it("uses current readiness from a captured sender", async () => {
+        const view = render_provider();
+        const captured_send = TestConsumer.context.send;
+        const opening = TestConsumer.context.wait_for_open();
+
+        expect(captured_send("history", { event: "spots" })).toBe(false);
+        const connection = open(view);
+        await opening;
+
+        expect(captured_send("history", { event: "spots" })).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenCalledWith({
+            version: 1,
+            type: "history",
+            event: "spots",
+        });
+
+        connection.readyState = websocket_mock.ReadyState.CLOSED;
+        receive(view, null);
+        expect(captured_send("history", { event: "spots" })).toBe(false);
+    });
 
     it.each(["abort", "timeout", "unmount"])("settles an opening waiter on %s", async reason => {
         vi.useFakeTimers();
@@ -138,7 +157,7 @@ describe("WebSocket transport", () => {
         const console_error = vi.spyOn(console, "error").mockImplementation(() => {});
         try {
             expect(() =>
-                receive(view, "/radio", { status: "unavailable", secret: "payload" }),
+                receive(view, { version: 1, type: "radio", event: "status", secret: "payload" }),
             ).toThrow(error);
             const event = prepareSentryEvent(
                 { exception: { values: [{ type: "TypeError", value: error.message }] } },
@@ -157,13 +176,8 @@ describe("WebSocket transport", () => {
         }
     });
 
-    it("delivers the update handoff before an immediate transport close", () => {
+    it("delivers the update handoff before an immediate close", () => {
         const view = render_provider();
-        receive(view, "/ws", {
-            type: "radio",
-            event: "status",
-            catserver_version: "catserver-v1.3.0",
-        });
         const connection = websocket_mock.connection_for("/ws");
         const handoff = {
             version: 1,
@@ -171,15 +185,17 @@ describe("WebSocket transport", () => {
             event: "restarting",
             session: { id: "transaction" },
         };
+
         act(() => {
             connection.options.onMessage?.({ data: JSON.stringify(handoff) });
             connection.options.onClose();
         });
-        receive(view, "/ws", handoff);
+        receive(view, handoff);
+
         expect(view.messages.filter(message => message.type === "update")).toEqual([handoff]);
     });
 
-    it("sends the unified identity probe through the guarded hook sender", () => {
+    it("sends the capability request through the guarded hook sender", () => {
         const view = render_provider();
         const connection = websocket_mock.connection_for("/ws");
         const raw_send = vi.fn(() => {
@@ -190,57 +206,22 @@ describe("WebSocket transport", () => {
         expect(() =>
             act(() => connection.options.onOpen({ target: { send: raw_send } })),
         ).not.toThrow();
+        receive(view, null);
 
         expect(raw_send).not.toHaveBeenCalled();
         expect(connection.sendJsonMessage).toHaveBeenCalledWith(
             { version: 1, type: "radio", action: "GetCapabilities" },
             false,
         );
-        view.unmount();
-    });
-
-    it("selects unified transport for the direct backend identity", () => {
-        const view = render_provider();
-        const unified = websocket_mock.connection_for("/ws");
-        const legacy_radio = websocket_mock.connection_for("/radio");
-        const legacy_spots = websocket_mock.connection_for("/submit_spot");
-
-        expect(TestConsumer.context.transport).toBe("probing");
-        expect(unified.connect).toBe(true);
-        expect(legacy_radio.connect).toBe(true);
-        expect(legacy_spots.connect).toBe(false);
-
-        unified.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/radio", { status: "unavailable" });
-
-        expect(TestConsumer.context.transport).toBe("unified");
-        expect(legacy_radio.connect).toBe(false);
-        expect(view.messages).toEqual([
-            {
-                version: 1,
-                type: "radio",
-                event: "status",
-                status: "unavailable",
-            },
-        ]);
-
-        act(() => TestConsumer.context.send("radio", { action: "GetCapabilities" }));
-        expect(unified.sendJsonMessage).toHaveBeenCalledWith({
-            version: 1,
-            type: "radio",
-            action: "GetCapabilities",
-        });
     });
 
     it("synchronizes the session clock from spot messages", () => {
         vi.useFakeTimers({ now: 8_000_000 });
         const monotonic_now = vi.spyOn(performance, "now").mockReturnValue(100);
         const view = render_provider();
-        const unified = websocket_mock.connection_for("/ws");
-        unified.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/radio", { status: "unavailable" });
+        open(view);
 
-        receive(view, "/ws", {
+        receive(view, {
             version: 1,
             type: "spots",
             event: "initial",
@@ -254,298 +235,82 @@ describe("WebSocket transport", () => {
         expect(TestConsumer.context.now_ms()).toBe(2_000_500);
     });
 
-    it("selects unified transport for a current CAT identity", () => {
+    it("scopes spot epochs to unified socket opens", () => {
         const view = render_provider();
-        const unified = websocket_mock.connection_for("/ws");
-        const legacy_radio = websocket_mock.connection_for("/radio");
-
-        unified.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/ws", {
-            version: 1,
-            type: "radio",
-            event: "status",
-            status: "connected",
-            catserver_version: "catserver-v1.2.0-1848-gabcdef",
-        });
-
-        expect(TestConsumer.context.transport).toBe("unified");
-        expect(legacy_radio.connect).toBe(false);
-        expect(view.messages).toHaveLength(1);
-    });
-
-    it("falls back to unified transport when neither probe identifies itself", () => {
-        vi.useFakeTimers();
-        const view = render_provider();
-        const unified = websocket_mock.connection_for("/ws");
-        const legacy_radio = websocket_mock.connection_for("/radio");
-
-        act(() => vi.advanceTimersByTime(1500));
-
-        expect(TestConsumer.context.transport).toBe("unified");
-        expect(unified.connect).toBe(true);
-        expect(legacy_radio.connect).toBe(false);
-        view.unmount();
-    });
-
-    it("selects legacy CAT only after receiving its versioned identity", () => {
-        const view = render_provider();
-        const unified = websocket_mock.connection_for("/ws");
-        const legacy_radio = websocket_mock.connection_for("/radio");
-        const legacy_spots = websocket_mock.connection_for("/submit_spot");
-
-        legacy_radio.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/radio", {
-            status: "connected",
-            version: "catserver-v1.2.0",
-        });
-
-        expect(TestConsumer.context.transport).toBe("cat_v1_2");
-        expect(unified.connect).toBe(false);
-        expect(legacy_spots.connect).toBe(true);
-        expect(view.messages).toEqual([
-            {
-                version: 1,
-                type: "radio",
-                event: "status",
-                status: "connected",
-                catserver_version: "catserver-v1.2.0",
-            },
-        ]);
-
-        act(() => TestConsumer.context.send("radio", { action: "SetRig", rig: 2 }));
-        expect(legacy_radio.sendJsonMessage).toHaveBeenCalledWith({ type: "SetRig", rig: 2 });
-    });
-
-    it.each(["unified", "legacy"])("scopes passive epochs to %s spot socket opens", candidate => {
-        const view = render_provider();
-        const path = candidate === "unified" ? "/ws" : "/submit_spot";
-        const connection = websocket_mock.connection_for(path);
-        connection.readyState = websocket_mock.ReadyState.OPEN;
-        act(() => connection.options.onOpen({ target: { send: vi.fn() } }));
-        expect(TestConsumer.context.spot_socket_epoch).toBeNull();
-        receive(
-            view,
-            "/radio",
-            candidate === "unified"
-                ? { status: "unavailable" }
-                : { status: "connected", version: "catserver-v1.2.0" },
-        );
+        const connection = open(view);
         const first = TestConsumer.context.spot_socket_epoch;
-        expect(first).toBeGreaterThan(0);
         const send_now = TestConsumer.context.send_now;
+
+        expect(first).toBeGreaterThan(0);
         expect(send_now("spots", { action: "initial" }, first)).toBe(true);
         expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
-            {
-                version: 1,
-                type: "spots",
-                action: "initial",
-                software_id: "HolyCluster",
-                ui_version: null,
-                catserver_version: candidate === "unified" ? null : "catserver-v1.2.0",
-                client_type: "desktop",
-                browser_type: "other",
-                user_id: "123e4567-e89b-42d3-a456-426614174000",
-            },
+            { version: 1, type: "spots", action: "initial", ...spot_identity },
             false,
         );
-        receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
-        expect(TestConsumer.context.spot_socket_epoch).toBe(first);
+
         act(() => connection.options.onOpen({ target: { send: vi.fn() } }));
         const second = TestConsumer.context.spot_socket_epoch;
         expect(second).toBeGreaterThan(first);
         expect(send_now("spots", {}, first)).toBe(false);
         expect(send_now("spots", {}, second)).toBe(true);
-        expect(
-            websocket_mock.useWebSocket.mock.calls.every(([url]) => !url.includes("resume=")),
-        ).toBe(true);
         act(() => connection.options.onClose());
         expect(send_now("spots", {}, second)).toBe(false);
     });
 
-    it.each(["unified", "legacy"])("reports versions only on %s spots at send time", candidate => {
+    it("reports UI and CAT versions only on spot messages", () => {
         vi.stubEnv("VITE_UI_VERSION", "v1.2.3");
         const view = render_provider();
-        const path = candidate === "unified" ? "/ws" : "/submit_spot";
-        const connection = websocket_mock.connection_for(path);
-        connection.readyState = websocket_mock.ReadyState.OPEN;
-        act(() => connection.options.onOpen());
-        const request = Object.freeze({ action: "initial", bands: [20], source: "test" });
-        const send = TestConsumer.context.send;
-        const send_now = TestConsumer.context.send_now;
-        expect(send("spots", request)).toBe(false);
-        receive(
-            view,
-            candidate === "unified" ? "/ws" : "/radio",
-            candidate === "unified"
-                ? { version: 1, type: "radio", event: "status", status: "unavailable" }
-                : { status: "connected", version: "catserver-v1.2.0" },
-        );
-        const epoch = TestConsumer.context.spot_socket_epoch;
-        const expected = catserver_version => ({
-            version: 1,
-            type: "spots",
-            ...request,
-            software_id: "HolyCluster",
-            ui_version: "v1.2.3",
-            catserver_version,
-            client_type: "desktop",
-            browser_type: "other",
-            user_id: "123e4567-e89b-42d3-a456-426614174000",
-        });
-        expect(send("spots", request)).toBe(true);
-        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
-            expected(candidate === "unified" ? null : "catserver-v1.2.0"),
-        );
-        receive(
-            view,
-            candidate === "unified" ? "/ws" : "/radio",
-            candidate === "unified"
-                ? { type: "radio", event: "status", catserver_version: "catserver-v1.3.0" }
-                : { status: "connected", version: "catserver-v1.2.1" },
-        );
-        const version = candidate === "unified" ? "catserver-v1.3.0" : "catserver-v1.2.1";
-        expect(send("spots", request)).toBe(true);
-        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(expected(version));
-        expect(send_now("spots", request, epoch)).toBe(true);
-        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(expected(version), false);
-        expect(request).toEqual({ action: "initial", bands: [20], source: "test" });
-        for (const type of ["history", "update", "rotator"]) {
-            expect(send(type, request)).toBe(true);
-            expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
-                version: 1,
-                type,
-                ...request,
-            });
-            expect(send_now(type, request, epoch)).toBe(true);
-            expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
-                { version: 1, type, ...request },
-                false,
-            );
-        }
-        const radio = websocket_mock.connection_for(candidate === "unified" ? "/ws" : "/radio");
-        radio.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, path, null);
-        expect(send("radio", { action: "GetCapabilities" })).toBe(true);
-        expect(radio.sendJsonMessage).toHaveBeenLastCalledWith(
-            candidate === "unified"
-                ? { version: 1, type: "radio", action: "GetCapabilities" }
-                : { type: "GetCapabilities" },
-        );
-    });
-
-    it.each(["unified", "legacy"])(
-        "clears %s identity when its identity socket closes",
-        candidate => {
-            vi.useFakeTimers();
-            const view = render_provider();
-            const path = candidate === "unified" ? "/ws" : "/submit_spot";
-            const connection = websocket_mock.connection_for(path);
-            connection.readyState = websocket_mock.ReadyState.OPEN;
-            receive(
-                view,
-                candidate === "unified" ? "/ws" : "/radio",
-                candidate === "unified"
-                    ? { type: "radio", event: "status", catserver_version: "catserver-v1.3.0" }
-                    : { status: "connected", version: "catserver-v1.2.0" },
-            );
-            const identity = websocket_mock.connection_for(
-                candidate === "unified" ? "/ws" : "/radio",
-            );
-            act(() => identity.options.onClose());
-            const unified = websocket_mock.connection_for("/ws");
-            unified.readyState = websocket_mock.ReadyState.OPEN;
-            act(() => vi.advanceTimersByTime(1500));
-            expect(TestConsumer.context.send("spots", {})).toBe(true);
-            expect(unified.sendJsonMessage).toHaveBeenLastCalledWith({
-                version: 1,
-                type: "spots",
-                software_id: "HolyCluster",
-                ui_version: null,
-                catserver_version: null,
-                client_type: "desktop",
-                browser_type: "other",
-                user_id: "123e4567-e89b-42d3-a456-426614174000",
-            });
-        },
-    );
-
-    it("retains legacy CAT identity when only the spot socket reconnects", () => {
-        const view = render_provider();
-        const radio = websocket_mock.connection_for("/radio");
-        radio.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/radio", { status: "connected", version: "catserver-v1.2.0" });
-        const spots = websocket_mock.connection_for("/submit_spot");
-        spots.readyState = websocket_mock.ReadyState.OPEN;
-        act(() => spots.options.onOpen());
-        const first_epoch = TestConsumer.context.spot_socket_epoch;
-        spots.readyState = websocket_mock.ReadyState.CLOSED;
-        act(() => spots.options.onClose());
-        expect(TestConsumer.context.transport).toBe("cat_v1_2");
-        expect(TestConsumer.context.send("spots", {})).toBe(false);
-        spots.readyState = websocket_mock.ReadyState.OPEN;
-        act(() => spots.options.onOpen());
-        const epoch = TestConsumer.context.spot_socket_epoch;
-        expect(epoch).toBeGreaterThan(first_epoch);
-        expect(radio.readyState).toBe(websocket_mock.ReadyState.OPEN);
-        const expected = {
-            version: 1,
-            type: "spots",
-            action: "initial",
-            software_id: "HolyCluster",
-            ui_version: null,
-            catserver_version: "catserver-v1.2.0",
-            client_type: "desktop",
-            browser_type: "other",
-            user_id: "123e4567-e89b-42d3-a456-426614174000",
-        };
-        expect(TestConsumer.context.send_now("spots", { action: "initial" }, epoch)).toBe(true);
-        expect(spots.sendJsonMessage).toHaveBeenLastCalledWith(expected, false);
-        expect(TestConsumer.context.send("spots", { action: "initial" })).toBe(true);
-        expect(spots.sendJsonMessage).toHaveBeenLastCalledWith(expected);
-    });
-
-    it("clears a CAT identity when the direct backend identifies itself", () => {
-        const view = render_provider();
-        const connection = websocket_mock.connection_for("/ws");
-        connection.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/ws", {
-            type: "radio",
-            event: "status",
-            catserver_version: "catserver-v1.3.0",
-        });
-        receive(view, "/ws", { version: 1, type: "radio", event: "status", status: "unavailable" });
-        TestConsumer.context.send("spots", {});
-        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
-            version: 1,
-            type: "spots",
-            software_id: "HolyCluster",
-            ui_version: null,
-            catserver_version: null,
-            client_type: "desktop",
-            browser_type: "other",
-            user_id: "123e4567-e89b-42d3-a456-426614174000",
-        });
-    });
-
-    it("returns to parallel probing when the selected transport closes", () => {
-        const view = render_provider();
-        const unified = websocket_mock.connection_for("/ws");
-        const legacy_radio = websocket_mock.connection_for("/radio");
-
-        unified.readyState = websocket_mock.ReadyState.OPEN;
-        receive(view, "/ws", {
+        const connection = open(view);
+        receive(view, {
             version: 1,
             type: "radio",
             event: "status",
             status: "connected",
-            catserver_version: "catserver-v1.2.1",
+            catserver_version: "catserver-v1.3.0",
         });
-        expect(TestConsumer.context.transport).toBe("unified");
+        const request = Object.freeze({ action: "initial", bands: [20], source: "test" });
+        const expected_identity = {
+            ...spot_identity,
+            ui_version: "v1.2.3",
+            catserver_version: "catserver-v1.3.0",
+        };
 
-        act(() => unified.options.onClose());
+        expect(TestConsumer.context.send("spots", request)).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+            version: 1,
+            type: "spots",
+            ...request,
+            ...expected_identity,
+        });
+        expect(TestConsumer.context.send("history", request)).toBe(true);
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+            version: 1,
+            type: "history",
+            ...request,
+        });
+        expect(request).toEqual({ action: "initial", bands: [20], source: "test" });
+    });
 
-        expect(TestConsumer.context.transport).toBe("probing");
-        expect(unified.connect).toBe(true);
-        expect(legacy_radio.connect).toBe(true);
+    it("clears CAT identity when the unified connection closes", () => {
+        const view = render_provider();
+        const connection = open(view);
+        receive(view, {
+            version: 1,
+            type: "radio",
+            event: "status",
+            catserver_version: "catserver-v1.3.0",
+        });
+
+        act(() => connection.options.onClose());
+        connection.readyState = websocket_mock.ReadyState.OPEN;
+        act(() => connection.options.onOpen({ target: { send: vi.fn() } }));
+        receive(view, null);
+        TestConsumer.context.send("spots", {});
+
+        expect(connection.sendJsonMessage).toHaveBeenLastCalledWith({
+            version: 1,
+            type: "spots",
+            ...spot_identity,
+        });
     });
 });
