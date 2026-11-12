@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
     opens: 0,
     capture: vi.fn(),
     get_all_error: null,
+    transaction_error_at: null,
+    transactions: 0,
     unreadable_keys: [],
     keys_error: null,
     delete_error: null,
@@ -34,6 +36,13 @@ vi.mock("idb", async importOriginal => {
                     version: db.version,
                     objectStoreNames: db.objectStoreNames,
                     transaction(...args) {
+                        state.transactions++;
+                        if (state.transactions === state.transaction_error_at) {
+                            throw new DOMException(
+                                "The database connection is closing",
+                                "InvalidStateError",
+                            );
+                        }
                         const tx = db.transaction(...args);
                         return {
                             done: tx.done,
@@ -77,6 +86,8 @@ afterEach(() => {
     state.open_error = null;
     state.opens = 0;
     state.get_all_error = null;
+    state.transaction_error_at = null;
+    state.transactions = 0;
     state.unreadable_keys = [];
     state.keys_error = null;
     state.delete_error = null;
@@ -347,6 +358,49 @@ describe("cache lifecycle", () => {
         ]);
         expect(await disk.getAll("intervals")).toEqual([saved]);
         expect(await disk.get("other", 1)).toBe("untouched");
+        disk.close();
+    });
+
+    it("uses memory without modifying disk when a bulk read is aborted", async () => {
+        const { openDB } = await vi.importActual("idb");
+        const name = `bulk_abort_${sequence++}`;
+        const disk = await openDB(name, 1, {
+            upgrade(db) {
+                db.createObjectStore("intervals", { keyPath: "id", autoIncrement: true });
+            },
+        });
+        const saved = { id: 1, start: 0, end: 10 };
+        await disk.put("intervals", saved);
+        state.get_all_error = new DOMException("The transaction was aborted", "AbortError");
+        const store = create_interval_db(name, 1, "intervals");
+        await expect(store.ready()).resolves.toBeUndefined();
+        await store.commit([], { start: 0, end: 20 });
+        await store.evict(30, () => null);
+        expect(store.get_overlapping_intervals(0, 20)).toEqual([]);
+        expect(await disk.getAll("intervals")).toEqual([saved]);
+        expect(state.capture).not.toHaveBeenCalled();
+        disk.close();
+    });
+
+    it("uses memory when the database closes before key recovery", async () => {
+        const { openDB } = await vi.importActual("idb");
+        const name = `closing_${sequence++}`;
+        const disk = await openDB(name, 1, {
+            upgrade(db) {
+                db.createObjectStore("intervals", { keyPath: "id", autoIncrement: true });
+            },
+        });
+        const saved = { id: 1, start: 0, end: 10 };
+        await disk.put("intervals", saved);
+        state.get_all_error = new DOMException("unreadable", "UnknownError");
+        state.transaction_error_at = 2;
+        const store = create_interval_db(name, 1, "intervals");
+        await expect(store.ready()).resolves.toBeUndefined();
+        await store.commit([], { start: 0, end: 20 });
+        await store.evict(30, () => null);
+        expect(store.get_overlapping_intervals(0, 20)).toEqual([]);
+        expect(await disk.getAll("intervals")).toEqual([saved]);
+        expect(state.capture).not.toHaveBeenCalled();
         disk.close();
     });
 

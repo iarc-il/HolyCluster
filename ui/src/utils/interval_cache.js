@@ -158,9 +158,9 @@ export function create_interval_db(db_name, db_version, store_name, validate_rec
                 // An unavailable database leaves no trusted disk snapshot. Keep this
                 // instance in memory-only mode; never overwrite unknown disk data.
                 if (
-                    ["open", "read_keys", "read_record", "repair"].includes(stage) &&
+                    ["open", "get_all", "read_keys", "read_record", "repair"].includes(stage) &&
                     !upgrade_error &&
-                    ["AbortError", "UnknownError"].includes(error?.name)
+                    ["AbortError", "InvalidStateError", "UnknownError"].includes(error?.name)
                 ) {
                     memory_only = true;
                     return;
