@@ -44,5 +44,6 @@ SELECT format('GRANT USAGE ON SCHEMA public TO %I', :'reader') \gexec
 -- Table grants also cover future rows and columns. Schema-wide default grants
 -- would expose unrelated application tables. Run this again after table recreation.
 SELECT format('GRANT SELECT ON TABLE public.spot_coverage_samples TO %I', :'reader') \gexec
+SELECT format('GRANT SELECT ON TABLE public.anonymous_user_counts TO %I', :'reader') \gexec
 
 COMMIT;

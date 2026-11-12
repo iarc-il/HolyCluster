@@ -1,8 +1,18 @@
 from datetime import date, datetime, time
 from typing import Literal, Optional
+from uuid import UUID
 
 from sqlalchemy import CheckConstraint, Column, DateTime, Index, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
+
+
+class AnonymousUserPresence(SQLModel, table=True):
+    __tablename__ = "anonymous_user_presence"
+    __table_args__ = (Index("ix_anonymous_user_presence_last_seen_at", "last_seen_at"),)
+
+    user_id: UUID = Field(primary_key=True)
+    first_seen_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    last_seen_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
 class GeoCache(SQLModel, table=True):
