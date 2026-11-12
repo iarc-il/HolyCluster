@@ -23,7 +23,6 @@ describe("active spot table style", () => {
             background_color: "color-mix(in srgb, #182229 88%, #58d67d)",
             text_color: "#eae7ec",
             edge_style: "inset 2px 0 0 #22c55e",
-            frequency_style: undefined,
         });
     });
 
@@ -39,11 +38,10 @@ describe("active spot table style", () => {
             background_color: "#58d67d",
             text_color: "#000000",
             edge_style: "inset 4px 0 0 #22c55e",
-            frequency_style: undefined,
         });
     });
 
-    it("marks only the frequency cell for radio matches", () => {
+    it("uses a visible row tint for radio matches", () => {
         expect(
             get_active_spot_table_style({
                 ...colors,
@@ -52,10 +50,39 @@ describe("active spot table style", () => {
                 is_radio_match: true,
             }),
         ).toEqual({
-            background_color: "#182229",
+            background_color: "color-mix(in srgb, #182229 60%, #58d67d)",
             text_color: "#eae7ec",
             edge_style: undefined,
-            frequency_style: "inset 0 -2px 0 #3b82f6",
+        });
+    });
+
+    it("keeps the radio tint while previewing a matching row", () => {
+        expect(
+            get_active_spot_table_style({
+                ...colors,
+                is_previewed: true,
+                is_pinned: false,
+                is_radio_match: true,
+            }),
+        ).toEqual({
+            background_color: "color-mix(in srgb, #182229 60%, #58d67d)",
+            text_color: "#eae7ec",
+            edge_style: undefined,
+        });
+    });
+
+    it("keeps the pinned style for a pinned radio match", () => {
+        expect(
+            get_active_spot_table_style({
+                ...colors,
+                is_previewed: false,
+                is_pinned: true,
+                is_radio_match: true,
+            }),
+        ).toEqual({
+            background_color: "#58d67d",
+            text_color: "#000000",
+            edge_style: "inset 4px 0 0 #22c55e",
         });
     });
 });

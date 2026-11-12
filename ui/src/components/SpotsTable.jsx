@@ -51,7 +51,6 @@ const MISSING_ALERT_FLASH_CSS_VAR_NAMES = [
 ];
 const tour_table_header_height = 32;
 const tour_table_row_height = 28;
-const radio_frequency_accent = "#3b82f6";
 
 export function get_active_spot_table_style({
     is_previewed,
@@ -71,17 +70,14 @@ export function get_active_spot_table_style({
         background_color = light_band;
         text_color = band_text;
         edge_style = `inset 4px 0 0 ${band}`;
+    } else if (is_radio_match) {
+        background_color = `color-mix(in srgb, ${normal_background} 60%, ${light_band})`;
     } else if (is_previewed) {
         background_color = `color-mix(in srgb, ${normal_background} 88%, ${light_band})`;
         edge_style = `inset 2px 0 0 ${band}`;
     }
 
-    return {
-        background_color,
-        text_color,
-        edge_style,
-        frequency_style: is_radio_match ? `inset 0 -2px 0 ${radio_frequency_accent}` : undefined,
-    };
+    return { background_color, text_color, edge_style };
 }
 
 export function get_tour_row_index(spots_count, table_height) {
@@ -594,10 +590,7 @@ const Spot = forwardRef(function Spot(
             <td
                 className={cell_classes.freq}
                 data-tour={is_tour_row ? "spot-row-frequency" : undefined}
-                style={{
-                    boxShadow: active_style.frequency_style,
-                    fontWeight: is_same_freq ? 600 : undefined,
-                }}
+                style={{ fontWeight: is_same_freq ? 600 : undefined }}
                 onClick={event => {
                     event.stopPropagation();
                     set_cat_to_spot(spot, { notify_logger: true });

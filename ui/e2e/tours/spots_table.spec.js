@@ -110,6 +110,30 @@ async function complete_context_menu_steps(page, { mobile = false } = {}) {
     await finish_read_only_table_steps(page, { mobile });
 }
 
+test.describe("Tuned frequency indicator", () => {
+    test.use({ radio_state: { status: "connected", freq: 14_074, mode: "FT8" } });
+
+    for (const width of [1800, 390]) {
+        test(`tints the full matching row at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto("/");
+            if (width < 768) {
+                await page.locator(tour_target("mobile-main-tab-table")).click();
+            }
+
+            const row = page.locator("tbody tr").filter({
+                has: page.locator("td:nth-child(3) a", { hasText: /^JA1XYZ$/ }),
+            });
+            await expect(row).toHaveCount(1);
+
+            const background = await row.evaluate(element => element.style.backgroundColor);
+            expect(background).toContain("color-mix");
+            expect(background).toContain("60%");
+            await expect(row.locator("td:nth-child(4)")).toHaveCSS("box-shadow", "none");
+        });
+    }
+});
+
 test.describe("Spot frequency selection", () => {
     test.use({ radio_state: { status: "connected", freq: 14_000_000, mode: "USB" } });
 
