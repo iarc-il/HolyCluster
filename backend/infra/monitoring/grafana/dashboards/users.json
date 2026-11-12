@@ -3,7 +3,7 @@
   "title": "HolyCluster / Users",
   "description": "Anonymous browser installations, subscriptions, version adoption and aggregate feature usage.",
   "schemaVersion": 41,
-  "version": 12,
+  "version": 13,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -2551,7 +2551,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 88,
+        "y": 143,
         "w": 24,
         "h": 8
       },
@@ -2568,7 +2568,7 @@
           "sort": "desc"
         }
       },
-      "id": 26
+      "id": 47
     }
   ]
 }
