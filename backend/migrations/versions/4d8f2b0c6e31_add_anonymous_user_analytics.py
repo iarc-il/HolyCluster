@@ -106,8 +106,8 @@ def upgrade() -> None:
              WHERE cat.day = anchor.day AND cat.used_cat) AS cat_active,
             (SELECT count(*) FROM anonymous_user_day direct
              WHERE direct.day = anchor.day AND direct.used_direct) AS direct_active,
-            (SELECT count(*) FROM anonymous_user_day both
-             WHERE both.day = anchor.day AND both.used_cat AND both.used_direct) AS both_active,
+            (SELECT count(*) FROM anonymous_user_day dual
+             WHERE dual.day = anchor.day AND dual.used_cat AND dual.used_direct) AS both_active,
             (SELECT count(*) FROM anonymous_user_presence presence
              WHERE presence.first_seen_at::date = anchor.day) AS new_installations
         FROM (SELECT DISTINCT day FROM anonymous_user_day) anchor
