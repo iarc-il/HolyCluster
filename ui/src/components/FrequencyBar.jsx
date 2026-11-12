@@ -231,6 +231,11 @@ function calculate_bracket_position(
     return { bracket_y, bracket_height };
 }
 
+export function normalize_selected_band(value) {
+    const numeric_value = Number(value);
+    return value !== "" && Number.isFinite(numeric_value) ? numeric_value : value;
+}
+
 export default function FrequencyBar({ className, set_cat_to_spot }) {
     const { colors } = useColors();
     const { settings } = useSettings();
@@ -247,7 +252,7 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
     function set_selected_band(value) {
         update_active_profile_section("panels", panels => ({
             ...panels,
-            frequency_bar_band: value,
+            frequency_bar_band: normalize_selected_band(value),
         }));
     }
 
@@ -437,6 +442,8 @@ export default function FrequencyBar({ className, set_cat_to_spot }) {
                             return (
                                 <g
                                     className="group group-hover:stroke-blue-500 group-hover:fill-blue-500"
+                                    data-tour="band-bar-spot"
+                                    data-spot-id={spot.id}
                                     key={`freq_bar_${spot.id}`}
                                     onMouseLeave={_ =>
                                         set_hovered_spot({
