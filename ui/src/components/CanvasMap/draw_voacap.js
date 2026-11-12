@@ -1,3 +1,4 @@
+import { draw_heatmap } from "@/utils/draw_heatmap.js";
 import * as d3 from "d3";
 import simpleheat from "simpleheat";
 
@@ -94,7 +95,7 @@ export function draw_voacap(canvas, voacap, dims, projection, is_globe) {
         0.82: "yellow",
         1.0: "red",
     });
-    heat.draw(0.5);
+    draw_heatmap(heat, 0.5, "voacap", canvas, points.length, dpr);
 
     ctx.save();
     ctx.globalCompositeOperation = "destination-in";

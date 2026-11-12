@@ -3,6 +3,7 @@ import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
+import { draw_heatmap } from "@/utils/draw_heatmap.js";
 import { useEffect, useMemo, useRef } from "react";
 import simpleheat from "simpleheat";
 
@@ -115,7 +116,14 @@ function Heatmap() {
 
         heatmap_instance_ref.current.data(points);
         heatmap_instance_ref.current.max(20);
-        heatmap_instance_ref.current.draw(0);
+        draw_heatmap(
+            heatmap_instance_ref.current,
+            0,
+            "activity",
+            heatmap_canvas,
+            points.length,
+            scale,
+        );
 
         ctx.clearRect(0, 0, width, height);
 

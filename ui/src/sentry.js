@@ -29,7 +29,15 @@ const dom_errors = new Set([
 
 export function annotateDiagnosticError(value, evidence) {
     const error = toError(value);
-    error_diagnostics.set(error, { ...error_diagnostics.get(error), ...evidence });
+    const original_is_object =
+        value !== null && ["object", "function"].includes(typeof value) && value !== error;
+    const diagnostics = {
+        ...(original_is_object ? error_diagnostics.get(value) : undefined),
+        ...error_diagnostics.get(error),
+        ...evidence,
+    };
+    error_diagnostics.set(error, diagnostics);
+    if (original_is_object) error_diagnostics.set(value, diagnostics);
     return error;
 }
 
