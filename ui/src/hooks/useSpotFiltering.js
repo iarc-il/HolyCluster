@@ -257,12 +257,31 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             );
         }
 
-        function count_visible_spots(reasons) {
-            const relaxed_reasons = new Set(reasons);
-            return spots_with_alerts.reduce(
-                (count, spot) => count + Number(is_spot_visible(spot, relaxed_reasons)),
-                0,
+        function get_displayed_spots(relaxed_reasons) {
+            let displayed_spots = spots_with_alerts.filter(spot =>
+                is_spot_visible(spot, relaxed_reasons),
             );
+
+            if (!is_history_mode) {
+                displayed_spots = displayed_spots.slice(0, 100);
+            }
+
+            if (filters.show_only_latest_spot) {
+                const latest_spots = new Map();
+                for (const spot of displayed_spots) {
+                    const existing = latest_spots.get(spot.dx_callsign);
+                    if (!existing || spot.time > existing.time) {
+                        latest_spots.set(spot.dx_callsign, spot);
+                    }
+                }
+                displayed_spots = Array.from(latest_spots.values());
+            }
+
+            return displayed_spots;
+        }
+
+        function count_visible_spots(reasons) {
+            return get_displayed_spots(new Set(reasons)).length;
         }
 
         function get_actionable_reasons() {
@@ -286,26 +305,10 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             return [];
         }
 
-        let filtered = spots_with_alerts.filter(spot => is_spot_visible(spot));
+        const displayed_spots = get_displayed_spots(no_relaxed_reasons);
         const actionable_reasons =
-            filtered.length === 0 && source_spots.length > 0 ? get_actionable_reasons() : [];
-
-        if (!is_history_mode) {
-            filtered = filtered.slice(0, 100);
-        }
-
-        if (filters.show_only_latest_spot) {
-            const latest_spots = new Map();
-            for (const spot of filtered) {
-                const existing = latest_spots.get(spot.dx_callsign);
-                if (!existing || spot.time > existing.time) {
-                    latest_spots.set(spot.dx_callsign, spot);
-                }
-            }
-            filtered = Array.from(latest_spots.values());
-        }
-
-        const sorted_spots = sort_spots(filtered, table_sort, radio_status, radio_band);
+            displayed_spots.length === 0 && source_spots.length > 0 ? get_actionable_reasons() : [];
+        const sorted_spots = sort_spots(displayed_spots, table_sort, radio_status, radio_band);
         let empty_state = null;
         if (sorted_spots.length === 0) {
             empty_state =

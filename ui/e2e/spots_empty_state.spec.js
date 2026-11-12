@@ -1,4 +1,4 @@
-import { expect, test, tour_target } from "./fixtures/tour.js";
+import { expect, test, tour_spots, tour_target } from "./fixtures/tour.js";
 
 const empty_state = page => page.locator(tour_target("spots-empty-state"));
 const reason = (page, name) => page.locator(tour_target(`spots-empty-reason-${name}`));
@@ -28,6 +28,11 @@ async function update_profile(page, changes) {
             );
         }
         if (changes.ssb_active != null) filters.modes.SSB = changes.ssb_active;
+        Object.assign(filters.bands, changes.band_overrides);
+        Object.assign(filters.modes, changes.mode_overrides);
+        Object.assign(filters.dx_continents, changes.dx_continent_overrides);
+        Object.assign(filters.spotter_continents, changes.spotter_continent_overrides);
+        if (changes.single_spot != null) filters.show_only_latest_spot = changes.single_spot;
         if (changes.dx_continents_active != null) {
             filters.dx_continents = Object.fromEntries(
                 Object.keys(filters.dx_continents).map(continent => [
@@ -76,6 +81,43 @@ test("shows a smallest combined repair as separate rows", async ({ page }) => {
     await reason(page, "modes").getByRole("button", { name: "Enable all" }).click();
     await expect(empty_state(page)).toBeHidden();
     await expect(page.locator(tour_target("spot-row"))).toBeVisible();
+});
+
+const duplicate_spots = tour_spots.slice(0, 3).map(spot => ({
+    ...spot,
+    dx_callsign: "JA1XYZ",
+    band: 20,
+    mode: "FT8",
+    dx_continent: "AS",
+    spotter_continent: "OC",
+}));
+const unique_spots = tour_spots.slice(3, 5).map(spot => ({
+    ...spot,
+    band: 40,
+    mode: "SSB",
+    dx_continent: "EU",
+    spotter_continent: "NA",
+}));
+const ranking_test = test.extend({
+    tour_spots: async ({}, use) => {
+        await use([...duplicate_spots, ...unique_spots]);
+    },
+});
+
+ranking_test("ranks combinations by displayed rows", async ({ page }) => {
+    await open_table(page);
+    await update_profile(page, {
+        band_overrides: { 20: false },
+        mode_overrides: { FT8: false },
+        dx_continent_overrides: { EU: false },
+        spotter_continent_overrides: { NA: false },
+        single_spot: true,
+    });
+
+    await expect(reason(page, "dx_continents")).toBeVisible();
+    await expect(reason(page, "spotter_continents")).toBeVisible();
+    await expect(reason(page, "bands")).toHaveCount(0);
+    await expect(reason(page, "modes")).toHaveCount(0);
 });
 
 test("repairs show-only and continent filters", async ({ page }) => {
