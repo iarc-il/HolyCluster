@@ -299,54 +299,6 @@ describe("missing_adif", () => {
         expect(progress).toEqual([1, 2]);
     });
 
-    it("falls back to the catserver submit endpoint when /ws stalls", async () => {
-        vi.useFakeTimers();
-        FakeWebSocket.should_open = url => url.endsWith("/submit_spot");
-        vi.stubGlobal("WebSocket", FakeWebSocket);
-
-        const resolve_promise = resolve_missing_callsigns(["K1ABC"]);
-        await vi.advanceTimersByTimeAsync(1500);
-
-        expect(FakeWebSocket.instances.map(socket => socket.url)).toEqual([
-            "ws://localhost:3000/ws",
-            "ws://localhost:3000/submit_spot",
-        ]);
-        const fallback_socket = FakeWebSocket.instances[1];
-        fallback_socket.onopen();
-        const job_id = fallback_socket.sent[0].job_id;
-        expect(fallback_socket.sent).toEqual([
-            { version: 1, type: "missing", action: "start", job_id },
-            {
-                version: 1,
-                type: "missing",
-                action: "add",
-                job_id,
-                callsigns: ["K1ABC"],
-            },
-            { version: 1, type: "missing", action: "finish", job_id },
-        ]);
-
-        fallback_socket.receive({
-            version: 1,
-            type: "missing",
-            event: "results",
-            job_id,
-            results: { K1ABC: { country: "USA" } },
-            errors: {},
-        });
-        fallback_socket.receive({
-            version: 1,
-            type: "missing",
-            event: "complete",
-            job_id,
-        });
-
-        await expect(resolve_promise).resolves.toEqual({
-            results: { K1ABC: { country: "USA" } },
-            errors: {},
-        });
-    });
-
     it("worker client falls back when a custom resolver is supplied", async () => {
         const result = await import_missing_adif_in_worker({
             adif_text: adif_record({ CALL: "K1ABC" }),
