@@ -273,7 +273,7 @@ function get_sota_points_style(points) {
     };
 }
 
-function FitText({ children, className = "", style, title }) {
+export function FitText({ value, children, className = "", style, title }) {
     const container_ref = useRef(null);
     const text_ref = useRef(null);
 
@@ -316,7 +316,7 @@ function FitText({ children, className = "", style, title }) {
         const resize_observer = new ResizeObserver(fit_text);
         resize_observer.observe(container);
         return () => resize_observer.disconnect();
-    }, [children]);
+    }, [value]);
 
     return (
         <span ref={container_ref} className="block w-full min-w-0 whitespace-nowrap">
@@ -334,7 +334,7 @@ function FitText({ children, className = "", style, title }) {
 
 function Callsign({ callsign }) {
     return (
-        <FitText title={callsign}>
+        <FitText value={callsign} title={callsign}>
             <a href={`https://www.qrz.com/db/${callsign}`} target="_blank" rel="noreferrer">
                 {callsign}
             </a>
@@ -624,6 +624,7 @@ const Spot = forwardRef(function Spot(
             >
                 <div className="w-full md:hidden">
                     <FitText
+                        value={spot.freq}
                         className="rounded-full px-1 cursor-pointer tabular-nums"
                         style={{ backgroundColor: color, color: colors.text[spot.band] }}
                         title={String(spot.freq)}
@@ -633,6 +634,7 @@ const Spot = forwardRef(function Spot(
                 </div>
                 <div className="hidden w-full md:block">
                     <FitText
+                        value={spot.freq}
                         className="rounded-full px-1 cursor-pointer tabular-nums"
                         title={String(spot.freq)}
                     >
