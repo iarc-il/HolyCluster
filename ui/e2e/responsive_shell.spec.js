@@ -237,6 +237,60 @@ test("mobile filter tabs are shorter than tool tabs", async ({ page }) => {
     expect(filter_tab.height).toBeLessThan(tool_tab.height);
 });
 
+test("mobile filter long press opens Only and All", async ({ page }) => {
+    await page.setViewportSize({ width: 1536, height: 900 });
+    await page.goto("/");
+    const band_20 = page.locator('[data-tour="band-filter-20"]');
+    await band_20.hover();
+    const popup = page.locator('[data-tour="filter-options-popup"]');
+    const desktop_popup_bounds = await popup.boundingBox();
+    await page.mouse.move(800, 800);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
+    const band_40 = page.locator('[data-tour="band-filter-40"]');
+    const long_press = async target => {
+        await target.dispatchEvent("pointerdown", {
+            button: 0,
+            clientX: 32,
+            clientY: 32,
+            pointerId: 1,
+            pointerType: "touch",
+        });
+        await page.waitForTimeout(550);
+        await target.dispatchEvent("pointerup", {
+            button: 0,
+            clientX: 32,
+            clientY: 32,
+            pointerId: 1,
+            pointerType: "touch",
+        });
+        await target.dispatchEvent("click");
+    };
+
+    await band_20.click();
+    await expect(band_20).toHaveAttribute("aria-pressed", "false");
+    await long_press(band_20);
+    await expect(popup).toBeVisible();
+    await expect(band_20).toHaveAttribute("aria-pressed", "false");
+    for (const action of ["filter-options-only", "filter-options-all"]) {
+        const bounds = await popup.locator(`[data-tour="${action}"]`).boundingBox();
+        expect(bounds.height).toBeGreaterThanOrEqual(40);
+    }
+    const popup_bounds = await popup.boundingBox();
+    expect(popup_bounds.x).toBeGreaterThanOrEqual(0);
+    expect(popup_bounds.x + popup_bounds.width).toBeLessThanOrEqual(390);
+    expect(popup_bounds.width).toBeCloseTo(desktop_popup_bounds.width, 0);
+
+    await popup.locator('[data-tour="filter-options-only"]').click();
+    await expect(band_20).toHaveAttribute("aria-pressed", "true");
+    await expect(band_40).toHaveAttribute("aria-pressed", "false");
+
+    await long_press(band_20);
+    await popup.locator('[data-tour="filter-options-all"]').click();
+    await expect(band_40).toHaveAttribute("aria-pressed", "true");
+});
+
 for (const [width, height] of [
     [390, 844],
     [500, 900],
