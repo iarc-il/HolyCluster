@@ -1,19 +1,18 @@
 {
   "uid": "holycluster-spot-coverage",
   "title": "HolyCluster / External spot coverage",
-  "description": "Directional spot coverage against external services, eligible finalized outcomes, feed health, and bounded mismatch examples.",
   "schemaVersion": 41,
-  "version": 9,
+  "version": 10,
   "editable": false,
   "timezone": "browser",
-  "refresh": "30s",
+  "refresh": "1m",
   "tags": [
     "HolyCluster",
     "monitoring",
     "coverage"
   ],
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
@@ -77,43 +76,40 @@
   },
   "links": [
     {
-      "title": "Connectivity",
+      "title": "Service health",
       "type": "link",
       "url": "/d/holycluster-system",
       "targetBlank": false,
       "keepTime": true
     },
     {
-      "title": "Users",
+      "title": "Spot pipeline",
       "type": "link",
-      "url": "/d/holycluster-api",
+      "url": "/d/holycluster-pipeline",
       "targetBlank": false,
       "keepTime": true
     },
     {
-      "title": "Spots and sources",
+      "title": "Audience and engagement",
       "type": "link",
-      "url": "/d/holycluster-pipeline",
+      "url": "/d/holycluster-api",
       "targetBlank": false,
       "keepTime": true
     }
   ],
   "panels": [
     {
-      "id": 1,
-      "title": "How to read coverage",
-      "type": "text",
-      "description": "",
+      "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 1,
         "w": 24,
-        "h": 5
+        "x": 0,
+        "y": 0
       },
-      "options": {
-        "mode": "markdown",
-        "content": "Coverage compares each external service with HolyCluster's general cluster feed; dedicated POTA, SOTA, and WWFF feeds are excluded. Identity is **DX + frequency + spotter**; source-reported time and comments are not part of identity. Reports of the same identity must arrive within the fixed **60-second** observation window. Outcomes appear only after the window closes and finalization completes. Counts are assigned to finalization time, not spot time.\n\n**Matched** (green) is seen on both sides. **Holy only** (amber) is missing from the service. **Service only** (red) is missing from HolyCluster. **Unknown** (gray) includes ineligible intervals; these are excluded from coverage, not counted as mismatches. No data does not mean zero or 100% coverage. Counts are per service and must not be added across services.\n\nCompetitor coverage of Holy = matched / (matched + Holy only). Holy coverage of competitor = matched / (matched + service only). Shared coverage (Jaccard) = matched / (matched + Holy only + service only). Zero denominators return no data. Selected-range counts use counter increases (estimates); percentage trends use **5-minute** windows. Missing telemetry stays unknown."
-      }
+      "id": 16,
+      "panels": [],
+      "title": "Coverage summary",
+      "type": "row"
     },
     {
       "id": 2,
@@ -121,10 +117,10 @@
       "type": "state-timeline",
       "description": "Gaps mean missing telemetry, not a healthy feed.",
       "gridPos": {
-        "x": 0,
-        "y": 5,
+        "h": 8,
         "w": 16,
-        "h": 9
+        "x": 0,
+        "y": 1
       },
       "datasource": {
         "type": "prometheus",
@@ -197,10 +193,10 @@
       "type": "stat",
       "description": "Seconds since the last successful feed operation. Zero or absent timestamps are unknown.",
       "gridPos": {
-        "x": 16,
-        "y": 5,
+        "h": 8,
         "w": 8,
-        "h": 9
+        "x": 16,
+        "y": 1
       },
       "datasource": {
         "type": "prometheus",
@@ -263,10 +259,10 @@
       "type": "table",
       "description": "Finalized eligible comparisons only. Holy and service totals are distinct populations for each pair, not global ingestion counts. Eligible now is independent of past outcomes. Eligible share is the fraction of observed gauge samples, not wall-clock uptime; telemetry gaps are not measured. No percentage is shown for zero denominators or missing data.",
       "gridPos": {
-        "x": 0,
-        "y": 14,
+        "h": 9,
         "w": 24,
-        "h": 9
+        "x": 0,
+        "y": 9
       },
       "datasource": {
         "type": "prometheus",
@@ -639,15 +635,28 @@
       }
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Directional results",
+      "type": "row"
+    },
+    {
       "id": 5,
       "title": "Competitor coverage of Holy \u2014 selected range",
       "type": "barchart",
       "description": "Each service has its own Holy population. Green is matched; holy only is the uncovered part. Bars show counts, not signed differences. Missing results remain unknown.",
       "gridPos": {
-        "x": 0,
-        "y": 23,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -793,10 +802,10 @@
       "type": "barchart",
       "description": "Each service has its own service population. Green is matched. HolyCluster misses are split by correlated pipeline result. Pipeline gap means collection succeeded but no Holy output reached comparison; not observed means no pipeline event matched; unattributed preserves older or incomplete telemetry. Bars show counts.",
       "gridPos": {
-        "x": 12,
-        "y": 23,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 12,
+        "y": 19
       },
       "datasource": {
         "type": "prometheus",
@@ -1117,15 +1126,119 @@
       }
     },
     {
+      "id": 8,
+      "title": "Directional coverage \u2014 5-minute windows",
+      "type": "timeseries",
+      "description": "Competitor coverage of Holy: matched / Holy total. Holy coverage of competitor: matched / service total. Each denominator includes matched plus its own mismatch direction. Zero denominators and missing data return unknown.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched\"}[5m]))) / (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|holy_only\"}[5m])) > 0)",
+          "legendFormat": "{{service}} / Competitor coverage of Holy",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched\"}[5m]))) / (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|service_only\"}[5m])) > 0)",
+          "legendFormat": "{{service}} / Holy coverage of competitor",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unknown",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisCenteredZero": false
+          },
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 18,
+      "panels": [],
+      "title": "Mismatch analysis",
+      "type": "row"
+    },
+    {
       "id": 7,
       "title": "Mismatch rates \u2014 Holy only and service only",
       "type": "timeseries",
       "description": "Both directions are positive rates. Holy only means missing from the competitor; service only means missing from HolyCluster. Only finalized eligible comparisons are counted.",
       "gridPos": {
+        "h": 8,
+        "w": 24,
         "x": 0,
-        "y": 31,
-        "w": 12,
-        "h": 8
+        "y": 36
       },
       "datasource": {
         "type": "prometheus",
@@ -1238,321 +1351,17 @@
       }
     },
     {
-      "id": 8,
-      "title": "Directional coverage \u2014 5-minute windows",
-      "type": "timeseries",
-      "description": "Competitor coverage of Holy: matched / Holy total. Holy coverage of competitor: matched / service total. Each denominator includes matched plus its own mismatch direction. Zero denominators and missing data return unknown.",
+      "collapsed": false,
       "gridPos": {
-        "x": 12,
-        "y": 31,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched\"}[5m]))) / (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|holy_only\"}[5m])) > 0)",
-          "legendFormat": "{{service}} / Competitor coverage of Holy",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        },
-        {
-          "refId": "B",
-          "expr": "100 * (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched\"}[5m]))) / (sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|service_only\"}[5m])) > 0)",
-          "legendFormat": "{{service}} / Holy coverage of competitor",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "noValue": "Unknown",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisCenteredZero": false
-          },
-          "max": 100
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 9,
-      "title": "Matched and population rates",
-      "type": "timeseries",
-      "description": "Holy total = matched + Holy only; service total = matched + service only. Population totals overlap at matched. Do not add the lines.",
-      "gridPos": {
+        "h": 1,
+        "w": 24,
         "x": 0,
-        "y": 39,
-        "w": 12,
-        "h": 8
+        "y": 44
       },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} / Matched",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        },
-        {
-          "refId": "B",
-          "expr": "sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|holy_only\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} / Holy total",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        },
-        {
-          "refId": "C",
-          "expr": "sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|service_only\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} / Service total",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix: spots/s",
-          "min": 0,
-          "noValue": "Unknown",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisCenteredZero": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* / Matched"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "green"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* / Holy total"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* / Service total"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "purple"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Skipped comparisons by service and reason",
-      "type": "timeseries",
-      "description": "Skipped comparisons are excluded from the outcome counts and coverage denominators. They are not mismatches.",
-      "gridPos": {
-        "x": 12,
-        "y": 39,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (service, reason) (rate(holycluster_coverage_skipped_total{service=~\"${service:regex}\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} / {{reason}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix: skips/s",
-          "min": 0,
-          "noValue": "Unknown",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisCenteredZero": false
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
+      "id": 19,
+      "panels": [],
+      "title": "Examples",
+      "type": "row"
     },
     {
       "id": 11,
@@ -1560,10 +1369,10 @@
       "type": "table",
       "description": "Uses the postgres-coverage datasource and bounded spot_coverage_samples table. Latest 100 retained examples in the selected finalization-time range. Sampling and retention mean these rows cannot reproduce metric totals. Frequency is shown in the stored unit.",
       "gridPos": {
-        "x": 0,
-        "y": 47,
+        "h": 9,
         "w": 12,
-        "h": 9
+        "x": 0,
+        "y": 45
       },
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1602,10 +1411,10 @@
       "type": "table",
       "description": "Uses the postgres-coverage datasource and bounded spot_coverage_samples table. Latest 100 retained examples in the selected finalization-time range. Sampling and retention mean these rows cannot reproduce metric totals. Frequency is shown in the stored unit.",
       "gridPos": {
-        "x": 12,
-        "y": 47,
+        "h": 9,
         "w": 12,
-        "h": 9
+        "x": 12,
+        "y": 45
       },
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1639,174 +1448,400 @@
       }
     },
     {
-      "id": 13,
-      "title": "Diagnostics",
-      "type": "row",
-      "description": "",
+      "collapsed": true,
       "gridPos": {
-        "x": 0,
-        "y": 56,
+        "h": 1,
         "w": 24,
-        "h": 1
-      },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "id": 14,
-      "title": "Parse failures by service",
-      "type": "timeseries",
-      "description": "Parse error rate. The metric contract has no separate general-error counter; feed health and skipped reasons show other failures.",
-      "gridPos": {
         "x": 0,
-        "y": 57,
-        "w": 8,
-        "h": 7
+        "y": 54
       },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
+      "id": 13,
+      "panels": [
         {
-          "refId": "A",
-          "expr": "sum by (service) (rate(holycluster_coverage_parse_errors_total{service=~\"${service:regex}\"}[$__rate_interval]))",
-          "legendFormat": "{{service}}",
+          "id": 9,
+          "title": "Matched and population rates",
+          "type": "timeseries",
+          "description": "Holy total = matched + Holy only; service total = matched + service only. Population totals overlap at matched. Do not add the lines.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 55
+          },
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix: errors/s",
-          "min": 0,
-          "noValue": "Unknown",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [
+          "targets": [
             {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
+              "refId": "A",
+              "expr": "sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched\"}[$__rate_interval]))",
+              "legendFormat": "{{service}} / Matched",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "instant": false,
+              "range": true,
+              "format": "time_series"
+            },
+            {
+              "refId": "B",
+              "expr": "sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|holy_only\"}[$__rate_interval]))",
+              "legendFormat": "{{service}} / Holy total",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "instant": false,
+              "range": true,
+              "format": "time_series"
+            },
+            {
+              "refId": "C",
+              "expr": "sum by (service) (rate(holycluster_coverage_outcomes_total{service=~\"${service:regex}\",result=~\"matched|service_only\"}[$__rate_interval]))",
+              "legendFormat": "{{service}} / Service total",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "instant": false,
+              "range": true,
+              "format": "time_series"
             }
           ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
+          "fieldConfig": {
+            "defaults": {
+              "unit": "suffix: spots/s",
+              "min": 0,
+              "noValue": "Unknown",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unknown",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 0,
+                "spanNulls": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisCenteredZero": false
+              }
             },
-            "axisCenteredZero": false
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".* / Matched"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "green"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".* / Holy total"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".* / Service total"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "purple"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           }
         },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 15,
-      "title": "Reconnects by service",
-      "type": "timeseries",
-      "description": "",
-      "gridPos": {
-        "x": 8,
-        "y": 57,
-        "w": 8,
-        "h": 7
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "victoriametrics"
-      },
-      "targets": [
         {
-          "refId": "A",
-          "expr": "sum by (service) (rate(holycluster_coverage_reconnects_total{service=~\"${service:regex}\"}[$__rate_interval]))",
-          "legendFormat": "{{service}}",
+          "id": 10,
+          "title": "Skipped comparisons by service and reason",
+          "type": "timeseries",
+          "description": "Skipped comparisons are excluded from the outcome counts and coverage denominators. They are not mismatches.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 55
+          },
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "instant": false,
-          "range": true,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix: reconnects/s",
-          "min": 0,
-          "noValue": "Unknown",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [
+          "targets": [
             {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
+              "refId": "A",
+              "expr": "sum by (service, reason) (rate(holycluster_coverage_skipped_total{service=~\"${service:regex}\"}[$__rate_interval]))",
+              "legendFormat": "{{service}} / {{reason}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "instant": false,
+              "range": true,
+              "format": "time_series"
             }
           ],
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
+          "fieldConfig": {
+            "defaults": {
+              "unit": "suffix: skips/s",
+              "min": 0,
+              "noValue": "Unknown",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unknown",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 0,
+                "spanNulls": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisCenteredZero": false
+              }
             },
-            "axisCenteredZero": false
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           }
         },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull"
-          ]
+        {
+          "id": 14,
+          "title": "Parse failures by service",
+          "type": "timeseries",
+          "description": "Parse error rate. The metric contract has no separate general-error counter; feed health and skipped reasons show other failures.",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 63
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (service) (rate(holycluster_coverage_parse_errors_total{service=~\"${service:regex}\"}[$__rate_interval]))",
+              "legendFormat": "{{service}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "instant": false,
+              "range": true,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "suffix: errors/s",
+              "min": 0,
+              "noValue": "Unknown",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unknown",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 0,
+                "spanNulls": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisCenteredZero": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+        {
+          "id": 15,
+          "title": "Reconnects by service",
+          "type": "timeseries",
+          "description": "",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 63
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (service) (rate(holycluster_coverage_reconnects_total{service=~\"${service:regex}\"}[$__rate_interval]))",
+              "legendFormat": "{{service}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "victoriametrics"
+              },
+              "instant": false,
+              "range": true,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "suffix: reconnects/s",
+              "min": 0,
+              "noValue": "Unknown",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unknown",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 0,
+                "spanNulls": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisCenteredZero": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
         }
-      }
+      ],
+      "title": "Diagnostics",
+      "type": "row"
     }
   ]
 }

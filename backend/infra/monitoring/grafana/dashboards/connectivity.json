@@ -1,9 +1,8 @@
 {
   "uid": "holycluster-system",
-  "title": "HolyCluster / Connectivity",
-  "description": "User-facing API, WebSocket and spot delivery connectivity.",
+  "title": "HolyCluster / Service health",
   "schemaVersion": 41,
-  "version": 5,
+  "version": 6,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -24,33 +23,43 @@
   },
   "links": [
     {
-      "title": "Spots and sources",
+      "title": "Spot pipeline",
       "type": "link",
       "url": "/d/holycluster-pipeline",
       "targetBlank": false
     },
     {
-      "title": "Users",
+      "title": "External coverage",
+      "type": "link",
+      "url": "/d/holycluster-spot-coverage",
+      "targetBlank": false
+    },
+    {
+      "title": "Audience and engagement",
       "type": "link",
       "url": "/d/holycluster-api",
+      "targetBlank": false
+    },
+    {
+      "title": "Client fleet and releases",
+      "type": "link",
+      "url": "/d/holycluster-clients",
       "targetBlank": false
     }
   ],
   "panels": [
     {
-      "type": "text",
-      "title": "Connectivity",
-      "options": {
-        "mode": "markdown",
-        "content": "User-facing connectivity only. Missing series show **No data**, not zero. Rates need two scrapes. API scrape health is not a public reachability check. Subscribers are anonymous open spot subscriptions, not unique users."
-      },
+      "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 1,
         "w": 24,
-        "h": 3
+        "x": 0,
+        "y": 0
       },
-      "id": 1
+      "id": 14,
+      "panels": [],
+      "title": "Current state",
+      "type": "row"
     },
     {
       "type": "stat",
@@ -101,10 +110,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 3,
+        "h": 5,
         "w": 8,
-        "h": 5
+        "x": 0,
+        "y": 1
       },
       "options": {
         "reduceOptions": {
@@ -156,10 +165,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 8,
-        "y": 3,
+        "h": 5,
         "w": 8,
-        "h": 5
+        "x": 8,
+        "y": 1
       },
       "options": {
         "reduceOptions": {
@@ -211,10 +220,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 16,
-        "y": 3,
+        "h": 5,
         "w": 8,
-        "h": 5
+        "x": 16,
+        "y": 1
       },
       "options": {
         "reduceOptions": {
@@ -230,6 +239,19 @@
         "displayMode": "basic"
       },
       "id": 4
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 15,
+      "panels": [],
+      "title": "Spot delivery",
+      "type": "row"
     },
     {
       "type": "timeseries",
@@ -266,10 +288,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 8,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 7
       },
       "options": {
         "legend": {
@@ -345,10 +367,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 8,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 12,
+        "y": 7
       },
       "options": {
         "legend": {
@@ -400,10 +422,10 @@
         "overrides": []
       },
       "gridPos": {
+        "h": 8,
+        "w": 24,
         "x": 0,
-        "y": 16,
-        "w": 12,
-        "h": 8
+        "y": 15
       },
       "options": {
         "legend": {
@@ -419,6 +441,19 @@
         }
       },
       "id": 8
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 16,
+      "panels": [],
+      "title": "HTTP",
+      "type": "row"
     },
     {
       "type": "timeseries",
@@ -455,10 +490,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 16,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 24
       },
       "options": {
         "legend": {
@@ -510,10 +545,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 24,
-        "h": 8
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
       },
       "options": {
         "legend": {

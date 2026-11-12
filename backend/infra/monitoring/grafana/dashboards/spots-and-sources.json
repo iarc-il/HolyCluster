@@ -1,9 +1,8 @@
 {
   "uid": "holycluster-pipeline",
-  "title": "HolyCluster / Spots and sources",
-  "description": "Source availability, spot collection and pipeline outcomes, queue and reference refreshes.",
+  "title": "HolyCluster / Spot pipeline",
   "schemaVersion": 41,
-  "version": 8,
+  "version": 9,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -24,25 +23,38 @@
   },
   "links": [
     {
-      "title": "Connectivity",
+      "title": "Service health",
       "type": "link",
       "url": "/d/holycluster-system",
       "targetBlank": false
     },
     {
-      "title": "Users",
+      "title": "External coverage",
       "type": "link",
-      "url": "/d/holycluster-api",
+      "url": "/d/holycluster-spot-coverage",
       "targetBlank": false
     },
     {
-      "title": "External spot coverage",
+      "title": "Audience and engagement",
       "type": "link",
-      "url": "/d/holycluster-spot-coverage",
+      "url": "/d/holycluster-api",
       "targetBlank": false
     }
   ],
   "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 14,
+      "panels": [],
+      "title": "Pipeline summary",
+      "type": "row"
+    },
     {
       "type": "stat",
       "title": "Incoming spots",
@@ -78,10 +90,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 5,
         "w": 8,
-        "h": 5
+        "x": 0,
+        "y": 1
       },
       "options": {
         "reduceOptions": {
@@ -133,10 +145,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 8,
-        "y": 0,
+        "h": 5,
         "w": 8,
-        "h": 5
+        "x": 8,
+        "y": 1
       },
       "options": {
         "reduceOptions": {
@@ -188,10 +200,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 16,
-        "y": 0,
+        "h": 5,
         "w": 8,
-        "h": 5
+        "x": 16,
+        "y": 1
       },
       "options": {
         "reduceOptions": {
@@ -207,6 +219,19 @@
         "displayMode": "basic"
       },
       "id": 5
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 15,
+      "panels": [],
+      "title": "Source health",
+      "type": "row"
     },
     {
       "type": "state-timeline",
@@ -257,10 +282,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 5,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 7
       },
       "options": {
         "showValue": "never",
@@ -308,10 +333,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 5,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 12,
+        "y": 7
       },
       "options": {
         "legend": {
@@ -327,6 +352,19 @@
         }
       },
       "id": 7
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 16,
+      "panels": [],
+      "title": "Processing outcomes",
+      "type": "row"
     },
     {
       "type": "timeseries",
@@ -363,10 +401,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 13,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 16
       },
       "options": {
         "legend": {
@@ -418,10 +456,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 13,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 12,
+        "y": 16
       },
       "options": {
         "legend": {
@@ -437,6 +475,19 @@
         }
       },
       "id": 11
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Telnet source overlap",
+      "type": "row"
     },
     {
       "type": "timeseries",
@@ -473,10 +524,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
-        "y": 21,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 25
       },
       "options": {
         "legend": {
@@ -528,10 +579,10 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 21,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 12,
+        "y": 25
       },
       "options": {
         "reduceOptions": {
