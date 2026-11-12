@@ -172,6 +172,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
     const filter_result = useMemo(() => {
         const current_time = now_ms() / 1000;
+        const normalized_search = search_query.toLowerCase();
         const no_relaxed_reasons = new Set();
         const regular_show_only_filters = show_only_filters.filter(
             filter => filter.type !== "missing",
@@ -199,17 +200,16 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
             const is_in_time_limit =
                 is_history_mode || current_time - spot.time < filters.time_limit;
-            const normalized_search = search_query.toLowerCase();
-            const is_matching_search = [
-                spot.dx_callsign,
-                spot.spotter_callsign,
-                spot.pota_reference,
-            ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
-            const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
-                (value ?? "").toLowerCase().includes(normalized_search),
-            );
 
             if (search_query.length > 0) {
+                const is_matching_search = [
+                    spot.dx_callsign,
+                    spot.spotter_callsign,
+                    spot.pota_reference,
+                ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
+                const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
+                    (value ?? "").toLowerCase().includes(normalized_search),
+                );
                 return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
             }
 
@@ -307,7 +307,12 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
         const displayed_spots = get_displayed_spots(no_relaxed_reasons);
         const actionable_reasons =
-            displayed_spots.length === 0 && source_spots.length > 0 ? get_actionable_reasons() : [];
+            displayed_spots.length === 0 &&
+            source_spots.length > 0 &&
+            search_query.length === 0 &&
+            !filter_missing_flags
+                ? get_actionable_reasons()
+                : [];
         const sorted_spots = sort_spots(displayed_spots, table_sort, radio_status, radio_band);
         let empty_state = null;
         if (sorted_spots.length === 0) {
