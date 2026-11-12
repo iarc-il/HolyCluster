@@ -37,6 +37,10 @@ vi.mock("react-use-websocket", () => ({
     ReadyState: websocket_mock.ReadyState,
 }));
 
+vi.mock("@/utils/user_id.js", () => ({
+    get_user_id: () => "123e4567-e89b-42d3-a456-426614174000",
+}));
+
 import { WsProvider, useWs, useWsMessage } from "@/hooks/useWs";
 import { prepareSentryEvent } from "@/sentry";
 
@@ -340,6 +344,7 @@ describe("WebSocket transport", () => {
                 catserver_version: candidate === "unified" ? null : "catserver-v1.2.0",
                 client_type: "desktop",
                 browser_type: "other",
+                user_id: "123e4567-e89b-42d3-a456-426614174000",
             },
             false,
         );
@@ -385,6 +390,7 @@ describe("WebSocket transport", () => {
             catserver_version,
             client_type: "desktop",
             browser_type: "other",
+            user_id: "123e4567-e89b-42d3-a456-426614174000",
         });
         expect(send("spots", request)).toBe(true);
         expect(connection.sendJsonMessage).toHaveBeenLastCalledWith(
@@ -458,6 +464,7 @@ describe("WebSocket transport", () => {
                 catserver_version: null,
                 client_type: "desktop",
                 browser_type: "other",
+                user_id: "123e4567-e89b-42d3-a456-426614174000",
             });
         },
     );
@@ -489,6 +496,7 @@ describe("WebSocket transport", () => {
             catserver_version: "catserver-v1.2.0",
             client_type: "desktop",
             browser_type: "other",
+            user_id: "123e4567-e89b-42d3-a456-426614174000",
         };
         expect(TestConsumer.context.send_now("spots", { action: "initial" }, epoch)).toBe(true);
         expect(spots.sendJsonMessage).toHaveBeenLastCalledWith(expected, false);
@@ -515,6 +523,7 @@ describe("WebSocket transport", () => {
             catserver_version: null,
             client_type: "desktop",
             browser_type: "other",
+            user_id: "123e4567-e89b-42d3-a456-426614174000",
         });
     });
 

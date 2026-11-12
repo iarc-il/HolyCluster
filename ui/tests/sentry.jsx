@@ -2,13 +2,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { init } = vi.hoisted(() => ({
+const { init, setUser } = vi.hoisted(() => ({
     init: vi.fn(),
+    setUser: vi.fn(),
 }));
 
 vi.mock("@sentry/react", async importOriginal => ({
     ...(await importOriginal()),
     init,
+    setUser,
 }));
 
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
@@ -45,6 +47,8 @@ describe("Sentry error reporting", () => {
     afterEach(() => {
         cleanup();
         init.mockReset();
+        setUser.mockReset();
+        localStorage.clear();
         mount_count = 0;
         vi.restoreAllMocks();
     });
@@ -75,6 +79,16 @@ describe("Sentry error reporting", () => {
                 replaysSessionSampleRate: 0,
             }),
         );
+    });
+
+    it("sets the persistent browser identity", () => {
+        localStorage.setItem("holycluster_user_id", "123e4567-e89b-42d3-a456-426614174000");
+
+        initializeSentry({ dsn: "https://public@example.com/1" });
+
+        expect(setUser).toHaveBeenCalledWith({
+            id: "123e4567-e89b-42d3-a456-426614174000",
+        });
     });
 
     it("does not collect the user agent in the event adapter", () => {

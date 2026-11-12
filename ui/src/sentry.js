@@ -1,6 +1,8 @@
 import { isError, toError } from "@/utils/errors.js";
 import * as Sentry from "@sentry/react";
 
+import { get_user_id } from "@/utils/user_id.js";
+
 const default_options = {
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT,
@@ -654,6 +656,9 @@ export function initializeSentry(options = {}) {
         replaysSessionSampleRate: 0,
         beforeSend: prepareSentryEvent,
     });
+
+    const user_id = get_user_id();
+    if (user_id) Sentry.setUser({ id: user_id });
 
     return true;
 }
