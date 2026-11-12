@@ -221,7 +221,8 @@ function MainContent({
         }
     }, [max_radius, auto_radius, radius_in_km]);
 
-    const { set_mode_and_freq, radio_freq, radio_mode } = use_radio();
+    const { set_mode_and_freq, highlight_spot, is_radio_available, radio_freq, radio_mode } =
+        use_radio();
     const { set_azimuth, is_rotator_available, rotator_azimuth, rotator_target_azimuth } =
         useRotator();
 
@@ -250,8 +251,11 @@ function MainContent({
         }
     }
 
-    function set_cat_to_spot(spot) {
+    function set_cat_to_spot(spot, { notify_logger = false } = {}) {
         if (set_mode_and_freq(spot.mode, spot.freq) === false) return;
+        if (notify_logger && settings.highlight_enabled && is_radio_available()) {
+            highlight_spot(spot, settings.highlight_port);
+        }
         const next_rotator_azimuth = is_rotator_available() ? get_rotator_azimuth(spot) : null;
         set_previous_cat_states(
             [

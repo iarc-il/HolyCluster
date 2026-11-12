@@ -6,6 +6,7 @@ import {
     next_tour_step,
     start_tour,
     test,
+    tour_spots,
     tour_target,
 } from "../fixtures/tour.js";
 
@@ -109,20 +110,50 @@ async function complete_context_menu_steps(page, { mobile = false } = {}) {
     await finish_read_only_table_steps(page, { mobile });
 }
 
-test.describe("Spots Table tour", () => {
-    test("does not pin a spot when tuning its frequency", async ({ page }) => {
+test.describe("Spot frequency selection", () => {
+    test.use({ radio_state: { status: "connected", freq: 14_000_000, mode: "USB" } });
+
+    test("tunes and notifies logger integration without pinning", async ({
+        page,
+        radio_requests,
+    }) => {
         await page.setViewportSize({ width: 1800, height: 1000 });
         await page.goto("/");
 
         const row = page.locator(tour_target("spot-row"));
         await expect(row).toBeVisible();
         await expect(row).toHaveAttribute("data-tour-state", "unpinned");
+        const dx_callsign = (
+            await row.locator(tour_target("spot-row-dx-callsign")).getByRole("link").textContent()
+        ).trim();
+        const selected_spot = tour_spots.find(spot => spot.dx_callsign === dx_callsign);
+        expect(selected_spot).toBeTruthy();
 
         await page.locator(tour_target("spot-row-frequency")).click();
 
+        await expect
+            .poll(() => radio_requests.filter(request => request.action === "SetModeAndFreq"))
+            .toEqual([
+                expect.objectContaining({
+                    mode: selected_spot.mode,
+                    freq: selected_spot.freq,
+                }),
+            ]);
+        await expect
+            .poll(() => radio_requests.filter(request => request.action === "HighlightSpot"))
+            .toEqual([
+                expect.objectContaining({
+                    dx_callsign: selected_spot.dx_callsign,
+                    freq: Math.round(selected_spot.freq * 1000),
+                    mode: selected_spot.mode,
+                    udp_port: 2237,
+                }),
+            ]);
         await expect(row).toHaveAttribute("data-tour-state", "unpinned");
     });
+});
 
+test.describe("Spots Table tour", () => {
     test("completes every applicable desktop step", async ({ page }) => {
         await page.setViewportSize({ width: 1800, height: 1000 });
         await page.goto("/");

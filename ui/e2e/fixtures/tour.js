@@ -127,8 +127,14 @@ export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
     radio_state: [{ status: "unavailable" }, { option: true }],
+    radio_requests: async ({}, use) => {
+        await use([]);
+    },
     propagation_data: [null, { option: true }],
-    page: async ({ page, tour_spots, auto_start_tour, radio_state, propagation_data }, use) => {
+    page: async (
+        { page, tour_spots, auto_start_tour, radio_state, radio_requests, propagation_data },
+        use,
+    ) => {
         await page.addInitScript(auto_start => {
             if (sessionStorage.getItem("tour_fixture_initialized")) return;
             localStorage.clear();
@@ -166,6 +172,7 @@ export const test = base.extend({
             );
             websocket.onMessage(message => {
                 const request = JSON.parse(message);
+                if (request.type === "radio") radio_requests.push(request);
                 if (request.type !== "spots" || request.action !== "initial") return;
 
                 websocket.send(

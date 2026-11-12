@@ -600,7 +600,7 @@ const Spot = forwardRef(function Spot(
                 }}
                 onClick={event => {
                     event.stopPropagation();
-                    set_cat_to_spot(spot);
+                    set_cat_to_spot(spot, { notify_logger: true });
                 }}
             >
                 <div className="w-full md:hidden">
