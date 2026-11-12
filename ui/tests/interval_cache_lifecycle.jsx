@@ -273,6 +273,43 @@ describe("cache lifecycle", () => {
         },
     );
 
+    it("refetches cached spot coverage with invalid locations", async () => {
+        vi.resetModules();
+        const { openDB } = await vi.importActual("idb");
+        const disk = await openDB("holycluster_spot_cache", 1, {
+            upgrade(db) {
+                db.createObjectStore("intervals", { keyPath: "id", autoIncrement: true });
+            },
+        });
+        await disk.clear("intervals");
+        const start = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+        const end = start + 3_600_000;
+        await disk.put("intervals", {
+            start,
+            end,
+            spots: [
+                {
+                    id: "invalid-location",
+                    time: start / 1000 + 1,
+                    dx_loc: [0, 91],
+                    spotter_loc: [0, 0],
+                },
+            ],
+        });
+        const cache = await import("@/utils/spot_cache_db.jsx");
+        const ws = transport();
+
+        await cache.ensure_spots_loaded(ws.send, ws.subscribe, ws.wait, start, end);
+
+        expect(ws.send).toHaveBeenCalledOnce();
+        expect(cache.get_spots(start, end)).toEqual({ spots: [], is_complete: true });
+        expect(await disk.getAll("intervals")).toEqual([
+            expect.objectContaining({ start, end, spots: [] }),
+        ]);
+        expect(state.capture).not.toHaveBeenCalled();
+        disk.close();
+    });
+
     it.each([
         ["spots", false],
         ["spots", true],

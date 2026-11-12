@@ -3,6 +3,7 @@ import { continents, modes } from "@/data/filters_data.js";
 import { annotateDiagnosticError } from "@/sentry.js";
 import { read_live_spot_snapshot, write_live_spot_snapshot } from "@/utils/live_spot_snapshot.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
+import { has_valid_spot_locations } from "@/utils/spot_location.js";
 import { find_zone_number } from "@/utils/zones.js";
 import { addBreadcrumb } from "@sentry/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,22 +18,10 @@ export function normalize_band(band) {
     return band;
 }
 
+export { has_valid_spot_locations };
+
 export function has_valid_enriched_value(value) {
     return value !== undefined && value !== null && value !== "" && value !== -1 && value !== "-1";
-}
-
-function is_valid_location(location) {
-    return (
-        Array.isArray(location) &&
-        location.length === 2 &&
-        location.every(Number.isFinite) &&
-        Math.abs(location[0]) <= 180 &&
-        Math.abs(location[1]) <= 90
-    );
-}
-
-export function has_valid_spot_locations(spot) {
-    return is_valid_location(spot?.dx_loc) && is_valid_location(spot?.spotter_loc);
 }
 
 export function enrich_spot_zones_if_missing(spot) {
