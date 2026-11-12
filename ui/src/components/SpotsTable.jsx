@@ -484,6 +484,8 @@ const Spot = forwardRef(function Spot(
             ref={ref}
             data-tour={is_tour_row ? "spot-row" : undefined}
             data-tour-state={is_tour_row ? (is_pinned ? "pinned" : "unpinned") : undefined}
+            data-pinned={is_pinned}
+            data-spot-id={spot.id}
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
@@ -1145,11 +1147,11 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         if (
             hovered_ref !== undefined &&
             ["spotter", "dx", "arc", "bar", "dxpedition"].includes(hovered_spot.source) &&
-            pinned_spot === undefined
+            pinned_spot === null
         ) {
             hovered_ref.scrollIntoView({ block: "center", behavior: "instant" });
         }
-    }, [hovered_spot]);
+    }, [hovered_spot, pinned_spot]);
 
     return (
         <>

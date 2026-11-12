@@ -40,10 +40,10 @@ function SpotPopup({
             onMouseLeave={() => set_hovered_spot({ source: null, id: null })}
             onFocus={() => set_hovered_spot(hovered_spot)}
             onBlur={() => set_hovered_spot({ source: null, id: null })}
-            onClick={() => set_pinned_spot(hovered_spot)}
+            onClick={() => set_pinned_spot(spot_data.id)}
             onKeyDown={event => {
                 if (event.key === "Enter") {
-                    set_pinned_spot(hovered_spot);
+                    set_pinned_spot(spot_data.id);
                 }
             }}
             role="button"
