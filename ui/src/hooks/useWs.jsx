@@ -18,7 +18,6 @@ const reconnect_options = {
 };
 
 export function WsProvider({ children }) {
-    const transport = "unified";
     const [connection_generation, set_connection_generation] = useState(0);
     const [spot_socket_epochs, set_spot_socket_epochs] = useState({});
     const spot_socket_epochs_ref = useRef({});
@@ -66,7 +65,7 @@ export function WsProvider({ children }) {
                         operation: "websocket_message",
                         stage: "subscriber",
                         message_type: message.type,
-                        transport,
+                        transport: "unified",
                     });
                 }
             }
@@ -181,7 +180,7 @@ export function WsProvider({ children }) {
     );
 
     const spot_socket_epoch =
-        readyState === ReadyState.OPEN ? (spot_socket_epochs[transport] ?? null) : null;
+        readyState === ReadyState.OPEN ? (spot_socket_epochs.unified ?? null) : null;
 
     const send_now = useCallback(
         (type, data, epoch) => {
@@ -237,7 +236,6 @@ export function WsProvider({ children }) {
         <WsContext.Provider
             value={{
                 network_state,
-                transport,
                 subscribe,
                 send,
                 send_now,

@@ -1,5 +1,3 @@
-import { compare_version } from "@/utils.js";
-import { RTTY_TUNING_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import raw_band_plans from "../../../shared/band_plans.json";
@@ -41,7 +39,7 @@ export function RadioProvider({ children }) {
     const [radio_mode, set_radio_mode] = useState("");
     const [radio_band, set_radio_band] = useState(-1);
     const [raw_local_version, set_raw_local_version] = useState(null);
-    const { send, radioReadyState, transport } = useWs();
+    const { send, radioReadyState } = useWs();
     const [radio_ready, set_radio_ready] = useState(false);
     const [radio_capabilities, set_radio_capabilities] = useState(null);
     const [radio_models, set_radio_models] = useState([]);
@@ -110,10 +108,10 @@ export function RadioProvider({ children }) {
     }, [radioReadyState]);
 
     useEffect(() => {
-        if (transport === "unified" && radio_ready && radio_capabilities == null) {
+        if (radio_ready && radio_capabilities == null) {
             send("radio", { action: "GetCapabilities" });
         }
-    }, [transport, radio_ready, radio_capabilities, send]);
+    }, [radio_ready, radio_capabilities, send]);
 
     function get_band_from_freq(freq) {
         for (const band of Object.keys(band_plans)) {
@@ -250,26 +248,19 @@ export function RadioProvider({ children }) {
 
     const local_version = parse_version(raw_local_version);
 
-    const tagged_api_version = [1, 1, 0, 0];
-
     function highlight_spot(spot, udp_port) {
-        if (spot && compare_version(local_version, tagged_api_version) > 0) {
-            send_message_to_radio({
-                action: "HighlightSpot",
-                dx_callsign: spot.dx_callsign,
-                de_callsign: settings.callsign,
-                freq: Math.round(spot.freq * 1000),
-                mode: spot.mode,
-                udp_port,
-            });
-        }
+        if (!spot) return;
+        send_message_to_radio({
+            action: "HighlightSpot",
+            dx_callsign: spot.dx_callsign,
+            de_callsign: settings.callsign,
+            freq: Math.round(spot.freq * 1000),
+            mode: spot.mode,
+            udp_port,
+        });
     }
 
     function set_mode_and_freq(mode, freq) {
-        if (mode === "RTTY" && !supports_cat_feature(local_version, RTTY_TUNING_MIN_VERSION)) {
-            warn_unsupported_mode("Update CAT Control to use RTTY. The radio was not changed.");
-            return false;
-        }
         if (mode === "RTTY" && !radio_configuration_ready) {
             warn_unsupported_mode(
                 "CAT Control is still loading your radio settings. Try RTTY again in a moment.",
@@ -349,14 +340,11 @@ export function RadioProvider({ children }) {
     }
 
     const radio_configuration_support =
-        transport === "probing"
+        radio_capabilities == null
             ? "probing"
-            : transport === "cat_v1_2" ||
-                (radio_capabilities != null && radio_capabilities.radio_configuration_api !== 2)
-              ? "update_required"
-              : radio_capabilities?.radio_configuration_api === 2
-                ? "supported"
-                : "probing";
+            : radio_capabilities.radio_configuration_api === 2
+              ? "supported"
+              : "update_required";
 
     return (
         <RadioContext.Provider

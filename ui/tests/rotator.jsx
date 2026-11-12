@@ -224,8 +224,8 @@ describe("rotator map bearings", () => {
         expect(state.finish_blocker).toHaveBeenLastCalledWith("retry");
     });
 
-    it("hides bearings for unsupported CAT versions", () => {
-        state.local_version = [1, 2, 0, 0];
+    it("hides bearings without a CAT identity", () => {
+        state.local_version = null;
         render(<App />);
         status("connected", 90);
         expect(Consumer.rotator.rotator_azimuth).toBeNull();

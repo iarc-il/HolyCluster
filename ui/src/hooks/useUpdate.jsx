@@ -2,7 +2,6 @@ import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 import { useWs } from "@/hooks/useWs";
-import { NATIVE_UPDATER_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import {
     createContext,
     useCallback,
@@ -116,7 +115,7 @@ export function UpdateProvider({ children }) {
     const [force_update, set_force_update] = useState(false);
     const [dialog_open, set_dialog_open] = useState(false);
     const update_dev_mode = Boolean(dev_mode && force_update);
-    const supported = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
+    const supported = local_version?.[0] > 0;
     const local_version_key = local_version?.join(".") ?? null;
     const [session, set_session_state] = useState(null);
     const session_ref = useRef(null);

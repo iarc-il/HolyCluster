@@ -13,7 +13,6 @@ import About from "@/components/About.jsx";
 import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import UtilityButtons from "@/components/UtilityButtons.jsx";
 import { UpdateProvider, normalize_update_status } from "@/hooks/useUpdate.jsx";
-import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
@@ -52,7 +51,7 @@ afterEach(() => {
 beforeEach(() => {
     color_context.dev_mode = false;
     cat.current = {
-        local_version: [...NATIVE_UPDATER_MIN_VERSION],
+        local_version: [1, 3, 0, 0],
         is_cat_available: () => true,
     };
 });

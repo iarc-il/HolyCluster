@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const websocket = vi.hoisted(() => ({
     readyState: 0,
     epoch: null,
-    transport: "unified",
     send: vi.fn(),
     handlers: new Set(),
     subscribe: (_type, handler) => {
@@ -21,7 +20,6 @@ vi.mock("@/hooks/useWs", () => ({
     useWs: () => ({
         readyState: websocket.readyState,
         spot_socket_epoch: websocket.epoch,
-        transport: websocket.transport,
         send_now: websocket.send,
         subscribe: websocket.subscribe,
         now_ms: websocket.now_ms,
@@ -79,7 +77,6 @@ describe("spot subscriptions", () => {
         vi.setSystemTime(spot.time * 1000);
         websocket.readyState = 0;
         websocket.epoch = null;
-        websocket.transport = "unified";
         websocket.send = vi.fn(() => true);
         websocket.snapshot = [];
         websocket.now_ms = () => Date.now();
@@ -211,18 +208,6 @@ describe("spot subscriptions", () => {
         view.unmount();
         expect(websocket.handlers.size).toBe(0);
         expect(vi.getTimerCount()).toBe(0);
-    });
-
-    it("cancels a pending request when the selected transport changes", () => {
-        const view = renderHook(useSpotWebSocket);
-        connect(view);
-        const first = websocket.send.mock.lastCall[1].subscription_id;
-        websocket.transport = "cat_v1_2";
-        connect(view, 2);
-        expect(websocket.send.mock.lastCall[1].subscription_id).not.toBe(first);
-        act(() => vi.advanceTimersByTime(1200));
-        expect(websocket.send).toHaveBeenCalledTimes(3);
-        expect(websocket.send.mock.lastCall[2]).toBe(2);
     });
 
     it("does not reuse correlation IDs after unmounting on the same socket", () => {

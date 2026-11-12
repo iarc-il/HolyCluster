@@ -105,7 +105,6 @@ describe("WebSocket transport", () => {
     it("uses the unified WebSocket exclusively", () => {
         render_provider();
 
-        expect(TestConsumer.context.transport).toBe("unified");
         expect(websocket_mock.connection_for("/ws").connect).toBe(true);
         expect(websocket_mock.connections.has("/radio")).toBe(false);
         expect(websocket_mock.connections.has("/submit_spot")).toBe(false);

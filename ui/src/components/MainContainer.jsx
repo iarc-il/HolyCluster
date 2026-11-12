@@ -5,7 +5,6 @@ import MobileWorkspaceNavigation from "@/components/MobileWorkspaceNavigation.js
 import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
-import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
@@ -23,7 +22,6 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useServerClock } from "@/hooks/useWs";
 import {
     calculate_bearing_between_locations,
-    compare_version,
     get_bearing_origin,
     get_max_radius,
     get_spots_center,
@@ -93,7 +91,6 @@ function MainContent({
             document.getElementById(`${open_panel}-panel-close`)?.focus();
         }
     }, [is_full_cockpit, is_md_device, open_panel]);
-    const { local_version } = use_radio();
     const {
         active_profile_data: {
             settings,
@@ -417,16 +414,13 @@ function MainContent({
         </div>
     );
 
-    const table =
-        compare_version(local_version, [1, 2, 0, 0]) > 0 || local_version == null ? (
-            <SpotsTable
-                set_cat_to_spot={set_cat_to_spot}
-                table_sort={table_sort}
-                set_table_sort={set_table_sort}
-            />
-        ) : (
-            <UnsupportedVersion />
-        );
+    const table = (
+        <SpotsTable
+            set_cat_to_spot={set_cat_to_spot}
+            table_sort={table_sort}
+            set_table_sort={set_table_sort}
+        />
+    );
 
     const main_view_mode = settings.main_view_mode ?? "both";
     const main_view_order = settings.main_view_order ?? "map_table";

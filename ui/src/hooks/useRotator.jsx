@@ -1,4 +1,3 @@
-import { ROTATOR_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import useRadio from "./useRadio";
@@ -18,7 +17,7 @@ function angular_distance(a, b) {
 
 export function RotatorProvider({ children }) {
     const { local_version, radio_capabilities } = useRadio();
-    const rotator_supported = supports_cat_feature(local_version, ROTATOR_MIN_VERSION);
+    const rotator_supported = local_version?.[0] > 0;
     const rotator_stop_supported = radio_capabilities?.rotator_stop === true;
     const [rotator_status, set_rotator_status] = useState("unavailable");
     const [rotator_azimuth, set_rotator_azimuth] = useState(null);

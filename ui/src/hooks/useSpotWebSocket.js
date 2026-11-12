@@ -130,7 +130,6 @@ export default function useSpotWebSocket() {
         send_now,
         subscribe,
         spot_socket_epoch,
-        transport,
         network_state,
         readyState,
         now_ms,
@@ -327,10 +326,9 @@ export default function useSpotWebSocket() {
             return unsubscribe;
         }
         let pending = subscription_ref.current;
-        if (pending?.epoch !== spot_socket_epoch || pending?.transport !== transport) {
+        if (pending?.epoch !== spot_socket_epoch) {
             pending = {
                 epoch: spot_socket_epoch,
-                transport,
                 request: {
                     ...(last_spot_time_ref.current > 0
                         ? { action: "catch_up", last_time: last_spot_time_ref.current }
@@ -353,7 +351,6 @@ export default function useSpotWebSocket() {
                 addBreadcrumb({
                     category: "spots.subscription",
                     data: {
-                        transport,
                         action: pending.request.action,
                         attempt: pending.attempts,
                         sent,
@@ -370,7 +367,7 @@ export default function useSpotWebSocket() {
             pending.cancel();
             unsubscribe();
         };
-    }, [readyState, spot_socket_epoch, transport, subscribe, send_now, receive_spots]);
+    }, [readyState, spot_socket_epoch, subscribe, send_now, receive_spots]);
 
     return { raw_spots, new_spot_ids, network_state, set_spot_buffering };
 }
