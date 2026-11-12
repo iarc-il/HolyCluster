@@ -91,7 +91,7 @@ function SpotCount({ count, visible, overlay_el }) {
             window.removeEventListener("resize", update_position);
             observer.disconnect();
         };
-    }, [update_position, visible, count]);
+    }, [update_position, visible, count, overlay_el]);
 
     const is_visible = visible && count !== 0;
 
