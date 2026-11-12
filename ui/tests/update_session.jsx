@@ -18,14 +18,12 @@ it("honors explicit same-version availability without treating ordinary equality
     expect(
         normalize_update_status({
             state: "available",
-            local_version: "1.3.0",
             available_version: "1.3.0",
         }).status,
     ).toBe("available");
     expect(
         normalize_update_status({
             state: "idle",
-            local_version: "1.3.0",
             available_version: "1.3.0",
         }).status,
     ).toBe("current");

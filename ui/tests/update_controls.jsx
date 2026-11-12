@@ -12,11 +12,7 @@ vi.mock("@/hooks/useRadio", () => ({
 import About from "@/components/About.jsx";
 import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import UtilityButtons from "@/components/UtilityButtons.jsx";
-import {
-    UpdateProvider,
-    compare_update_versions,
-    normalize_update_status,
-} from "@/hooks/useUpdate.jsx";
+import { UpdateProvider, normalize_update_status } from "@/hooks/useUpdate.jsx";
 import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 
 vi.mock("@/hooks/useColors", () => ({
@@ -78,32 +74,30 @@ describe("CAT Control updates", () => {
         expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
     });
 
-    it("only treats a newer remote version as an update", () => {
-        expect(compare_update_versions("1.2.0", "1.3.0")).toBeGreaterThan(0);
-        expect(compare_update_versions("1.3.0", "1.3.0")).toBe(0);
-        expect(compare_update_versions("1.4.0", "1.3.0")).toBeLessThan(0);
-        expect(
-            normalize_update_status({
-                status: "available",
-                version: { local_version: "1.4.0", remote_version: "1.3.0" },
-            }).status,
-        ).toBe("newer_local");
-        expect(
-            normalize_update_status({
-                status: "available",
-                version: { local: "bad", remote: "bad" },
-            }).status,
-        ).toBe("malformed");
+    it("normalizes released update states", () => {
         expect(
             normalize_update_status({
                 state: "idle",
                 available_version: null,
                 diagnostic: null,
+            }),
+        ).toEqual({
+            status: "current",
+            local_version: null,
+            remote_version: null,
+            error: null,
+        });
+        expect(
+            normalize_update_status({
+                state: "available",
+                available_version: "1.3.2",
+                diagnostic: null,
             }).status,
-        ).toBe("current");
+        ).toBe("available");
         expect(normalize_update_status({ state: "reboot_required" }).status).toBe(
             "reboot_required",
         );
+        expect(normalize_update_status({ status: "available" }).status).toBe("malformed");
     });
 
     it("handles an empty update response", async () => {
@@ -403,15 +397,9 @@ describe("CAT Control updates", () => {
         const fetch = vi
             .fn()
             .mockResolvedValueOnce(response({ state: "available", available_version: "1.1.0" }))
-            .mockResolvedValueOnce(
-                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
-            )
-            .mockResolvedValueOnce(
-                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
-            )
-            .mockResolvedValueOnce(
-                response({ status: "installing", version: { local: "1.0.0", remote: "1.1.0" } }),
-            );
+            .mockResolvedValueOnce(response({ state: "deferred", available_version: "1.1.0" }))
+            .mockResolvedValueOnce(response({ state: "deferred", available_version: "1.1.0" }))
+            .mockResolvedValueOnce(response({ state: "installing", available_version: "1.1.0" }));
         vi.stubGlobal("fetch", fetch);
 
         render_updates();
