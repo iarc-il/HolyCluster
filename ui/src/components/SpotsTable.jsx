@@ -1,5 +1,6 @@
 import CallsignSearch from "@/components/CallsignSearch.jsx";
 import { QUICK_SPOT_EVENT } from "@/components/SubmitSpot.jsx";
+import Button from "@/components/ui/Button.jsx";
 import X from "@/components/ui/X.jsx";
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
@@ -52,48 +53,15 @@ const MISSING_ALERT_FLASH_CSS_VAR_NAMES = [
 const tour_table_header_height = 32;
 const tour_table_row_height = 28;
 
-const EMPTY_REASON_LABELS = {
-    disabled_bands: "disabled bands",
-    disabled_modes: "disabled modes",
-    search: "search",
-    time_limit: "time limit",
-    radio_band: "radio-band filter",
-    bands: "band filters",
-    modes: "mode filters",
-    dx_continents: "DX continent filters",
-    spotter_continents: "spotter continent filters",
-    show_only: "show-only filters",
-    hide: "hide filters",
-    missing_flags: "missing-flag view",
+const EMPTY_REASON_ACTIONS = {
+    radio_band: { label: "Radio-band filter", button: "Use selected bands" },
+    bands: { label: "Band filters", button: "Enable all" },
+    modes: { label: "Mode filters", button: "Enable all" },
+    dx_continents: { label: "DX continent filters", button: "Enable all" },
+    spotter_continents: { label: "Spotter continent filters", button: "Enable all" },
+    show_only: { label: "Show-only filters", button: "Turn off" },
+    hide: { label: "Hide filters", button: "Turn off" },
 };
-
-function format_list(items) {
-    if (items.length < 2) return items[0] ?? "current filters";
-    if (items.length === 2) return `${items[0]} and ${items[1]}`;
-    return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
-}
-
-function get_empty_reason_labels(reasons) {
-    const remaining = new Set(reasons);
-    const labels = [];
-
-    if (remaining.has("disabled_bands") && remaining.has("disabled_modes")) {
-        remaining.delete("disabled_bands");
-        remaining.delete("disabled_modes");
-        labels.push("disabled bands and modes");
-    }
-    if (remaining.has("bands") && remaining.has("modes")) {
-        remaining.delete("bands");
-        remaining.delete("modes");
-        labels.push("band and mode filters");
-    }
-    for (const reason of reasons) {
-        if (!remaining.delete(reason)) continue;
-        const label = EMPTY_REASON_LABELS[reason];
-        if (label) labels.push(label);
-    }
-    return labels;
-}
 
 function get_empty_spots_copy(empty_state) {
     if (empty_state.kind === "history") {
@@ -105,10 +73,7 @@ function get_empty_spots_copy(empty_state) {
         return { title: `No ${source} spots received`, hint: null };
     }
 
-    return {
-        title: "No spots",
-        hint: `Hidden by ${format_list(get_empty_reason_labels(empty_state.reasons))}`,
-    };
+    return { title: "No spots" };
 }
 
 export function get_active_spot_table_style({
@@ -860,7 +825,14 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         is_pota_mode,
         selected_reference_type,
     } = useSpotInteraction();
-    const { get_filter_add_status, add_filter_if_allowed } = useFilters();
+    const {
+        get_filter_add_status,
+        add_filter_if_allowed,
+        setFilterKeys,
+        setRadioModeFilter,
+        setCallsignFilters,
+    } = useFilters();
+    const { settings } = useSettings();
     const row_refs = useRef({});
     const table_flash_ref = useRef(null);
     const [tour_row_index, set_tour_row_index] = useState(4);
@@ -935,6 +907,32 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         empty_state != null &&
         (is_history_mode ? fetch_state === "done" : network_state === "connected");
     const empty_copy = show_empty_state ? get_empty_spots_copy(empty_state) : null;
+
+    function apply_empty_reason(reason) {
+        switch (reason) {
+            case "radio_band":
+                setRadioModeFilter(false);
+                break;
+            case "bands":
+                setFilterKeys("bands", true, settings.disabled_bands);
+                break;
+            case "modes":
+                setFilterKeys("modes", true, settings.disabled_modes);
+                break;
+            case "dx_continents":
+                setFilterKeys("dx_continents", true);
+                break;
+            case "spotter_continents":
+                setFilterKeys("spotter_continents", true);
+                break;
+            case "show_only":
+                setCallsignFilters(state => ({ ...state, is_show_only_filters_active: false }));
+                break;
+            case "hide":
+                setCallsignFilters(state => ({ ...state, is_hide_filters_active: false }));
+                break;
+        }
+    }
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -1190,17 +1188,36 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                 <tr>
                                     <td colSpan={table_columns.length}>
                                         <div
-                                            className="px-4 py-10 text-center"
+                                            className="mx-auto max-w-sm px-4 py-10"
                                             data-tour="spots-empty-state"
                                             aria-live="polite"
                                             style={{ color: colors.theme.text }}
                                         >
-                                            <div className="font-semibold">{empty_copy.title}</div>
-                                            {empty_copy.hint && (
-                                                <div className="mt-1 opacity-70">
-                                                    {empty_copy.hint}
-                                                </div>
-                                            )}
+                                            <div className="text-center font-semibold">
+                                                {empty_copy.title}
+                                            </div>
+                                            {empty_state.kind === "hidden" &&
+                                                empty_state.reasons.map(reason => {
+                                                    const action = EMPTY_REASON_ACTIONS[reason];
+                                                    if (!action) return null;
+                                                    return (
+                                                        <div
+                                                            key={reason}
+                                                            className="mt-3 flex items-center justify-between gap-4 text-left"
+                                                            data-tour={`spots-empty-reason-${reason}`}
+                                                        >
+                                                            <span>{action.label}</span>
+                                                            <Button
+                                                                className="shrink-0 px-3 py-1"
+                                                                on_click={() =>
+                                                                    apply_empty_reason(reason)
+                                                                }
+                                                            >
+                                                                {action.button}
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                })}
                                         </div>
                                     </td>
                                 </tr>
