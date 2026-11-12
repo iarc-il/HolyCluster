@@ -21,16 +21,17 @@ HTTP_DURATION = Histogram(
 )
 CLIENT_VERSION_ACTIVE = Gauge(
     PREFIX + "client_version_active",
-    "Open spot subscribers by client release, device class and browser family",
-    ["ui_version", "catserver_version", "client_type", "browser_type"],
+    "Open spot subscribers by software, client release, device class and browser family",
+    ["software_id", "ui_version", "catserver_version", "client_type", "browser_type"],
 )
 CLIENT_VERSION_REPORTS = Counter(
     PREFIX + "client_version_reports_total",
-    "Changed client release, device class or browser family reports",
-    ["ui_version", "catserver_version", "client_type", "browser_type"],
+    "Changed software, client release, device class or browser family reports",
+    ["software_id", "ui_version", "catserver_version", "client_type", "browser_type"],
 )
 CLIENT_VERSION_PAIRS = set()
 CLIENT_VERSION_PAIR_LOCK = Lock()
+SOFTWARE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 UI_SHA = re.compile(r"[0-9a-fA-F]{7,40}")
 UI_TAG = re.compile(
     r"v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
@@ -111,6 +112,13 @@ def message_kind(message):
     return "unknown"
 
 
+def software_id(message):
+    if "software_id" not in message:
+        return "not_reported"
+    value = message["software_id"]
+    return value if isinstance(value, str) and SOFTWARE_ID.fullmatch(value) else "invalid"
+
+
 def client_version(message, field):
     if field not in message:
         return "not_reported"
@@ -142,6 +150,7 @@ def browser_type(message):
 
 def client_version_pair(message):
     pair = (
+        software_id(message),
         client_version(message, "ui_version"),
         client_version(message, "catserver_version"),
         client_type(message),
@@ -152,7 +161,7 @@ def client_version_pair(message):
         if pair in CLIENT_VERSION_PAIRS:
             return pair
         if len(CLIENT_VERSION_PAIRS) >= 100:
-            return ("other", "other", "other", "other")
+            return ("other", "other", "other", "other", "other")
         CLIENT_VERSION_PAIRS.add(pair)
     return pair
 
@@ -161,7 +170,7 @@ def client_version_pair(message):
 class Connection:
     endpoint: str
     active: bool = True
-    client_versions: tuple[str, str, str, str] | None = None
+    client_versions: tuple[str, str, str, str, str] | None = None
 
     def report_client_versions(self, message):
         if not self.active:

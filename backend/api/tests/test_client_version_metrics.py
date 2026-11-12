@@ -5,11 +5,17 @@ from fastapi.testclient import TestClient
 
 from api import metrics
 from api.main import app, broadcast_spots
-from test_api_metrics import value
+from test_api_metrics import value as metric_value
 
 
 ACTIVE = "holycluster_api_client_version_active"
 REPORTS = "holycluster_api_client_version_reports_total"
+
+
+def value(client, name, **labels):
+    if name in {ACTIVE, REPORTS}:
+        labels.setdefault("software_id", "not_reported")
+    return metric_value(client, name, **labels)
 
 
 class ClientVersionMetricsTest(unittest.TestCase):
@@ -81,6 +87,28 @@ class ClientVersionMetricsTest(unittest.TestCase):
                 self.assertEqual(value(self.client, ACTIVE, **labels), 1)
                 self.assertEqual(value(self.client, REPORTS, **labels), before + 1)
             self.assertEqual(value(self.client, ACTIVE, **labels), 0)
+
+    def test_software_id(self):
+        labels = {
+            "software_id": "HolyCluster",
+            "ui_version": "v2.0.0",
+            "catserver_version": "none",
+            "client_type": "desktop",
+            "browser_type": "chrome",
+        }
+        before = value(self.client, REPORTS, **labels)
+        with self.client.websocket_connect("/ws") as socket:
+            self.subscribe(
+                socket,
+                software_id="HolyCluster",
+                ui_version="v2.0.0",
+                catserver_version=None,
+                client_type="desktop",
+                browser_type="chrome",
+            )
+            self.assertEqual(value(self.client, ACTIVE, **labels), 1)
+            self.assertEqual(value(self.client, REPORTS, **labels), before + 1)
+        self.assertEqual(value(self.client, ACTIVE, **labels), 0)
 
     def test_retry_and_version_change(self):
         old = {
@@ -172,8 +200,9 @@ class ClientVersionMetricsTest(unittest.TestCase):
             self.assertEqual(value(self.client, ACTIVE, **labels), 0)
             self.assertEqual(value(self.client, REPORTS, **labels), before + 1)
 
-    def test_malformed_versions_never_expose_raw_values(self):
+    def test_malformed_metadata_never_expose_raw_values(self):
         labels = {
+            "software_id": "invalid",
             "ui_version": "invalid",
             "catserver_version": "invalid",
             "client_type": "invalid",
@@ -188,6 +217,7 @@ class ClientVersionMetricsTest(unittest.TestCase):
             with self.client.websocket_connect("/ws") as socket:
                 self.subscribe(
                     socket,
+                    software_id={"private-software": ui},
                     ui_version=ui,
                     catserver_version=cat,
                     client_type={"private": ui},
@@ -202,6 +232,7 @@ class ClientVersionMetricsTest(unittest.TestCase):
             "private-value",
             "private",
             "private-browser",
+            "private-software",
             "x" * 100,
             "9" * 100,
         ):
@@ -212,6 +243,7 @@ class ClientVersionMetricsTest(unittest.TestCase):
             for number in range(102):
                 ui = f"v99.0.{number}"
                 labels = {
+                    "software_id": "not_reported" if number < 100 else "other",
                     "ui_version": ui if number < 100 else "other",
                     "catserver_version": "none" if number < 100 else "other",
                     "client_type": "desktop" if number < 100 else "other",

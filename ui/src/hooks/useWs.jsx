@@ -305,6 +305,7 @@ export function WsProvider({ children }) {
         if (type !== "spots") return data;
         return {
             ...data,
+            software_id: "HolyCluster",
             ui_version: import.meta.env.VITE_UI_VERSION ?? null,
             catserver_version: catserver_version_ref.current,
             client_type: client_type(),

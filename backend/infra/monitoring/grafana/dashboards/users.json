@@ -3,7 +3,7 @@
   "title": "HolyCluster / Users",
   "description": "Anonymous subscriptions, version adoption and aggregate feature usage. No unique user counts.",
   "schemaVersion": 41,
-  "version": 9,
+  "version": 10,
   "editable": false,
   "timezone": "browser",
   "refresh": "30s",
@@ -42,7 +42,7 @@
       "title": "Users",
       "options": {
         "mode": "markdown",
-        "content": "All counts are anonymous subscriptions, connections or requests \u2014 **never unique users**. Direct web means CAT version `none`; unreported CAT versions cannot be classified. Device class and browser family are reported by the UI; old clients appear as `not_reported`. Version, device and browser adoption use active subscriptions, not report events. Missing series show **No data**, not zero. Rates need two scrapes."
+        "content": "All counts are anonymous subscriptions, connections or requests \u2014 **never unique users**. Direct web means CAT version `none`; unreported CAT versions cannot be classified. Software ID, device class and browser family are reported by clients; old clients appear as `not_reported`. Version, software, device and browser adoption use active subscriptions, not report events. Missing series show **No data**, not zero. Rates need two scrapes."
       },
       "gridPos": {
         "x": 0,
@@ -1211,6 +1211,61 @@
         }
       },
       "id": 25
+    },
+    {
+      "type": "timeseries",
+      "title": "Client software over time",
+      "description": "Open spot subscriptions by reported software ID. Older clients appear as not_reported. These are not unique users.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (software_id) (holycluster_api_client_version_active)",
+          "legendFormat": "{{software_id}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 88,
+        "w": 24,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 26
     }
   ]
 }
