@@ -47,6 +47,7 @@ export const SpotDataProvider = ({
     const new_spot_ids = is_history_mode ? new Set() : ws_new_spot_ids;
     const {
         spots,
+        empty_state,
         filter_missing_flags,
         set_filter_missing_flags,
         spots_per_band_count,
@@ -97,6 +98,7 @@ export const SpotDataProvider = ({
             value={{
                 spots,
                 raw_spots,
+                empty_state,
                 new_spot_ids,
                 filter_missing_flags,
                 set_filter_missing_flags,

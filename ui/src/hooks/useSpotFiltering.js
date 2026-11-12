@@ -29,6 +29,21 @@ const SECTION_REASON_LABELS = {
 
 const MISSING_SECTION_SET = new Set(MISSING_SECTION_KEYS);
 
+const EMPTY_REASON_ORDER = [
+    "disabled_bands",
+    "disabled_modes",
+    "search",
+    "time_limit",
+    "radio_band",
+    "bands",
+    "modes",
+    "dx_continents",
+    "spotter_continents",
+    "show_only",
+    "hide",
+    "missing_flags",
+];
+
 function get_spot_feature_value(section, spot) {
     switch (section) {
         case "dxcc":
@@ -148,8 +163,13 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         });
     }, [source_spots, alerts, callsign_filters.is_alert_filters_active, missing]);
 
-    const spots = useMemo(() => {
+    const filter_result = useMemo(() => {
         const current_time = now_ms() / 1000;
+        const hidden_reasons = new Set();
+        const reject = reasons => {
+            for (const reason of reasons) hidden_reasons.add(reason);
+            return false;
+        };
         const regular_show_only_filters = show_only_filters.filter(
             filter => filter.type !== "missing",
         );
@@ -162,19 +182,17 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             .map(filter => filter.missing_section);
 
         let filtered = spots_with_alerts.filter(spot => {
-            if (settings.disabled_bands[spot.band] || settings.disabled_modes[spot.mode]) {
-                return false;
-            }
+            const disabled_reasons = [];
+            if (settings.disabled_bands[spot.band]) disabled_reasons.push("disabled_bands");
+            if (settings.disabled_modes[spot.mode]) disabled_reasons.push("disabled_modes");
+            if (disabled_reasons.length > 0) return reject(disabled_reasons);
 
             if (filter_missing_flags) {
-                if (
+                const has_missing_flag =
                     spot.dx_dxcc_code !== "" &&
                     spot.dx_dxcc_code != null &&
-                    get_dxcc_flag(spot.dx_dxcc_code) == null
-                ) {
-                    return true;
-                }
-                return false;
+                    get_dxcc_flag(spot.dx_dxcc_code) == null;
+                return has_missing_flag || reject(["missing_flags"]);
             }
 
             const is_in_time_limit =
@@ -190,20 +208,23 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
                 (value ?? "").toLowerCase().includes(normalized_search),
             );
 
-            // If the search is not empty, it override everything else
+            // Search intentionally bypasses the normal filter controls.
             if (search_query.length > 0) {
-                return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
+                const reasons = [];
+                if (!is_matching_search && !is_matching_pota_text) reasons.push("search");
+                if (!is_in_time_limit) reasons.push("time_limit");
+                return reasons.length === 0 || reject(reasons);
             }
 
-            // Alerted spots are always displayed
+            // Alerted spots intentionally bypass the normal filter controls.
             if (spot.is_alerted && is_in_time_limit) {
                 return true;
             }
 
-            const is_band_and_mode_active =
-                ((filters.radio_band && radio_band === spot.band) ||
-                    (!filters.radio_band && filters.bands[spot.band])) &&
-                filters.modes[spot.mode];
+            const is_band_active = filters.radio_band
+                ? radio_band === spot.band
+                : filters.bands[spot.band];
+            const is_mode_active = filters.modes[spot.mode];
 
             const are_include_filters_empty = show_only_filters.length === 0;
             const are_exclude_filters_empty = hide_filters.length === 0;
@@ -224,15 +245,16 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
 
             const is_dx_continent_active = filters.dx_continents[spot.dx_continent];
             const is_spotter_continent_active = filters.spotter_continents[spot.spotter_continent];
+            const reasons = [];
+            if (!is_in_time_limit) reasons.push("time_limit");
+            if (!is_band_active) reasons.push(filters.radio_band ? "radio_band" : "bands");
+            if (!is_mode_active) reasons.push("modes");
+            if (!is_dx_continent_active) reasons.push("dx_continents");
+            if (!is_spotter_continent_active) reasons.push("spotter_continents");
+            if (!are_filters_including) reasons.push("show_only");
+            if (!are_filters_not_excluding) reasons.push("hide");
 
-            const result =
-                is_in_time_limit &&
-                is_dx_continent_active &&
-                is_spotter_continent_active &&
-                is_band_and_mode_active &&
-                are_filters_including &&
-                are_filters_not_excluding;
-            return result;
+            return reasons.length === 0 || reject(reasons);
         });
 
         if (!is_history_mode) {
@@ -251,9 +273,25 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         }
 
         // Sort the filtered spots
-        return sort_spots(filtered, table_sort, radio_status, radio_band);
+        const sorted_spots = sort_spots(filtered, table_sort, radio_status, radio_band);
+        let empty_state = null;
+        if (sorted_spots.length === 0) {
+            empty_state =
+                source_spots.length === 0
+                    ? is_history_mode
+                        ? { kind: "history" }
+                        : { kind: "source", source: selected_reference_type ?? "cluster" }
+                    : {
+                          kind: "hidden",
+                          reasons: EMPTY_REASON_ORDER.filter(reason => hidden_reasons.has(reason)),
+                      };
+        }
+
+        return { spots: sorted_spots, empty_state };
     }, [
         spots_with_alerts,
+        source_spots,
+        selected_reference_type,
         filter_missing_flags,
         filters,
         show_only_filters,
@@ -272,6 +310,8 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         now_ms,
         clock_revision,
     ]);
+
+    const { spots, empty_state } = filter_result;
 
     const spots_per_band_count = useMemo(() => {
         return Object.fromEntries(
@@ -299,6 +339,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     return {
         spots,
         spots_with_alerts,
+        empty_state,
         filter_missing_flags,
         set_filter_missing_flags,
         spots_per_band_count,

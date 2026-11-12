@@ -52,6 +52,65 @@ const MISSING_ALERT_FLASH_CSS_VAR_NAMES = [
 const tour_table_header_height = 32;
 const tour_table_row_height = 28;
 
+const EMPTY_REASON_LABELS = {
+    disabled_bands: "disabled bands",
+    disabled_modes: "disabled modes",
+    search: "search",
+    time_limit: "time limit",
+    radio_band: "radio-band filter",
+    bands: "band filters",
+    modes: "mode filters",
+    dx_continents: "DX continent filters",
+    spotter_continents: "spotter continent filters",
+    show_only: "show-only filters",
+    hide: "hide filters",
+    missing_flags: "missing-flag view",
+};
+
+function format_list(items) {
+    if (items.length < 2) return items[0] ?? "current filters";
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function get_empty_reason_labels(reasons) {
+    const remaining = new Set(reasons);
+    const labels = [];
+
+    if (remaining.has("disabled_bands") && remaining.has("disabled_modes")) {
+        remaining.delete("disabled_bands");
+        remaining.delete("disabled_modes");
+        labels.push("disabled bands and modes");
+    }
+    if (remaining.has("bands") && remaining.has("modes")) {
+        remaining.delete("bands");
+        remaining.delete("modes");
+        labels.push("band and mode filters");
+    }
+    for (const reason of reasons) {
+        if (!remaining.delete(reason)) continue;
+        const label = EMPTY_REASON_LABELS[reason];
+        if (label) labels.push(label);
+    }
+    return labels;
+}
+
+function get_empty_spots_copy(empty_state) {
+    if (empty_state.kind === "history") {
+        return { title: "No spots in selected time range", hint: null };
+    }
+    if (empty_state.kind === "source") {
+        const source =
+            empty_state.source === "cluster" ? "cluster" : empty_state.source.toUpperCase();
+        return { title: `No ${source} spots received`, hint: null };
+    }
+
+    return {
+        title: "No spots",
+        hint: `Hidden by ${format_list(get_empty_reason_labels(empty_state.reasons))}`,
+    };
+}
+
 export function get_active_spot_table_style({
     is_previewed,
     is_pinned,
@@ -784,7 +843,15 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
-    const { spots, new_spot_ids, current_freq_spots } = useSpotData();
+    const {
+        spots,
+        empty_state,
+        new_spot_ids,
+        current_freq_spots,
+        network_state,
+        is_history_mode,
+        fetch_state,
+    } = useSpotData();
     const {
         hovered_spot,
         set_hovered_spot,
@@ -864,6 +931,10 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const table_columns = show_sota_points ? sota_columns : is_pota_mode ? pota_columns : columns;
     const selected_tour_row_index =
         spots.length > 0 ? Math.min(tour_row_index, spots.length - 1) : -1;
+    const show_empty_state =
+        empty_state != null &&
+        (is_history_mode ? fetch_state === "done" : network_state === "connected");
+    const empty_copy = show_empty_state ? get_empty_spots_copy(empty_state) : null;
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -1115,6 +1186,25 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     />
                                 ))}
                             </tr>
+                            {empty_copy && (
+                                <tr>
+                                    <td colSpan={table_columns.length}>
+                                        <div
+                                            className="px-4 py-10 text-center"
+                                            data-tour="spots-empty-state"
+                                            aria-live="polite"
+                                            style={{ color: colors.theme.text }}
+                                        >
+                                            <div className="font-semibold">{empty_copy.title}</div>
+                                            {empty_copy.hint && (
+                                                <div className="mt-1 opacity-70">
+                                                    {empty_copy.hint}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                             {spots.map((spot, index) => (
                                 <Spot
                                     ref={element => (row_refs.current[spot.id] = element)}
