@@ -1,7 +1,7 @@
 {
   "uid": "holycluster-api",
   "title": "HolyCluster / Users",
-  "description": "Anonymous subscriptions, version adoption and aggregate feature usage. No unique user counts.",
+  "description": "Anonymous browser installations, subscriptions, version adoption and aggregate feature usage.",
   "schemaVersion": 41,
   "version": 10,
   "editable": false,
@@ -42,7 +42,7 @@
       "title": "Users",
       "options": {
         "mode": "markdown",
-        "content": "All counts are anonymous subscriptions, connections or requests \u2014 **never unique users**. Direct web means CAT version `none`; unreported CAT versions cannot be classified. Software ID, device class and browser family are reported by clients; old clients appear as `not_reported`. Version, software, device and browser adoption use active subscriptions, not report events. Missing series show **No data**, not zero. Rates need two scrapes."
+        "content": "Unique-user panels count anonymous browser installations. Clearing site data or using another browser, profile, device or origin creates another identity. Active subscription, connection and request panels are not unique-user counts. Direct web means CAT version `none`; unreported CAT versions cannot be classified. Software ID, device class and browser family are reported by clients; old clients appear as `not_reported`. Version, software, device and browser adoption use active subscriptions, not report events. Missing series show **No data**, not zero. Rates need two scrapes."
       },
       "gridPos": {
         "x": 0,
@@ -51,6 +51,262 @@
         "h": 3
       },
       "id": 1
+    },
+    {
+      "id": 26,
+      "title": "Active installations",
+      "type": "stat",
+      "description": "Seen during the last 10 minutes. Counts anonymous browser profiles, not verified people.",
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-coverage"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-coverage"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT active_now AS \"Installations\" FROM anonymous_user_counts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 27,
+      "title": "Daily active installations",
+      "type": "stat",
+      "description": "Seen during the last 24 hours. Counts anonymous browser profiles, not verified people.",
+      "gridPos": {
+        "x": 6,
+        "y": 3,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-coverage"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-coverage"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT active_24h AS \"Installations\" FROM anonymous_user_counts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 28,
+      "title": "Weekly active installations",
+      "type": "stat",
+      "description": "Seen during the last 7 days. Counts anonymous browser profiles, not verified people.",
+      "gridPos": {
+        "x": 12,
+        "y": 3,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-coverage"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-coverage"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT active_7d AS \"Installations\" FROM anonymous_user_counts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 29,
+      "title": "Monthly active installations",
+      "type": "stat",
+      "description": "Seen during the last 30 days. Counts anonymous browser profiles, not verified people.",
+      "gridPos": {
+        "x": 18,
+        "y": 3,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-coverage"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-coverage"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT active_30d AS \"Installations\" FROM anonymous_user_counts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "No data",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      }
     },
     {
       "type": "stat",
@@ -88,7 +344,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 8,
         "w": 6,
         "h": 5
       },
@@ -143,7 +399,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 3,
+        "y": 8,
         "w": 6,
         "h": 5
       },
@@ -198,7 +454,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 3,
+        "y": 8,
         "w": 6,
         "h": 5
       },
@@ -253,7 +509,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 3,
+        "y": 8,
         "w": 6,
         "h": 5
       },
@@ -274,7 +530,7 @@
     },
     {
       "type": "table",
-      "title": "UI versions · count / percentage",
+      "title": "UI versions \u00b7 count / percentage",
       "description": "Open spot subscriptions by reported UI version. Percentage is the share of all open spot subscriptions, not unique people.",
       "datasource": {
         "type": "prometheus",
@@ -387,7 +643,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 13,
         "w": 24,
         "h": 8
       },
@@ -438,7 +694,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 21,
         "w": 12,
         "h": 8
       },
@@ -493,7 +749,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 16,
+        "y": 21,
         "w": 12,
         "h": 8
       },
@@ -560,7 +816,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 29,
         "w": 24,
         "h": 8
       },
@@ -615,7 +871,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 37,
         "w": 24,
         "h": 8
       },
@@ -670,7 +926,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 45,
         "w": 24,
         "h": 8
       },
@@ -725,7 +981,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 53,
         "w": 12,
         "h": 8
       },
@@ -780,7 +1036,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 53,
         "w": 12,
         "h": 8
       },
@@ -835,7 +1091,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 56,
+        "y": 61,
         "w": 24,
         "h": 8
       },
@@ -890,7 +1146,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 64,
+        "y": 69,
         "w": 12,
         "h": 8
       },
@@ -921,7 +1177,7 @@
         {
           "refId": "A",
           "expr": "sum by (event, blocker) (rate(holycluster_api_ui_refresh_events_total{event=~\"blocked|target_mismatch\"}[$__rate_interval]))",
-          "legendFormat": "{{event}} · {{blocker}}",
+          "legendFormat": "{{event}} \u00b7 {{blocker}}",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -945,7 +1201,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 64,
+        "y": 69,
         "w": 12,
         "h": 8
       },
@@ -1000,7 +1256,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 77,
         "w": 8,
         "h": 8
       },
@@ -1069,7 +1325,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 72,
+        "y": 77,
         "w": 16,
         "h": 8
       },
@@ -1124,7 +1380,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 80,
+        "y": 85,
         "w": 8,
         "h": 8
       },
@@ -1193,7 +1449,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 80,
+        "y": 85,
         "w": 16,
         "h": 8
       },
