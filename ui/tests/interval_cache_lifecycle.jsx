@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
     capture: vi.fn(),
     get_all_error: null,
     transaction_error_at: null,
+    transaction_error_name: "InvalidStateError",
     transactions: 0,
     unreadable_keys: [],
     keys_error: null,
@@ -39,8 +40,8 @@ vi.mock("idb", async importOriginal => {
                         state.transactions++;
                         if (state.transactions === state.transaction_error_at) {
                             throw new DOMException(
-                                "The database connection is closing",
-                                "InvalidStateError",
+                                "The database transaction is unavailable",
+                                state.transaction_error_name,
                             );
                         }
                         const tx = db.transaction(...args);
@@ -87,6 +88,7 @@ afterEach(() => {
     state.opens = 0;
     state.get_all_error = null;
     state.transaction_error_at = null;
+    state.transaction_error_name = "InvalidStateError";
     state.transactions = 0;
     state.unreadable_keys = [];
     state.keys_error = null;
@@ -141,6 +143,25 @@ describe("cache lifecycle", () => {
             await cache.evict_old_records();
             expect(read(start, end).is_complete).toBe(kind !== "spots");
             expect(state.opens).toBe(1);
+            expect(state.capture).not.toHaveBeenCalled();
+        },
+    );
+
+    it.each(["InvalidStateError", "NotFoundError"])(
+        "uses memory when the initial transaction fails with %s",
+        async error_name => {
+            state.transaction_error_at = 1;
+            state.transaction_error_name = error_name;
+            const store = make_store();
+
+            await expect(store.ready()).resolves.toBeUndefined();
+            await store.commit([], { start: 0, end: 10, data: [1] });
+
+            expect(store.get_overlapping_intervals(0, 10)).toEqual([
+                expect.objectContaining({ start: 0, end: 10, data: [1] }),
+            ]);
+            expect(state.opens).toBe(1);
+            expect(state.transactions).toBe(1);
             expect(state.capture).not.toHaveBeenCalled();
         },
     );

@@ -157,11 +157,20 @@ export function create_interval_db(db_name, db_version, store_name, validate_rec
             } catch (error) {
                 // An unavailable database leaves no trusted disk snapshot. Keep this
                 // instance in memory-only mode; never overwrite unknown disk data.
-                if (
-                    ["open", "get_all", "read_keys", "read_record", "repair"].includes(stage) &&
-                    !upgrade_error &&
-                    ["AbortError", "InvalidStateError", "UnknownError"].includes(error?.name)
-                ) {
+                const database_unavailable =
+                    ([
+                        "open",
+                        "transaction",
+                        "get_all",
+                        "read_keys",
+                        "read_record",
+                        "repair",
+                    ].includes(stage) &&
+                        ["AbortError", "InvalidStateError", "UnknownError"].includes(
+                            error?.name,
+                        )) ||
+                    (stage === "transaction" && error?.name === "NotFoundError");
+                if (!upgrade_error && database_unavailable) {
                     memory_only = true;
                     return;
                 }
