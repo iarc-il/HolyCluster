@@ -1,6 +1,6 @@
 import Button from "@/components/ui/Button.jsx";
 import { useColors } from "@/hooks/useColors";
-import { is_mobile_client } from "@/utils/client_type.js";
+import { is_ios_client, is_mobile_client } from "@/utils/client_type.js";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
@@ -12,7 +12,7 @@ function is_standalone() {
 }
 
 function installation_help() {
-    if (/iPhone|iPad|iPod/i.test(window.navigator.userAgent)) {
+    if (is_ios_client()) {
         return "Use Share, then Add to Home Screen.";
     }
     return "Open the browser menu and choose Install or Add to Home screen.";

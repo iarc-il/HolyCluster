@@ -1,7 +1,15 @@
+export function is_ios_client(navigator_object = window.navigator) {
+    return (
+        /iPhone|iPad|iPod/i.test(navigator_object.userAgent) ||
+        (/Macintosh/i.test(navigator_object.userAgent) && navigator_object.maxTouchPoints > 1)
+    );
+}
+
 export function is_mobile_client(navigator_object = window.navigator) {
     return (
         navigator_object.userAgentData?.mobile === true ||
-        /Android|iPhone|iPad|iPod/i.test(navigator_object.userAgent)
+        /Android/i.test(navigator_object.userAgent) ||
+        is_ios_client(navigator_object)
     );
 }
 

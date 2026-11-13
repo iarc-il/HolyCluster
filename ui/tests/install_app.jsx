@@ -23,12 +23,17 @@ beforeEach(() => {
         removeEventListener: vi.fn(),
     }));
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Desktop Browser");
+    Object.defineProperty(window.navigator, "maxTouchPoints", {
+        configurable: true,
+        value: 0,
+    });
 });
 
 afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    Reflect.deleteProperty(window.navigator, "maxTouchPoints");
 });
 
 it("offers the browser install prompt when it becomes available", async () => {
@@ -62,6 +67,23 @@ it("shows mobile installation help when the browser has no prompt API", () => {
         "Open the browser menu and choose Install or Add to Home screen.",
         { toastId: "install-holycluster" },
     );
+});
+
+it("shows iPadOS installation help with a desktop-style user agent", () => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+    );
+    Object.defineProperty(window.navigator, "maxTouchPoints", {
+        configurable: true,
+        value: 5,
+    });
+    render(<InstallApp />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Install HolyCluster" }));
+
+    expect(notifications.info).toHaveBeenCalledWith("Use Share, then Add to Home Screen.", {
+        toastId: "install-holycluster",
+    });
 });
 
 it("is hidden in standalone display mode", () => {

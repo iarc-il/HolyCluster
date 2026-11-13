@@ -6,6 +6,16 @@ it("classifies mobile user agents", () => {
     expect(client_type({ userAgent: "iPad" })).toBe("mobile");
 });
 
+it("classifies desktop-style iPadOS user agents as mobile", () => {
+    expect(
+        is_mobile_client({
+            userAgent:
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+            maxTouchPoints: 5,
+        }),
+    ).toBe(true);
+});
+
 it("uses user-agent client hints when available", () => {
     expect(
         is_mobile_client({
