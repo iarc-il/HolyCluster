@@ -7,9 +7,13 @@ on:
       - "backend/shared/artifact-validator/**"
       - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
-      - ".github/scripts/catserver_*.py"
+      - ".github/scripts/catserver_*"
       - "scripts/tests/test_catserver_*.py"
-      - "ui/**"
+      - "ui/package.json"
+      - "ui/package-lock.json"
+      - "ui/scripts/release_browser_smoke.mjs"
+      - "ui/src/utils/release_download.js"
+      - "ui/src/assets/icon.png"
     branches:
       - "dev"
     tags:
@@ -20,9 +24,13 @@ on:
       - "backend/shared/artifact-validator/**"
       - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
-      - ".github/scripts/catserver_*.py"
+      - ".github/scripts/catserver_*"
       - "scripts/tests/test_catserver_*.py"
-      - "ui/**"
+      - "ui/package.json"
+      - "ui/package-lock.json"
+      - "ui/scripts/release_browser_smoke.mjs"
+      - "ui/src/utils/release_download.js"
+      - "ui/src/assets/icon.png"
     branches:
       - "dev"
 
