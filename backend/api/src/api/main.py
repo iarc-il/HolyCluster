@@ -282,13 +282,36 @@ async def spots_broadcast_task(app):
         await valkey_client.aclose()
 
 
-async def record_user_presence(websocket: fastapi.WebSocket, observation):
-    websocket.scope["user_presence"] = observation
+def get_user_presence_write_tasks():
+    tasks = getattr(app.state, "user_presence_write_tasks", None)
+    if tasks is None:
+        tasks = set()
+        app.state.user_presence_write_tasks = tasks
+    return tasks
+
+
+async def record_user_presence(observation):
     try:
         await upsert_user_presence(async_session, {observation})
     except (SQLAlchemyError, OSError, TimeoutError) as exc:
         logger.opt(exception=exc).warning("Failed to record anonymous user presence")
         capture_exception(exc, operation="api.user_presence")
+
+
+def schedule_user_presence_write(websocket: fastapi.WebSocket, observation):
+    websocket.scope["user_presence"] = observation
+    tasks = get_user_presence_write_tasks()
+    task = asyncio.create_task(record_user_presence(observation))
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+
+
+async def cancel_user_presence_write_tasks():
+    tasks = list(get_user_presence_write_tasks())
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def user_presence_task(app: fastapi.FastAPI):
@@ -314,6 +337,7 @@ async def lifespan(app: fastapi.FastAPI):
     app.state.websocket_send_locks = weakref.WeakKeyDictionary()
     app.state.closed_websockets = weakref.WeakSet()
     app.state.websocket_close_tasks = set()
+    app.state.user_presence_write_tasks = set()
     app.state.propagation = None
     app.state.spot_snapshot = SpotSnapshot()
 
@@ -343,6 +367,7 @@ async def lifespan(app: fastapi.FastAPI):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         await cancel_websocket_close_tasks()
+        await cancel_user_presence_write_tasks()
         await asyncio.gather(
             app.state.http_client.aclose(),
             app.state.valkey_client.aclose(),
@@ -1315,7 +1340,7 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
     app.state.active_ws_spot_connections.add(websocket)
     observation = parse_user_presence(message)
     if observation:
-        await record_user_presence(websocket, observation)
+        schedule_user_presence_write(websocket, observation)
     if connection := websocket.scope.get("metrics_connection"):
         connection.report_client_versions(message)
         if observation:
@@ -1344,7 +1369,7 @@ async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, mess
     if "initial" in message or "last_time" in message:
         observation = parse_user_presence(message)
         if observation:
-            await record_user_presence(websocket, observation)
+            schedule_user_presence_write(websocket, observation)
         if connection := websocket.scope.get("metrics_connection"):
             connection.report_client_versions(message)
             if observation:

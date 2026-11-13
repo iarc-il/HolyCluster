@@ -265,6 +265,40 @@ class WebSocketProtocolTest(unittest.TestCase):
                 self.assertNotIn("subscription_ack", response)
                 self.assertEqual(response["event"], "initial" if action == "initial" else "update")
 
+    def test_subscription_acknowledges_before_blocked_presence_write(self):
+        write_started = threading.Event()
+        release_write = threading.Event()
+        write_finished = threading.Event()
+
+        async def blocked_upsert(*_args):
+            write_started.set()
+            await asyncio.to_thread(release_write.wait, 5)
+            write_finished.set()
+
+        release_timer = threading.Timer(1, release_write.set)
+        try:
+            with (
+                patch("api.main.upsert_user_presence", new=blocked_upsert),
+                patch("api.main.get_initial_spots", new=AsyncMock(return_value=[])),
+                self.client.websocket_connect("/ws") as websocket,
+            ):
+                websocket.send_json(
+                    {
+                        "version": 1,
+                        "type": "spots",
+                        "action": "initial",
+                        "subscription_id": "epoch-1",
+                        "user_id": "123e4567-e89b-42d3-a456-426614174000",
+                    }
+                )
+                self.assertTrue(write_started.wait(2))
+                release_timer.start()
+                self.assertEqual(websocket.receive_json()["event"], "subscribed")
+                self.assertFalse(write_finished.is_set())
+        finally:
+            release_write.set()
+            release_timer.cancel()
+
     def test_ws_rejects_spots_catch_up_without_last_time(self):
         with self.client.websocket_connect("/ws") as websocket:
             websocket.send_json({"version": 1, "type": "spots", "action": "catch_up"})
