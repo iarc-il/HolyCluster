@@ -255,10 +255,13 @@ window.run_diagnostic = async scenario => {
             };
             request.onerror = () => reject(request.error);
         });
-        if (scenario === "closed_database") {
-            const transaction = IDBDatabase.prototype.transaction;
+        const fallback = ["missing_store", "closed_database"].includes(scenario);
+        const transaction = IDBDatabase.prototype.transaction;
+        let transactions = 0;
+        if (fallback) {
             IDBDatabase.prototype.transaction = function (...args) {
-                this.close();
+                transactions++;
+                if (scenario === "closed_database") this.close();
                 return transaction.apply(this, args);
             };
         }
@@ -267,6 +270,21 @@ window.run_diagnostic = async scenario => {
             store.subscribe(() => {
                 throw new TypeError("private secret subscriber");
             });
+        if (fallback) {
+            try {
+                await store.ready();
+                let updates = 0;
+                store.subscribe(() => updates++);
+                await store.with_lock(() => store.commit([], { start: 0, end: 10, data: [1] }));
+                const records = store.get_overlapping_intervals(0, 10);
+                await store.evict(20, () => null);
+                const remaining = store.get_overlapping_intervals(0, 10);
+                const flushed = await flush(3000);
+                return { records, remaining, transactions, updates, flushed };
+            } finally {
+                IDBDatabase.prototype.transaction = transaction;
+            }
+        }
     }
 };
 window.diagnostics_ready = true;
