@@ -6,15 +6,14 @@ from unittest.mock import MagicMock
 import fakeredis.aioredis
 from prometheus_client import CollectorRegistry, generate_latest
 
-from coverage_comparator.adapters import FakeAdapter, Snapshot
-from coverage_comparator.matcher import Matcher
+from coverage_comparator.adapters import SERVICES, FakeAdapter, Snapshot
+from coverage_comparator.matcher import Matcher, empty_state
 from coverage_comparator.metrics import Metrics
 from coverage_comparator.postgres_samples import PostgresSampleSink
 from coverage_comparator.samples import MemorySampleSink
 from coverage_comparator.service import consume_snapshot
 
 SPOT = {"time": "1200", "dx_callsign": "4X1AA", "frequency": 14074.0, "spotter_callsign": "W1AA"}
-SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth")
 
 
 class MatcherTests(unittest.IsolatedAsyncioTestCase):
@@ -46,6 +45,24 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
             )
             or 0
         )
+
+    async def test_additive_service_state_migration(self):
+        state = empty_state()
+        state["version"] = 1
+        state["feeds"]["holy"]["generation"] = 4
+        state["outcomes"]["dxsummit|matched"] = 7
+        del state["feeds"]["dxscape"]
+        await self.redis.set("coverage:state", json.dumps(state))
+
+        await self.matcher.restart(100)
+
+        migrated = json.loads(await self.redis.get("coverage:state"))
+        self.assertEqual(migrated["version"], 2)
+        self.assertEqual(set(migrated["feeds"]), {"holy", *SERVICES})
+        self.assertFalse(migrated["feeds"]["dxscape"]["up"])
+        self.assertEqual(migrated["feeds"]["dxscape"]["generation"], 1)
+        self.assertEqual(migrated["feeds"]["holy"]["generation"], 5)
+        self.assertEqual(migrated["outcomes"]["dxsummit|matched"], 7)
 
     async def test_service_only_outcomes_are_attributed_to_pipeline_results(self):
         cases = (
@@ -148,7 +165,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.count("dxsummit", "holy_only"), 1)
         await self.matcher.finalize(180)
         self.assertEqual(self.count("dxsummit", "service_only"), 1)
-        self.assertEqual(len(self.sink.samples), 6)
+        self.assertEqual(len(self.sink.samples), len(SERVICES) + 1)
 
     async def test_pairwise_and_absent_sides(self):
         await self.matcher.observe("dxsummit", SPOT, 60)
@@ -193,7 +210,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         await recovered.observe("holy", SPOT, 120, event_id="60000-0")
         await recovered.finalize(180)
         self.assertEqual(self.count("dxsummit", "holy_only"), 1)
-        self.assertEqual(len(self.sink.samples), 5)
+        self.assertEqual(len(self.sink.samples), len(SERVICES))
 
     async def test_labels_are_bounded(self):
         with self.assertRaises(ValueError):

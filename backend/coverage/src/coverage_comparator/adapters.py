@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
-SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth")
+SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth", "dxscape")
 SOURCES = ("holy", *SERVICES)
 IDENTITY_FIELDS = ("time", "dx_callsign", "frequency", "spotter_callsign")
 MATCH_FIELDS = ("dx_callsign", "frequency", "spotter_callsign")

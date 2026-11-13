@@ -11,12 +11,17 @@ from .samples import SampleSink
 
 WINDOW = 60
 FINALIZED = "coverage:finalized"
+STATE_VERSION = 2
+
+
+def empty_feed() -> dict:
+    return {"up": False, "generation": 0, "since": 0, "success": None, "spot": None}
 
 
 def empty_state() -> dict:
     return {
-        "version": 1,
-        "feeds": {s: {"up": False, "generation": 0, "since": 0, "success": None, "spot": None} for s in SOURCES},
+        "version": STATE_VERSION,
+        "feeds": {source: empty_feed() for source in SOURCES},
         "windows": {},
         "pending_windows": 0,
         "oldest_deadline": 0,
@@ -93,7 +98,14 @@ class Matcher:
                     reset = raw is None
                     try:
                         state = json.loads(raw) if raw else empty_state()
-                        if state["version"] != 1:
+                        if state["version"] == 1:
+                            feeds = state["feeds"]
+                            if not isinstance(feeds, dict):
+                                raise ValueError("Invalid coverage feeds")
+                            for source in SOURCES:
+                                feeds.setdefault(source, empty_feed())
+                            state["version"] = STATE_VERSION
+                        if state["version"] != STATE_VERSION:
                             raise ValueError("Unknown coverage state version")
                         state.setdefault("service_only_causes", {})
                         for key in empty_state():

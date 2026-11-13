@@ -2,7 +2,7 @@
   "uid": "holycluster-spot-coverage",
   "title": "HolyCluster / External spot coverage",
   "schemaVersion": 41,
-  "version": 10,
+  "version": 11,
   "editable": false,
   "timezone": "browser",
   "refresh": "1m",
@@ -22,7 +22,7 @@
         "name": "service",
         "label": "Service",
         "type": "custom",
-        "query": "dxsummit,dxheat,dxwatch,dxdata,hamqth",
+        "query": "dxsummit,dxheat,dxwatch,dxdata,hamqth,dxscape",
         "multi": true,
         "includeAll": true,
         "options": [
@@ -55,6 +55,11 @@
             "text": "hamqth",
             "value": "hamqth",
             "selected": false
+          },
+          {
+            "text": "dxscape",
+            "value": "dxscape",
+            "selected": false
           }
         ],
         "current": {
@@ -67,7 +72,7 @@
         },
         "hide": 0,
         "skipUrlSync": false,
-        "description": "Fixed external services. All expands to the five values for both PromQL regex and SQL string-list interpolation."
+        "description": "Fixed external services. All expands to the six values for both PromQL regex and SQL string-list interpolation."
       }
     ]
   },

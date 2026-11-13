@@ -15,6 +15,7 @@ from .adapters import SERVICES, Adapter
 from .consumer import HolyConsumer, PipelineConsumer
 from .feeds.dxdata import DXDataAdapter
 from .feeds.dxheat import DXHeatAdapter
+from .feeds.dxscape import DXscapeAdapter
 from .feeds.dxsummit import DXSummitAdapter
 from .feeds.dxwatch import DXWatchAdapter
 from .feeds.hamqth import HamQTHAdapter
@@ -29,7 +30,14 @@ METRICS_PORT = 9102
 
 
 def default_adapters() -> tuple[Adapter, ...]:
-    return (DXSummitAdapter(), DXHeatAdapter(), DXWatchAdapter(), DXDataAdapter(), HamQTHAdapter())
+    return (
+        DXSummitAdapter(),
+        DXHeatAdapter(),
+        DXWatchAdapter(),
+        DXDataAdapter(),
+        HamQTHAdapter(),
+        DXscapeAdapter(),
+    )
 
 
 async def renew_lease(lease):

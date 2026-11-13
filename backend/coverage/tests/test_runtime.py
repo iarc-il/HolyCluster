@@ -9,7 +9,7 @@ import fakeredis.aioredis
 from prometheus_client import start_http_server
 
 from coverage_comparator.adapters import SERVICES
-from coverage_comparator.main import METRICS_PORT, main, run, run_with_database
+from coverage_comparator.main import METRICS_PORT, default_adapters, main, run, run_with_database
 from coverage_comparator.samples import DisabledSampleSink
 
 
@@ -66,6 +66,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn(b"holycluster_coverage_identity_window_seconds 60.0", body)
                 self.assertIn(b"holycluster_coverage_pending_windows", body)
                 self.assertIn(b'holycluster_coverage_comparison_eligible{service="dxsummit"} 0.0', body)
+                self.assertIn(b'holycluster_coverage_comparison_eligible{service="dxscape"} 0.0', body)
                 handlers[signal.SIGTERM]()
                 await asyncio.wait_for(task, timeout=5)
                 self.assertFalse(servers[0].socket.fileno() >= 0)
@@ -73,6 +74,11 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
+
+    def test_default_adapters_match_services(self):
+        adapters = default_adapters()
+        self.assertEqual(tuple(adapter.service for adapter in adapters), SERVICES)
+        self.assertEqual(len({adapter.service for adapter in adapters}), len(SERVICES))
 
 
 class DatabaseRuntimeTests(unittest.IsolatedAsyncioTestCase):

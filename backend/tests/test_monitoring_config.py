@@ -1,10 +1,12 @@
 """Cross-check critical scrape target coverage in monitoring configuration."""
 
+import json
 import re
 import unittest
 from pathlib import Path
 
 import yaml
+from coverage_comparator.adapters import SERVICES
 
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -34,6 +36,16 @@ class MonitoringConfigTests(unittest.TestCase):
         for name in ("GRAFANA_SERVICE_ACCOUNT_TOKEN", "MCP_GRAFANA_SERVER_TOKEN"):
             self.assertIn(f': "$${{{name}:?', entrypoint)
         self.assertIn('exec /app/mcp-grafana "$$@"', entrypoint)
+
+    def test_coverage_dashboard_lists_every_fixed_service(self):
+        dashboard = json.loads((MONITORING / "grafana/dashboards/spot-coverage.json").read_text())
+        variables = {variable["name"]: variable for variable in dashboard["templating"]["list"]}
+        service = variables["service"]
+        self.assertEqual(tuple(service["query"].split(",")), SERVICES)
+        self.assertEqual(
+            tuple(option["value"] for option in service["options"] if option["value"] != "$__all"),
+            SERVICES,
+        )
 
     def test_target_down_covers_deployed_scrape_jobs(self):
         alerts = yaml.safe_load((MONITORING / "grafana/provisioning/alerting/health.yml").read_text())
