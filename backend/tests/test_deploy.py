@@ -59,6 +59,9 @@ proxy_network="${proxy_network_input:-holycluster-proxy}"
 if [[ "$*" == 'compose config '* ]]; then
     if [[ -z "$project_name" ]]; then exit 14; fi
     if [[ "$CONFIG_STATUS" != 0 ]]; then exit "$CONFIG_STATUS"; fi
+    if [[ "$*" == 'compose config --services' ]]; then
+        printf '%s\\n' "$ACTIVE_SERVICES"
+    fi
     if [[ "$*" == 'compose config --environment' ]]; then
         printf 'PROXY_NETWORK=%s\\n' "$proxy_network_input"
         exit "$ENVIRONMENT_CONFIG_STATUS"
@@ -71,6 +74,7 @@ if [[ "$*" == "network inspect $proxy_network" ]]; then
 fi
 if [[ "$*" == 'compose ps --all --quiet '* ]]; then
     service="${!#}"
+    service="${service//-/_}"
     state_variable="${service^^}_STATE"
     if [[ "${!state_variable}" != missing ]]; then echo "$service-id"; fi
     exit 0
@@ -78,6 +82,7 @@ fi
 if [[ "$*" == inspect*-id ]]; then
     service="${!#}"
     service="${service%-id}"
+    service="${service//-/_}"
     state_variable="${service^^}_STATE"
     printf '%s\\n' "${!state_variable}"
     exit 0
@@ -178,6 +183,8 @@ class DeployTests(unittest.TestCase):
             "BASH_ENV": str(root / "wait.sh"),
             "CHECKOUT_MODE": "success",
             "SAME_REF": "0",
+            "ACTIVE_SERVICES": "",
+            "GRAFANA_MCP_STATE": "running healthy",
             "CURRENT_HEAD": "newhead",
             "CHECKOUT_CHANGED_FILES": "",
             "CHECKOUT_DIFF_BASE": "",
@@ -237,6 +244,31 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(set(background), services)
         waits = (root / "wait.log").read_text().splitlines() if services else []
         self.assertCountEqual(waits, background.values())
+
+    def test_grafana_mcp_profile_controls_deployment(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                root, result = self.run_deploy(ACTIVE_SERVICES="grafana-mcp" if enabled else "")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "start-grafana-mcp").exists(), enabled)
+                if enabled:
+                    self.assertIn("grafana-mcp", (root / "docker.log").read_text().split("--wait-timeout 120")[-1])
+
+    def test_same_ref_recovers_enabled_grafana_mcp(self):
+        root, result = self.run_deploy(SAME_REF="1", ACTIVE_SERVICES="grafana-mcp", GRAFANA_MCP_STATE="missing")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual({p.name for p in root.glob("start-*")}, {"start-grafana-mcp"})
+
+    def test_grafana_mcp_health_failure_preserves_marker(self):
+        root, result = self.run_deploy(
+            SAME_REF="1",
+            ACTIVE_SERVICES="grafana-mcp",
+            GRAFANA_MCP_STATE="running unhealthy",
+            UNHEALTHY_SERVICES="grafana-mcp",
+            deployed_head="oldhead",
+        )
+        self.assertEqual(result.returncode, 44, result.stderr)
+        self.assertEqual((root / "deployed").read_text(), "oldhead\n")
 
     def test_real_git_root_diff_from_backend_directory_for_branch_and_tag(self):
         for ref in ("origin/dev", "backend-v1.2.3"):

@@ -12,6 +12,29 @@ MONITORING = BACKEND / "infra/monitoring"
 
 
 class MonitoringConfigTests(unittest.TestCase):
+    def test_grafana_mcp_is_private_and_read_only(self):
+        compose = yaml.safe_load((BACKEND / "docker-compose.yml").read_text())
+        service = compose["services"]["grafana-mcp"]
+        self.assertEqual(service["profiles"], ["grafana-mcp"])
+        self.assertEqual(service["ports"], ["127.0.0.1:${GRAFANA_MCP_PORT:-8001}:8000"])
+        self.assertEqual(service["image"], "grafana/mcp-grafana:2.3.0-alpine")
+        self.assertTrue(service["read_only"])
+        self.assertEqual(service["cap_drop"], ["ALL"])
+        self.assertEqual(service["environment"]["GRAFANA_URL"], "http://grafana:3000/grafana")
+        command = service["command"]
+        self.assertIn("--disable-write", command)
+        self.assertIn("--enable-query", command)
+        self.assertIn("--usage-stats=disabled", command)
+        self.assertIn(
+            "--allowed-hosts=localhost:${GRAFANA_MCP_PORT:-8001},127.0.0.1:${GRAFANA_MCP_PORT:-8001},localhost:8000,127.0.0.1:8000",
+            command,
+        )
+        self.assertIn("--enabled-tools=search,datasource,prometheus,dashboard,alerting,sql,navigation", command)
+        entrypoint = service["entrypoint"][2]
+        for name in ("GRAFANA_SERVICE_ACCOUNT_TOKEN", "MCP_GRAFANA_SERVER_TOKEN"):
+            self.assertIn(f': "$${{{name}:?', entrypoint)
+        self.assertIn('exec /app/mcp-grafana "$$@"', entrypoint)
+
     def test_target_down_covers_deployed_scrape_jobs(self):
         alerts = yaml.safe_load((MONITORING / "grafana/provisioning/alerting/health.yml").read_text())
         rules = [rule for group in alerts["groups"] for rule in group["rules"]]

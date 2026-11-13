@@ -212,6 +212,48 @@ services:
       retries: 3
       start_period: 30s
 
+  grafana-mcp:
+    profiles: ["grafana-mcp"]
+    image: grafana/mcp-grafana:2.3.0-alpine
+    restart: unless-stopped
+    depends_on:
+      grafana:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GRAFANA_MCP_PORT:-8001}:8000"
+    environment:
+      GRAFANA_URL: http://grafana:3000/grafana
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${GRAFANA_MCP_SERVICE_ACCOUNT_TOKEN:-}
+      MCP_GRAFANA_SERVER_TOKEN: ${GRAFANA_MCP_SERVER_TOKEN:-}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        : "$${GRAFANA_SERVICE_ACCOUNT_TOKEN:?Set GRAFANA_MCP_SERVICE_ACCOUNT_TOKEN to a Grafana Viewer token.}"
+        : "$${MCP_GRAFANA_SERVER_TOKEN:?Set GRAFANA_MCP_SERVER_TOKEN to a separate random secret.}"
+        exec /app/mcp-grafana "$$@"
+      - --
+    command:
+      - --transport=streamable-http
+      - --address=0.0.0.0:8000
+      - --allowed-hosts=localhost:${GRAFANA_MCP_PORT:-8001},127.0.0.1:${GRAFANA_MCP_PORT:-8001},localhost:8000,127.0.0.1:8000
+      - --enabled-tools=search,datasource,prometheus,dashboard,alerting,sql,navigation
+      - --disable-write
+      - --enable-query
+      - --usage-stats=disabled
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header=\"Authorization: Bearer $$MCP_GRAFANA_SERVER_TOKEN\" http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   nginx:
     build:
       context: infra/nginx
