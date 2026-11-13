@@ -32,6 +32,7 @@ function FilterOptions({
     const long_press_timer_ref = useRef(null);
     const long_press_start_ref = useRef(null);
     const suppress_click_ref = useRef(false);
+    const touch_pointer_ref = useRef(false);
     const [position, set_position] = useState(null);
 
     const is_open = is_parent_hovered || is_popup_hovered || is_tour_open || is_touch_open;
@@ -57,7 +58,8 @@ function FilterOptions({
     }
 
     function handle_pointer_down(event) {
-        if (!touch || disabled || event.button !== 0) return;
+        touch_pointer_ref.current = event.pointerType === "touch";
+        if ((!touch && !touch_pointer_ref.current) || disabled || event.button !== 0) return;
 
         suppress_click_ref.current = false;
         clear_long_press();
@@ -179,7 +181,7 @@ function FilterOptions({
             className="relative"
             data-tour={`filter-options-trigger-${filter_key}-${filter_value}`}
             onMouseEnter={() => {
-                if (!disabled && !touch) {
+                if (!disabled && !touch && !touch_pointer_ref.current) {
                     set_is_parent_hovered(true);
                 }
             }}
@@ -191,7 +193,7 @@ function FilterOptions({
             onPointerCancel={clear_long_press}
             onClickCapture={handle_click_capture}
             onContextMenu={event => {
-                if (touch) event.preventDefault();
+                if (touch || touch_pointer_ref.current) event.preventDefault();
             }}
         >
             {children}

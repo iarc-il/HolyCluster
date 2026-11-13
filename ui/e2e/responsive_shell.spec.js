@@ -71,13 +71,8 @@ for (const width of [768]) {
             const button = page.getByRole("button", { name: `Open ${label}`, exact: true });
             await expect(button).toBeVisible();
             const text = button.locator("span");
-            if (width >= 768) {
-                await expect(text).toBeVisible();
-                await expect(text).toHaveText(label);
-            } else {
-                await expect(text).toBeVisible();
-                await expect(button.locator("svg")).toBeVisible();
-            }
+            await expect(text).toBeHidden();
+            await expect(button.locator("svg")).toBeVisible();
             const box = await button.boundingBox();
             expect(box.width).toBeGreaterThanOrEqual(40);
             expect(box.height).toBeGreaterThanOrEqual(40);
@@ -137,26 +132,32 @@ for (const width of [768]) {
 test.describe("configured radio", () => {
     test.use({ radio_state: { status: "connected", freq: 14074000, mode: "USB" } });
 
-    for (const width of [390, 500, 768]) {
+    for (const width of [390, 500, 768, 800]) {
         test(`radio state fits at ${width}px`, async ({ page }) => {
             await page.setViewportSize({ width, height: 900 });
             await page.goto("/");
+            await page.evaluate(() => {
+                const event = new Event("beforeinstallprompt", { cancelable: true });
+                Object.assign(event, {
+                    prompt: () => Promise.resolve(),
+                    userChoice: Promise.resolve({ outcome: "dismissed" }),
+                });
+                window.dispatchEvent(event);
+            });
+            await expect(page.getByRole("button", { name: "Install HolyCluster" })).toBeVisible();
             const frequency = page.locator('[data-tour="top-bar-radio-frequency"]');
             await expect(frequency).toBeVisible();
-            if (width < 768) {
-                await expect(frequency.getByText("Radio connected", { exact: true })).toBeVisible();
-                await expect(frequency.getByText("14.074 MHz", { exact: true })).toBeVisible();
-            } else {
-                await expect(frequency.locator('[data-tour="radio-full-frequency"]')).toBeVisible();
+            await expect(frequency.getByText("Radio connected", { exact: true })).toBeVisible();
+            await expect(frequency.getByText("14.074 MHz", { exact: true })).toBeVisible();
+            if (width >= 768) {
+                await expect(frequency.locator('[data-tour="radio-full-frequency"]')).toBeHidden();
                 for (const label of ["Filters", "Tools"]) {
-                    await expect(
-                        page
-                            .getByRole("button", { name: `Open ${label}`, exact: true })
-                            .locator("span"),
-                    ).toBeVisible();
-                    await expect(
-                        page.getByRole("button", { name: `Open ${label}`, exact: true }),
-                    ).toHaveText(label);
+                    const button = page.getByRole("button", {
+                        name: `Open ${label}`,
+                        exact: true,
+                    });
+                    await expect(button.locator("span")).toBeHidden();
+                    await expect(button.locator("svg")).toBeVisible();
                 }
             }
             await expect
@@ -235,6 +236,31 @@ test("mobile filter tabs are shorter than tool tabs", async ({ page }) => {
 
     expect(filter_tab.height).toBeGreaterThanOrEqual(40);
     expect(filter_tab.height).toBeLessThan(tool_tab.height);
+});
+
+test("touch long press opens Only and All in the compact desktop shell", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Open Filters", exact: true }).click();
+    const band_20 = page.locator('[data-tour="band-filter-20"]');
+
+    await band_20.dispatchEvent("pointerdown", {
+        button: 0,
+        clientX: 32,
+        clientY: 32,
+        pointerId: 1,
+        pointerType: "touch",
+    });
+    await page.waitForTimeout(550);
+    await band_20.dispatchEvent("pointerup", {
+        button: 0,
+        clientX: 32,
+        clientY: 32,
+        pointerId: 1,
+        pointerType: "touch",
+    });
+
+    await expect(page.locator('[data-tour="filter-options-popup"]')).toBeVisible();
 });
 
 test("mobile filter long press opens Only and All", async ({ page }) => {

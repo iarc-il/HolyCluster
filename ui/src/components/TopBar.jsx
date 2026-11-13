@@ -39,9 +39,9 @@ function PanelControl({ panel, label, open_panel, toggle_panel }) {
             aria-controls={`${panel}-panel`}
             onClick={event => toggle_panel(panel, event.currentTarget)}
         >
-            <span className="hidden md:inline">{label}</span>
+            <span className="hidden lg:inline">{label}</span>
             <svg
-                className="md:hidden"
+                className="lg:hidden"
                 width="24"
                 height="24"
                 viewBox="0 0 24 24"
@@ -116,7 +116,7 @@ function DesktopTopBar({
                     />
                 </div>
             )}
-            <div className="hidden xs:flex h-full p-2 gap-3" data-tour="top-bar-logo">
+            <div className="hidden lg:flex h-full p-2 gap-3" data-tour="top-bar-logo">
                 <img
                     className="object-contain max-h-12 w-10 m-auto"
                     src={Icon}
@@ -131,7 +131,7 @@ function DesktopTopBar({
                 The Holy Cluster
             </h1>
 
-            <div className="flex items-center h-full p-1 gap-1 md:p-2 md:gap-2 lg:gap-3">
+            <div className="flex items-center h-full p-1 gap-1 lg:p-2 lg:gap-3">
                 {radio_status !== "unavailable" && can_undo_cat && (
                     <Button
                         color="utility"
@@ -167,7 +167,7 @@ function DesktopTopBar({
                         className="shrink-0"
                         style={{ color: colors.theme.text }}
                     >
-                        <div className="md:hidden max-w-24 text-xs leading-4">
+                        <div className="lg:hidden max-w-24 text-xs leading-4">
                             <div>Radio {radio_status}</div>
                             {radio_status === "connected" && (
                                 <div className="whitespace-nowrap font-semibold tabular-nums">
@@ -177,7 +177,7 @@ function DesktopTopBar({
                                 </div>
                             )}
                         </div>
-                        <div className="hidden md:block" data-tour="radio-full-frequency">
+                        <div className="hidden lg:block" data-tour="radio-full-frequency">
                             <SevenSegmentDisplay
                                 height="10"
                                 display_size={radio_freq ? radio_freq.toString().length : 8}
@@ -189,7 +189,7 @@ function DesktopTopBar({
                 ) : null}
 
                 {profiles.length > 1 && (
-                    <div className="hidden md:block" data-tour="top-bar-profile-selector">
+                    <div className="hidden lg:block" data-tour="top-bar-profile-selector">
                         <Select
                             value={active_profile_name}
                             onChange={event => set_active_profile_name(event.target.value)}
@@ -205,7 +205,7 @@ function DesktopTopBar({
                 )}
                 <InstallApp />
                 <SubmitSpot dev_mode={dev_mode} />
-                <div className={radio_status !== "unavailable" ? "hidden md:block" : ""}>
+                <div className={radio_status !== "unavailable" ? "hidden lg:block" : ""}>
                     <Clock />
                 </div>
 
@@ -245,7 +245,7 @@ function DesktopTopBar({
                 <Settings set_map_controls={set_map_controls} set_radius_in_km={set_radius_in_km} />
                 {dev_mode ? <ColorPicker /> : ""}
                 {is_compact && (
-                    <div className="md:p-2 shrink-0" data-tour="top-bar-right-menu">
+                    <div className="lg:p-2 shrink-0" data-tour="top-bar-right-menu">
                         <PanelControl
                             panel="tools"
                             label="Tools"
