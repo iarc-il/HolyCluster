@@ -16,6 +16,7 @@ describe("online-required install metadata", () => {
             background_color: "#0b141a",
         });
         expect(manifest.description).toContain("Requires an internet connection");
+        expect(manifest).not.toHaveProperty("orientation");
     });
 
     it("declares regular and dedicated maskable PNG icons", () => {
