@@ -143,6 +143,15 @@ test.describe("Spot frequency affordance", () => {
         await expect(frequency.locator("span.inline-block:visible")).toHaveCSS("cursor", "auto");
     });
 
+    test("pins the row when CAT Control is unavailable", async ({ page }) => {
+        await page.goto("/");
+
+        const row = page.locator(tour_target("spot-row"));
+        await expect(row).toHaveAttribute("data-tour-state", "unpinned");
+        await page.locator(tour_target("spot-row-frequency")).click();
+        await expect(row).toHaveAttribute("data-tour-state", "pinned");
+    });
+
     test.describe("with CAT Control", () => {
         test.use({ radio_state: { status: "connected", freq: 14_000_000, mode: "USB" } });
 

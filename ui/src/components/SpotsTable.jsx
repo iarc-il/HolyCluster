@@ -621,10 +621,14 @@ const Spot = forwardRef(function Spot(
                 className={cell_classes.freq}
                 data-tour={is_tour_row ? "spot-row-frequency" : undefined}
                 style={{ fontWeight: is_same_freq ? 600 : undefined }}
-                onClick={event => {
-                    event.stopPropagation();
-                    set_cat_to_spot(spot, { notify_logger: true });
-                }}
+                onClick={
+                    can_set_cat
+                        ? event => {
+                              event.stopPropagation();
+                              set_cat_to_spot(spot, { notify_logger: true });
+                          }
+                        : undefined
+                }
             >
                 <div className="w-full md:hidden">
                     <FitText
