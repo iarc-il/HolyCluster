@@ -48,10 +48,7 @@ class MonitoringConfigTests(unittest.TestCase):
         )
 
     def test_dashboards_use_dynamic_navigation(self):
-        dashboards = [
-            json.loads(path.read_text())
-            for path in (MONITORING / "grafana/dashboards").glob("*.json")
-        ]
+        dashboards = [json.loads(path.read_text()) for path in (MONITORING / "grafana/dashboards").glob("*.json")]
 
         for dashboard in dashboards:
             self.assertIn("HolyCluster", dashboard["tags"], dashboard["title"])
