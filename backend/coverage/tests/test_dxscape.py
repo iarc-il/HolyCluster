@@ -114,12 +114,16 @@ class DXscapeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.recoverable)
         self.assertEqual(snapshot.spots, [])
 
-    async def test_future_row_does_not_take_feed_down(self):
+    async def test_malformed_rows_do_not_take_feed_down(self):
+        self.adapter.snapshot_limit = 6
         self.responses.append(page(row("DX1AA", "2144Z")))
         await self.adapter.poll()
         snapshot = await self.poll(
             page(
                 row("BADTIME", "2152Z"),
+                row("BADFREQ", "2146Z", frequency="nan"),
+                row("", "2146Z"),
+                "malformed row",
                 row("DX2AA", "2145Z"),
                 row("DX1AA", "2144Z"),
                 footer="Fri Nov 13 21:46:00 UTC 2026",
@@ -170,8 +174,6 @@ class DXscapeTests(unittest.IsolatedAsyncioTestCase):
             page(row(), title="Challenge"),
             "<title>DXSCAPE Web cluster</title><pre>missing footer</pre>",
             page(row(spot_time="2500Z")),
-            page(row(frequency="nan")),
-            page(row(dx="")),
             page(),
         )
         for body in cases:

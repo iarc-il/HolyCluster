@@ -134,12 +134,15 @@ class DXscapeAdapter:
         if current - footer > timedelta(seconds=self.stale_after) or footer - current > self.FUTURE_SKEW:
             return None
 
+        rows = lines[:row_end]
+        if len(rows) > self.snapshot_limit:
+            return None
         records = []
-        try:
-            for line in lines[:row_end]:
-                match = self.ROW.fullmatch(line)
-                if not match:
-                    raise ValueError("Invalid DXscape row")
+        for line in rows:
+            match = self.ROW.fullmatch(line)
+            if not match:
+                continue
+            try:
                 dx, spot_time, frequency, comment, spotter = match.groups()
                 hour, minute = int(spot_time[:2]), int(spot_time[2:4])
                 same_day = footer.replace(hour=hour, minute=minute, second=0, microsecond=0)
@@ -151,7 +154,7 @@ class DXscapeAdapter:
                     continue
                 frequency = float(frequency.strip())
                 if not math.isfinite(frequency) or frequency <= 0:
-                    raise ValueError("Invalid DXscape frequency")
+                    continue
                 spot = {
                     "time": spot_time,
                     "dx_callsign": self._callsign(dx, strip_ssid=False),
@@ -168,11 +171,11 @@ class DXscapeAdapter:
                     spot["spotter_callsign"],
                 )
                 records.append((fingerprint, spot))
-        except (OverflowError, ValueError):
+            except (OverflowError, ValueError):
+                continue
+        if not records:
             return None
-        if not records or len(records) > self.snapshot_limit:
-            return None
-        return records
+        return records, len(rows) == self.snapshot_limit
 
     @staticmethod
     def _overlap(current, previous):
@@ -206,16 +209,17 @@ class DXscapeAdapter:
                 if len(body) + len(chunk) > self.MAX_BYTES:
                     return Snapshot([], recoverable=False)
                 body.extend(chunk)
-        records = self._parse(bytes(body), now)
-        if records is None:
+        parsed = self._parse(bytes(body), now)
+        if parsed is None:
             return Snapshot([], recoverable=False)
+        records, saturated = parsed
         if self._previous is None:
             self._previous = records
             return Snapshot([], recoverable=False)
         start = self._overlap(records, self._previous)
         if start is None:
             self._previous = records
-            return Snapshot([], saturated=len(records) == self.snapshot_limit, recoverable=False)
+            return Snapshot([], saturated=saturated, recoverable=False)
         new = sorted((spot for _, spot in records[:start]), key=lambda spot: spot["observed_at"])
         self._previous = records
         return Snapshot(new)
