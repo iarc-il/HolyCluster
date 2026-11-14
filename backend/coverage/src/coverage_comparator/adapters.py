@@ -26,6 +26,7 @@ def identity(spot: dict) -> str:
     frequency = float(spot["frequency"])
     if not dx or not spotter or not math.isfinite(frequency) or frequency <= 0:
         raise ValueError("Invalid normalized identity")
+    frequency = round(frequency, 1)
     values = {"dx_callsign": dx, "frequency": frequency, "spotter_callsign": spotter}
     return ":".join(str(values[field]) for field in MATCH_FIELDS)
 

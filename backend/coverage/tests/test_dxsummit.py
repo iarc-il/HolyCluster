@@ -70,6 +70,8 @@ class DXSummitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(identity(spot), "BD3CT:21074.0:AD1C")
         _, other = DXSummitAdapter._normalize(record(2, comment="changed"))
         self.assertEqual(identity(spot), identity(other))
+        self.assertEqual(identity({**spot, "frequency": "14021.06"}), identity({**spot, "frequency": 14021.1}))
+        self.assertNotEqual(identity({**spot, "frequency": 14021.16}), identity({**spot, "frequency": 14021.1}))
         self.assertEqual(
             identity(
                 {
