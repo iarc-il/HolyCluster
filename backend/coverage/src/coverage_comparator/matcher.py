@@ -279,8 +279,14 @@ class Matcher:
                         for service in self.services
                     },
                 }
-            if source not in state["windows"][key]["sources"]:
-                state["windows"][key]["sources"].append(source)
+            window = state["windows"][key]
+            if source in window["sources"]:
+                window["deadline"] = min(
+                    window["opened"] + 2 * self.window,
+                    max(window["deadline"], now + self.window),
+                )
+            else:
+                window["sources"].append(source)
 
         state = await self.change(now, update, window_key=key, load_due=True)
         await self.flush_samples(now, state)

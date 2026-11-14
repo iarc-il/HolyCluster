@@ -165,9 +165,27 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
                 await self.matcher.observe(first, SPOT, 60)
                 await self.matcher.observe(first, SPOT, 90)
                 await self.matcher.observe(second, SPOT, 119)
-                await self.matcher.finalize(120)
+                await self.matcher.finalize(150)
                 self.assertEqual(self.count("dxsummit", "matched"), 1)
                 self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+
+    async def test_repeated_source_extends_window(self):
+        await self.matcher.observe("holy", SPOT, 60)
+        await self.matcher.observe("holy", SPOT, 110)
+        await self.matcher.observe("dxsummit", SPOT, 169)
+        await self.matcher.finalize(170)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+        self.assertEqual(self.count("dxsummit", "service_only"), 0)
+
+    async def test_window_extension_is_bounded(self):
+        await self.matcher.observe("holy", SPOT, 60)
+        await self.matcher.observe("holy", SPOT, 119)
+        await self.matcher.observe("holy", SPOT, 178)
+        await self.matcher.finalize(179.999)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+        await self.matcher.finalize(180)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 1)
 
     async def test_source_time_difference_matches_within_observation_window(self):
         await self.matcher.observe("holy", SPOT, 60)
