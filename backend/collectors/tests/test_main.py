@@ -64,7 +64,7 @@ class PersistSpotTest(IsolatedAsyncioTestCase):
             ConnectionRefusedError("database unavailable"),
             socket.gaierror(-3, "name resolution failed"),
             asyncpg.CannotConnectNowError("database shutting down"),
-            asyncpg.InternalClientError("connection busy"),
+            asyncpg.InternalClientError("cannot switch to state 15; another operation (2) is in progress"),
         ):
             with self.subTest(error=type(error).__name__):
                 engine = AsyncMock()
@@ -77,6 +77,16 @@ class PersistSpotTest(IsolatedAsyncioTestCase):
                 self.assertEqual(add.await_count, 2)
                 engine.dispose.assert_awaited_once_with()
                 sleep.assert_awaited_once_with(1)
+
+    async def test_unrecognized_internal_client_error_escapes(self):
+        engine = AsyncMock()
+        error = asyncpg.InternalClientError("unexpected driver state")
+        with (
+            patch("collectors.main.add_spot_to_postgres", AsyncMock(side_effect=error)),
+            self.assertRaisesRegex(asyncpg.InternalClientError, "unexpected driver state"),
+        ):
+            await persist_spot(engine, AsyncMock(), {})
+        engine.dispose.assert_not_awaited()
 
     async def test_processor_reports_terminal_database_failure_and_continues(self):
         queue = asyncio.Queue()

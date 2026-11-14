@@ -57,7 +57,6 @@ RAW_DATABASE_CONNECTION_ERRORS = (
     socket.gaierror,
     asyncpg.PostgresConnectionError,
     asyncpg.CannotConnectNowError,
-    asyncpg.InternalClientError,
 )
 RETRYABLE_SQLALCHEMY_ERRORS = (
     OperationalError,
@@ -224,13 +223,28 @@ async def publish_coverage_pipeline_result(valkey_client, spot: dict, result: st
     return "success"
 
 
+def is_raw_database_connection_error(error: Exception) -> bool:
+    if isinstance(error, RAW_DATABASE_CONNECTION_ERRORS):
+        return True
+    return (
+        type(error) is asyncpg.InternalClientError
+        and re.fullmatch(
+            r"cannot switch to state \d+; another operation \(\d+\) is in progress",
+            str(error),
+        )
+        is not None
+    )
+
+
 def is_retryable_persistence_error(error: Exception) -> bool:
-    if isinstance(error, (redis.exceptions.RedisError, *RAW_DATABASE_CONNECTION_ERRORS)):
+    if isinstance(error, redis.exceptions.RedisError) or is_raw_database_connection_error(error):
         return True
     if isinstance(error, RETRYABLE_SQLALCHEMY_ERRORS):
         return True
     return isinstance(error, DBAPIError) and (
-        error.connection_invalidated or isinstance(error.orig, RAW_DATABASE_CONNECTION_ERRORS)
+        error.connection_invalidated
+        or isinstance(error.orig, Exception)
+        and is_raw_database_connection_error(error.orig)
     )
 
 
@@ -246,7 +260,7 @@ async def persist_spot(engine, valkey_client, spot: dict):
         except Exception as error:
             if not is_retryable_persistence_error(error):
                 raise
-            if isinstance(error, RAW_DATABASE_CONNECTION_ERRORS):
+            if is_raw_database_connection_error(error):
                 await engine.dispose()
             if attempt == PERSIST_ATTEMPTS - 1:
                 raise
