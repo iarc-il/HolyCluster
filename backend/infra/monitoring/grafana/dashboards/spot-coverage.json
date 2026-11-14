@@ -81,25 +81,18 @@
   },
   "links": [
     {
-      "title": "Service health",
-      "type": "link",
-      "url": "/d/holycluster-system",
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [
+        "HolyCluster"
+      ],
       "targetBlank": false,
-      "keepTime": true
-    },
-    {
-      "title": "Spot pipeline",
-      "type": "link",
-      "url": "/d/holycluster-pipeline",
-      "targetBlank": false,
-      "keepTime": true
-    },
-    {
-      "title": "Audience and engagement",
-      "type": "link",
-      "url": "/d/holycluster-api",
-      "targetBlank": false,
-      "keepTime": true
+      "title": "HolyCluster dashboards",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
     }
   ],
   "panels": [

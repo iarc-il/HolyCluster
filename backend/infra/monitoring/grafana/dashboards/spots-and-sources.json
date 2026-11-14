@@ -23,22 +23,18 @@
   },
   "links": [
     {
-      "title": "Service health",
-      "type": "link",
-      "url": "/d/holycluster-system",
-      "targetBlank": false
-    },
-    {
-      "title": "External coverage",
-      "type": "link",
-      "url": "/d/holycluster-spot-coverage",
-      "targetBlank": false
-    },
-    {
-      "title": "Audience and engagement",
-      "type": "link",
-      "url": "/d/holycluster-api",
-      "targetBlank": false
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [
+        "HolyCluster"
+      ],
+      "targetBlank": false,
+      "title": "HolyCluster dashboards",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
     }
   ],
   "panels": [

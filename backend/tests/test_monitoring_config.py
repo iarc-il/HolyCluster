@@ -47,6 +47,20 @@ class MonitoringConfigTests(unittest.TestCase):
             SERVICES,
         )
 
+    def test_dashboards_use_dynamic_navigation(self):
+        dashboards = [
+            json.loads(path.read_text())
+            for path in (MONITORING / "grafana/dashboards").glob("*.json")
+        ]
+
+        for dashboard in dashboards:
+            self.assertIn("HolyCluster", dashboard["tags"], dashboard["title"])
+            self.assertEqual(len(dashboard["links"]), 1, dashboard["title"])
+            link = dashboard["links"][0]
+            self.assertEqual(link["type"], "dashboards", dashboard["title"])
+            self.assertEqual(link["tags"], ["HolyCluster"], dashboard["title"])
+            self.assertFalse(link["asDropdown"], dashboard["title"])
+
     def test_target_down_covers_deployed_scrape_jobs(self):
         alerts = yaml.safe_load((MONITORING / "grafana/provisioning/alerting/health.yml").read_text())
         rules = [rule for group in alerts["groups"] for rule in group["rules"]]
