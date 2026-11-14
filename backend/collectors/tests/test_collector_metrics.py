@@ -12,7 +12,7 @@ from collectors.metrics import CollectorMetrics, SpotEnvelope, start_metrics_ser
 from collectors.telnet import runner as telnet_runner
 from collectors.pota import get_pota_spot_key, parse_pota_spot
 from prometheus_client import generate_latest
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError
 
 PREFIX = "holycluster_collector_"
 
@@ -122,7 +122,11 @@ class MetricsTest(IsolatedAsyncioTestCase):
             patch.object(main, "get_valkey_client", return_value=stream),
             patch.object(main, "create_async_engine", return_value=engine),
             patch.object(main, "enrich_spot", AsyncMock(return_value=envelope.spot)),
-            patch.object(main, "add_spot_to_postgres", AsyncMock(side_effect=[SQLAlchemyError(), None, None])),
+            patch.object(
+                main,
+                "add_spot_to_postgres",
+                AsyncMock(side_effect=[OperationalError("insert", {}, ConnectionRefusedError()), None, None]),
+            ),
             patch.object(main.asyncio, "sleep", AsyncMock()),
         ):
             task = asyncio.create_task(main.process_spots(queue, MagicMock()))

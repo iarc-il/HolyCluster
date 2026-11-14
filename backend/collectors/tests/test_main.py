@@ -3,7 +3,7 @@ import os
 import socket
 from datetime import datetime, timezone
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import asyncpg
 import httpx
@@ -91,7 +91,7 @@ class PersistSpotTest(IsolatedAsyncioTestCase):
             "dx_locator": "EM00",
         }
         error = ConnectionRefusedError("database unavailable")
-        manager = AsyncMock()
+        manager = MagicMock()
         manager.get_key.return_value = "key"
 
         with (
@@ -131,7 +131,7 @@ class PersistSpotTest(IsolatedAsyncioTestCase):
             "dx_locator": "EM00",
         }
         error = RuntimeError("broken persistence code")
-        manager = AsyncMock()
+        manager = MagicMock()
         manager.get_key.return_value = "key"
 
         with (
