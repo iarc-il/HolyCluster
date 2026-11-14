@@ -1,8 +1,10 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import fakeredis.aioredis
+import httpx
 from prometheus_client import CollectorRegistry
 from coverage_comparator.adapters import FakeAdapter, Snapshot
 from coverage_comparator.matcher import Matcher
@@ -89,6 +91,68 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await run_adapter(self.matcher, adapter)
         adapter.close.assert_awaited_once()
+
+    async def test_expected_network_failures_report_once_per_outage(self):
+        for error in (
+            TimeoutError(),
+            aiohttp.ClientConnectionError("unavailable"),
+            aiohttp.ClientResponseError(MagicMock(), (), status=502, message="Bad Gateway"),
+            httpx.ReadTimeout("unavailable"),
+        ):
+            with self.subTest(error=type(error).__name__):
+                adapter = FakeAdapter("dxsummit", [])
+                adapter.poll = AsyncMock(side_effect=[error, error, asyncio.CancelledError()])
+                adapter.close = AsyncMock()
+                with (
+                    patch("coverage_comparator.service.capture_exception") as capture,
+                    patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+                    self.assertRaises(asyncio.CancelledError),
+                ):
+                    await run_adapter(self.matcher, adapter)
+                capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+                adapter.close.assert_awaited_once()
+
+    async def test_failures_after_poll_remain_reported(self):
+        error = TimeoutError()
+        adapter = FakeAdapter("dxsummit", [Snapshot([]), Snapshot([])])
+        adapter.close = AsyncMock()
+        with (
+            patch(
+                "coverage_comparator.service.consume_snapshot",
+                new=AsyncMock(side_effect=[error, asyncio.CancelledError()]),
+            ),
+            patch("coverage_comparator.service.capture_exception") as capture,
+            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+            self.assertRaises(asyncio.CancelledError),
+        ):
+            await run_adapter(self.matcher, adapter)
+        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+
+    async def test_certificate_failure_remains_reported(self):
+        error = aiohttp.ClientConnectorCertificateError(MagicMock(), OSError("invalid certificate"))
+        adapter = FakeAdapter("dxsummit", [])
+        adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
+        adapter.close = AsyncMock()
+        with (
+            patch("coverage_comparator.service.capture_exception") as capture,
+            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+            self.assertRaises(asyncio.CancelledError),
+        ):
+            await run_adapter(self.matcher, adapter)
+        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+
+    async def test_unexpected_adapter_failure_remains_reported(self):
+        error = RuntimeError("broken adapter")
+        adapter = FakeAdapter("dxsummit", [])
+        adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
+        adapter.close = AsyncMock()
+        with (
+            patch("coverage_comparator.service.capture_exception") as capture,
+            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+            self.assertRaises(asyncio.CancelledError),
+        ):
+            await run_adapter(self.matcher, adapter)
+        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
 
     async def test_many_windows_recover_and_finalize_in_bounded_batches(self):
         for number in range(105):
