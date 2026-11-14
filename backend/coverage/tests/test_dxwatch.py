@@ -113,10 +113,15 @@ class DXWatchTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.spots, [])
                 self.assertEqual(self.adapter._last_id, 10)
 
-    async def test_challenge_and_non_json_do_not_advance_or_retry(self):
+    async def test_http_error_is_reportable_and_non_json_does_not_advance(self):
         await self.seed()
-        for status, body in ((403, "Cloudflare"), (200, "<html>Just a moment...</html>"), (200, "not json")):
-            self.responses.append(httpx.Response(status, text=body))
+        self.responses.append(httpx.Response(403, text="Cloudflare"))
+        with self.assertRaises(httpx.HTTPStatusError):
+            await self.adapter.poll()
+        self.assertEqual(self.adapter._last_id, 10)
+
+        for body in ("<html>Just a moment...</html>", "not json"):
+            self.responses.append(httpx.Response(200, text=body))
             self.assertFalse((await self.adapter.poll()).recoverable)
             self.assertEqual(self.adapter._last_id, 10)
         self.assertEqual(len(self.requests), 4)

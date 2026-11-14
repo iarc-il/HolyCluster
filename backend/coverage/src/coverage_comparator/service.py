@@ -1,4 +1,5 @@
 import asyncio
+import ssl
 import time
 
 import aiohttp
@@ -10,12 +11,26 @@ from .adapters import Adapter, Snapshot, encode_spot, validate_source
 from .matcher import Matcher
 
 
+def caused_by_tls_error(error: BaseException) -> bool:
+    cause = error
+    while cause is not None:
+        if isinstance(cause, ssl.SSLError):
+            return True
+        cause = cause.__cause__ or cause.__context__
+    return False
+
+
 def is_expected_poll_error(error: Exception) -> bool:
     if isinstance(error, aiohttp.ClientResponseError):
         return 500 <= error.status < 600
-    if isinstance(error, aiohttp.ClientConnectorCertificateError):
+    if isinstance(error, httpx.HTTPStatusError):
+        return 500 <= error.response.status_code < 600
+    if isinstance(error, aiohttp.ClientConnectorCertificateError) or caused_by_tls_error(error):
         return False
-    return isinstance(error, (aiohttp.ClientConnectionError, httpx.TimeoutException, TimeoutError))
+    return isinstance(
+        error,
+        (aiohttp.ClientConnectionError, httpx.TimeoutException, httpx.NetworkError, TimeoutError),
+    )
 
 
 def retry_delay(attempt: int) -> float:

@@ -1,4 +1,5 @@
 import asyncio
+import ssl
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -93,11 +94,18 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         adapter.close.assert_awaited_once()
 
     async def test_expected_network_failures_report_once_per_outage(self):
+        request = httpx.Request("GET", "https://example.test")
         for error in (
             TimeoutError(),
             aiohttp.ClientConnectionError("unavailable"),
             aiohttp.ClientResponseError(MagicMock(), (), status=502, message="Bad Gateway"),
-            httpx.ReadTimeout("unavailable"),
+            httpx.ConnectError("unavailable", request=request),
+            httpx.ReadTimeout("unavailable", request=request),
+            httpx.HTTPStatusError(
+                "service unavailable",
+                request=request,
+                response=httpx.Response(503, request=request),
+            ),
         ):
             with self.subTest(error=type(error).__name__):
                 adapter = FakeAdapter("dxsummit", [])
@@ -129,17 +137,31 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
 
     async def test_certificate_failure_remains_reported(self):
-        error = aiohttp.ClientConnectorCertificateError(MagicMock(), OSError("invalid certificate"))
-        adapter = FakeAdapter("dxsummit", [])
-        adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
-        adapter.close = AsyncMock()
-        with (
-            patch("coverage_comparator.service.capture_exception") as capture,
-            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
-            self.assertRaises(asyncio.CancelledError),
+        request = httpx.Request("GET", "https://example.test")
+
+        def make_httpx_error():
+            try:
+                raise httpx.ConnectError("invalid certificate", request=request) from ssl.SSLCertVerificationError(
+                    1, "self signed"
+                )
+            except httpx.ConnectError as error:
+                return error
+
+        for error in (
+            aiohttp.ClientConnectorCertificateError(MagicMock(), OSError("invalid certificate")),
+            make_httpx_error(),
         ):
-            await run_adapter(self.matcher, adapter)
-        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+            with self.subTest(error=type(error).__name__):
+                adapter = FakeAdapter("dxsummit", [])
+                adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
+                adapter.close = AsyncMock()
+                with (
+                    patch("coverage_comparator.service.capture_exception") as capture,
+                    patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+                    self.assertRaises(asyncio.CancelledError),
+                ):
+                    await run_adapter(self.matcher, adapter)
+                capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
 
     async def test_unexpected_adapter_failure_remains_reported(self):
         error = RuntimeError("broken adapter")
