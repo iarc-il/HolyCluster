@@ -82,9 +82,11 @@ class DXSummitTests(unittest.IsolatedAsyncioTestCase):
             ),
             identity(spot),
         )
-        _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-A", comment=None))
-        self.assertEqual(other["spotter_callsign"], "AD1C-A")
+        _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-@", comment=None))
+        self.assertEqual(other["spotter_callsign"], "AD1C")
         self.assertEqual(other["comment"], "")
+        _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-A"))
+        self.assertEqual(other["spotter_callsign"], "AD1C-A")
         upstream = record(1, info="CW")
         del upstream["comment"]
         self.assertEqual(DXSummitAdapter._normalize(upstream)[1]["comment"], "CW")

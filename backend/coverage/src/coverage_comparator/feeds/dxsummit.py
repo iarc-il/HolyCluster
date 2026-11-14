@@ -83,7 +83,7 @@ class DXSummitAdapter:
         return upstream_id, {
             "time": date.strftime("%H%MZ"),
             "dx_callsign": dx.strip().upper(),
-            "spotter_callsign": re.sub(r"-\d+$", "", spotter.strip().upper()),
+            "spotter_callsign": re.sub(r"-(?:\d+|@)$", "", spotter.strip().upper()),
             "frequency": frequency,
             "comment": comment,
             "observed_at": date.timestamp(),
