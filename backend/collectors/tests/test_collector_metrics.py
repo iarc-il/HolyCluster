@@ -305,6 +305,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
         incoming = asyncio.Queue()
         reading = asyncio.Event()
         reader, writer = MagicMock(), MagicMock()
+        writer.drain = AsyncMock()
         writer.wait_closed = AsyncMock()
         valkey = AsyncMock()
         valkey.set.side_effect = [True, False]
@@ -350,6 +351,8 @@ class MetricsTest(IsolatedAsyncioTestCase):
             finally:
                 task.cancel()
                 await task
+        writer.write.assert_any_call(b"bye\n")
+        writer.drain.assert_awaited()
         self.assertEqual(queue.qsize(), 1)
         self.assertEqual(spot_tracker.record.await_count, 2)
         spot_tracker.record.assert_awaited_with("2010Z:K1SECRET:14074.0:W1PRIVATE", "DXUSA")
