@@ -7,7 +7,7 @@ from redis.exceptions import ResponseError
 from shared.telemetry import capture_exception
 
 from .adapters import encode_spot
-from .matcher import WINDOW, Matcher, stream_id
+from .matcher import Matcher, stream_id
 from .metrics import PIPELINE_RESULTS
 from .service import retry_delay
 
@@ -36,8 +36,8 @@ class PipelineConsumer:
             for event_id, fields in entries:
                 now = self.clock()
                 age = now - stream_id(event_id)[0] / 1000
-                acknowledge = age > WINDOW
-                if 0 <= age <= WINDOW:
+                acknowledge = age > self.matcher.window
+                if 0 <= age <= self.matcher.window:
                     try:
                         result = fields["result"]
                         spot = json.loads(fields["spot"]) if "spot" in fields else fields

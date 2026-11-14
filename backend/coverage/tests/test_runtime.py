@@ -63,7 +63,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(ready.wait(), timeout=5)
                 body = await asyncio.to_thread(fetch_metrics)
-                self.assertIn(b"holycluster_coverage_identity_window_seconds 60.0", body)
+                self.assertIn(b"holycluster_coverage_identity_window_seconds 180.0", body)
                 self.assertIn(b"holycluster_coverage_pending_windows", body)
                 self.assertIn(b'holycluster_coverage_comparison_eligible{service="dxsummit"} 0.0', body)
                 self.assertIn(b'holycluster_coverage_comparison_eligible{service="dxscape"} 0.0', body)

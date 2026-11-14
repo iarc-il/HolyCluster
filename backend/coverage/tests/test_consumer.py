@@ -18,7 +18,7 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
         self.registry = CollectorRegistry()
-        self.matcher = Matcher(self.redis, Metrics(self.registry), MemorySampleSink())
+        self.matcher = Matcher(self.redis, Metrics(self.registry), MemorySampleSink(), window=60)
         self.consumer = HolyConsumer(self.redis, self.matcher, clock=lambda: 60)
         await self.consumer.prepare()
 

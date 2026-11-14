@@ -22,7 +22,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         self.registry = CollectorRegistry()
         self.metrics = Metrics(self.registry)
         self.sink = MemorySampleSink()
-        self.matcher = Matcher(self.redis, self.metrics, self.sink)
+        self.matcher = Matcher(self.redis, self.metrics, self.sink, window=60)
         for source in ("holy", *SERVICES):
             await self.matcher.health(source, True, 0)
             await self.matcher.health(source, True, 60)
@@ -45,6 +45,26 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
             )
             or 0
         )
+
+    async def test_default_window_covers_delayed_feed(self):
+        redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        registry = CollectorRegistry()
+        matcher = Matcher(redis, Metrics(registry), MemorySampleSink())
+        for source in ("holy", "dxscape"):
+            for now in (0, 60, 120, 180):
+                await matcher.health(source, True, now)
+        await matcher.observe("holy", SPOT, 180)
+        for source in ("holy", "dxscape"):
+            await matcher.health(source, True, 299)
+        await matcher.observe("dxscape", SPOT, 299)
+        await matcher.finalize(360)
+        self.assertEqual(
+            registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": "dxscape", "result": "matched"}
+            ),
+            1,
+        )
+        await redis.aclose()
 
     async def test_additive_service_state_migration(self):
         state = empty_state()
@@ -206,7 +226,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_restart_recovers_windows_and_stream_dedupe(self):
         await self.matcher.observe("holy", SPOT, 60, event_id="60000-0")
-        recovered = Matcher(self.redis, self.metrics, self.sink)
+        recovered = Matcher(self.redis, self.metrics, self.sink, window=60)
         await recovered.observe("holy", SPOT, 120, event_id="60000-0")
         await recovered.finalize(180)
         self.assertEqual(self.count("dxsummit", "holy_only"), 1)
@@ -239,7 +259,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_state_is_bounded(self):
-        matcher = Matcher(self.redis, self.metrics, self.sink, max_windows=1)
+        matcher = Matcher(self.redis, self.metrics, self.sink, max_windows=1, window=60)
         await matcher.observe("holy", SPOT, 60)
         await matcher.observe("holy", {**SPOT, "dx_callsign": "4X2AA"}, 61)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 1)

@@ -19,7 +19,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         self.redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
         self.registry = CollectorRegistry()
         self.sink = MemorySampleSink()
-        self.matcher = Matcher(self.redis, Metrics(self.registry), self.sink)
+        self.matcher = Matcher(self.redis, Metrics(self.registry), self.sink, window=60)
         for source in ("holy", "dxsummit"):
             await self.matcher.health(source, True, 0)
             await self.matcher.health(source, True, 60)
@@ -57,7 +57,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await self.matcher.finalize(120)
         recovered_sink = MemorySampleSink()
-        recovered = Matcher(self.redis, self.matcher.metrics, recovered_sink)
+        recovered = Matcher(self.redis, self.matcher.metrics, recovered_sink, window=60)
         await recovered.finalize(121)
         await recovered.finalize(122)
         self.assertEqual(len(recovered_sink.samples), 1)
@@ -94,7 +94,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         for number in range(105):
             await self.matcher.observe("holy", {**SPOT, "dx_callsign": f"X{number}"}, 60)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 105)
-        recovered = Matcher(self.redis, self.matcher.metrics, self.sink)
+        recovered = Matcher(self.redis, self.matcher.metrics, self.sink, window=60)
         await recovered.finalize(120)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 5)
         await recovered.finalize(120)
@@ -107,7 +107,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_disabled_services_emit_no_classifications_or_skips(self):
-        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, services=("dxsummit",))
+        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, window=60, services=("dxsummit",))
         await matcher.observe("holy", SPOT, 60)
         await matcher.finalize(120)
         self.assertEqual(
@@ -124,7 +124,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_pending_sample_limit_does_not_change_classification(self):
-        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, max_samples=0)
+        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, max_samples=0, window=60)
         await matcher.observe("holy", SPOT, 60)
         await matcher.finalize(120)
         self.assertEqual(len(self.sink.samples), 0)

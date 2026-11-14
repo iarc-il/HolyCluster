@@ -9,7 +9,7 @@ from .adapters import SERVICES, SOURCES, encode_spot, identity, validate_source
 from .metrics import PIPELINE_RESULTS, Metrics
 from .samples import SampleSink
 
-WINDOW = 60
+WINDOW = 180
 FINALIZED = "coverage:finalized"
 STATE_VERSION = 2
 
@@ -64,6 +64,7 @@ class Matcher:
         max_samples: int = 1000,
         sample_max_bytes: int = 4096,
         stale_after: float = 120,
+        window: int = WINDOW,
         services: tuple[str, ...] = SERVICES,
     ):
         self.redis = redis
@@ -73,6 +74,10 @@ class Matcher:
         self.max_samples = max_samples
         self.sample_max_bytes = sample_max_bytes
         self.stale_after = stale_after
+        if type(window) is not int or window <= 0:
+            raise ValueError("window must be a positive integer")
+        self.window = window
+        self.metrics.window.set(window)
         if len(set(services)) != len(services) or any(service not in SERVICES for service in services):
             raise ValueError("Unknown or repeated coverage service")
         self.services = services
@@ -82,7 +87,7 @@ class Matcher:
             feed = state["feeds"][source]
             if not feed["up"]:
                 return feed.get("reason", "feed_down")
-            if now - feed["since"] < WINDOW:
+            if now - feed["since"] < self.window:
                 return "warmup"
             if feed["success"] is None or now - feed["success"] > self.stale_after:
                 return "stale"
@@ -157,7 +162,7 @@ class Matcher:
                             pipe.zadd("coverage:deadlines", {key: value["deadline"]})
                     pipe.zremrangebyscore(FINALIZED, "-inf", now)
                     if finalized_keys:
-                        pipe.zadd(FINALIZED, {key: now + WINDOW for key in finalized_keys})
+                        pipe.zadd(FINALIZED, {key: now + self.window for key in finalized_keys})
                     pipe.set("coverage:state", json.dumps({**state, "windows": {}}, allow_nan=False))
                     await pipe.execute()
                     self.metrics.sync(state, now, self.eligibility)
@@ -262,7 +267,7 @@ class Matcher:
                     return
                 state["windows"][key] = {
                     "opened": now,
-                    "deadline": now + WINDOW,
+                    "deadline": now + self.window,
                     "sources": [],
                     "pipeline_results": [],
                     "spot": json.loads(encoded),
