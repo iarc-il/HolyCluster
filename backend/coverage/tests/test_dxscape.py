@@ -59,7 +59,7 @@ class DXscapeTests(unittest.IsolatedAsyncioTestCase):
         request = self.requests[0]
         self.assertEqual(str(request.url), "http://example.test/ww.html")
         self.assertIn("Firefox/", request.headers["User-Agent"])
-        self.assertEqual(request.extensions["timeout"]["read"], 15.0)
+        self.assertEqual(request.extensions["timeout"]["read"], 30.0)
 
         snapshot = await self.poll(
             page(

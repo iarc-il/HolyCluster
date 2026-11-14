@@ -64,7 +64,7 @@ class DXscapeAdapter:
         poll_interval: float = 60.0,
         snapshot_limit: int = 500,
         stale_after: float = 180.0,
-        request_timeout: float = 15.0,
+        request_timeout: float = 30.0,
     ):
         if not math.isfinite(poll_interval) or poll_interval < 60:
             raise ValueError("DXscape requires at least 60 seconds between requests")
