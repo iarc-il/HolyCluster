@@ -114,6 +114,20 @@ class DXscapeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.recoverable)
         self.assertEqual(snapshot.spots, [])
 
+    async def test_future_row_does_not_take_feed_down(self):
+        self.responses.append(page(row("DX1AA", "2144Z")))
+        await self.adapter.poll()
+        snapshot = await self.poll(
+            page(
+                row("BADTIME", "2152Z"),
+                row("DX2AA", "2145Z"),
+                row("DX1AA", "2144Z"),
+                footer="Fri Nov 13 21:46:00 UTC 2026",
+            )
+        )
+        self.assertTrue(snapshot.recoverable)
+        self.assertEqual([spot["dx_callsign"] for spot in snapshot.spots], ["DX2AA"])
+
     async def test_missing_or_ambiguous_overlap_rebases(self):
         self.responses.append(page(row("DX1AA", "2144Z"), row("DX0AA", "2143Z")))
         await self.adapter.poll()

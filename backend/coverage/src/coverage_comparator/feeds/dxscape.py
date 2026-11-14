@@ -148,7 +148,7 @@ class DXscapeAdapter:
                     key=lambda value: abs(value - footer),
                 )
                 if candidate - footer > self.ROW_FUTURE_SKEW or footer - candidate > self.MAX_ROW_AGE:
-                    raise ValueError("DXscape row time is outside the snapshot window")
+                    continue
                 frequency = float(frequency.strip())
                 if not math.isfinite(frequency) or frequency <= 0:
                     raise ValueError("Invalid DXscape frequency")
