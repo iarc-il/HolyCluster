@@ -1,9 +1,11 @@
 import argparse
 import asyncio
-import sys
 import re
+import socket
+import sys
 from datetime import datetime, timezone
 
+import asyncpg
 import httpx
 from loguru import logger
 import redis.exceptions
@@ -13,7 +15,13 @@ from shared.geo import GeoException, get_geo_details
 from shared.qrz import QrzSessionManager
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import (
+    DBAPIError,
+    DisconnectionError,
+    InterfaceError as SQLAlchemyInterfaceError,
+    OperationalError,
+    TimeoutError as SQLAlchemyTimeoutError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import close_valkey_client, get_valkey_client
@@ -44,6 +52,19 @@ COVERAGE_PIPELINE_STREAM = "coverage-holy-pipeline"
 COVERAGE_PIPELINE_MAXLEN = 100_000
 COVERAGE_PIPELINE_TIMEOUT = 0.5
 PERSIST_ATTEMPTS = 3
+RAW_DATABASE_CONNECTION_ERRORS = (
+    ConnectionError,
+    socket.gaierror,
+    asyncpg.PostgresConnectionError,
+    asyncpg.CannotConnectNowError,
+    asyncpg.InternalClientError,
+)
+RETRYABLE_SQLALCHEMY_ERRORS = (
+    OperationalError,
+    SQLAlchemyInterfaceError,
+    DisconnectionError,
+    SQLAlchemyTimeoutError,
+)
 LOTW_CACHE_KEY = "collector:lotw:user_activity"
 LOTW_REFRESH_INTERVAL_SECONDS = 3600
 LOTW_RETRY_BASE_SECONDS = 600
@@ -203,6 +224,16 @@ async def publish_coverage_pipeline_result(valkey_client, spot: dict, result: st
     return "success"
 
 
+def is_retryable_persistence_error(error: Exception) -> bool:
+    if isinstance(error, (redis.exceptions.RedisError, *RAW_DATABASE_CONNECTION_ERRORS)):
+        return True
+    if isinstance(error, RETRYABLE_SQLALCHEMY_ERRORS):
+        return True
+    return isinstance(error, DBAPIError) and (
+        error.connection_invalidated or isinstance(error.orig, RAW_DATABASE_CONNECTION_ERRORS)
+    )
+
+
 async def persist_spot(engine, valkey_client, spot: dict):
     for attempt in range(PERSIST_ATTEMPTS):
         try:
@@ -212,7 +243,11 @@ async def persist_spot(engine, valkey_client, spot: dict):
                 with metrics.operation("valkey_xadd"):
                     await valkey_client.xadd(STREAM_API, spot, "*", maxlen=10000)
             return
-        except (SQLAlchemyError, redis.exceptions.RedisError):
+        except Exception as error:
+            if not is_retryable_persistence_error(error):
+                raise
+            if isinstance(error, RAW_DATABASE_CONNECTION_ERRORS):
+                await engine.dispose()
             if attempt == PERSIST_ATTEMPTS - 1:
                 raise
             delay = 2**attempt
@@ -224,7 +259,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
     logger.info("Spot processor started")
 
     valkey_client = get_valkey_client()
-    engine = create_async_engine(settings.db_url, pool_pre_ping=True, pool_recycle=3600)
+    engine = create_async_engine(settings.db_url, pool_pre_ping=True, pool_recycle=3600, hide_parameters=True)
 
     try:
         while True:
@@ -273,7 +308,9 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     with metrics.processing.labels(source, "persist").time():
                         await persist_spot(engine, valkey_client, enriched_spot)
                     result = "success"
-                except (SQLAlchemyError, redis.exceptions.RedisError) as e:
+                except Exception as e:
+                    if not is_retryable_persistence_error(e):
+                        raise
                     logger.opt(exception=e).warning("Failed to persist spot after retries")
                     capture_exception(e, operation="collector.persist")
             except asyncio.CancelledError:
