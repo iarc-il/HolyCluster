@@ -1,5 +1,5 @@
 # Use official NGINX image
-FROM nginx:stable-bookworm
+FROM nginx:1.30.7-trixie
 
 # Install envsubst for variable substitution, network utilities
 RUN apt-get update && apt-get install -y gettext-base net-tools iputils-ping dnsutils procps && rm -rf /var/lib/apt/lists/*
