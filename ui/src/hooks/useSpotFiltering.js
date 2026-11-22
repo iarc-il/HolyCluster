@@ -114,7 +114,10 @@ function limit_count(count) {
     return Math.min(count, 99);
 }
 
-export default function useSpotFiltering(raw_spots, is_history_mode = false) {
+export default function useSpotFiltering(
+    raw_spots,
+    { is_history_mode = false, is_callsign_search = false } = {},
+) {
     const { filters, callsign_filters } = useFilters();
     const {
         active_profile_data: { table_sort, missing },
@@ -199,9 +202,13 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             }
 
             const is_in_time_limit =
-                is_history_mode || current_time - spot.time < filters.time_limit;
+                is_history_mode ||
+                is_callsign_search ||
+                current_time - spot.time < filters.time_limit;
 
-            if (search_query.length > 0) {
+            // If the search is not empty, it override everything else. A
+            // callsign search already narrows to one DX, so it keeps the filters.
+            if (search_query.length > 0 && !is_callsign_search) {
                 const is_matching_search = [
                     spot.dx_callsign,
                     spot.spotter_callsign,
@@ -262,11 +269,12 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
                 is_spot_visible(spot, relaxed_reasons),
             );
 
-            if (!is_history_mode) {
+            if (!is_history_mode && !is_callsign_search) {
                 displayed_spots = displayed_spots.slice(0, 100);
             }
 
-            if (filters.show_only_latest_spot) {
+            // Collapsing a single DX's history to one spot defeats the search
+            if (filters.show_only_latest_spot && !is_callsign_search) {
                 const latest_spots = new Map();
                 for (const spot of displayed_spots) {
                     const existing = latest_spots.get(spot.dx_callsign);
@@ -346,6 +354,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         is_history_mode,
         now_ms,
         clock_revision,
+        is_callsign_search,
     ]);
 
     const { spots, empty_state } = filter_result;

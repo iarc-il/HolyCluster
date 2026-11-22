@@ -412,6 +412,92 @@ class WebSocketProtocolTest(unittest.TestCase):
                 },
             )
 
+    def test_ws_returns_search_response_for_normalized_callsign(self):
+        spots = [{"dx_callsign": "K3ABC"}]
+        session = FakeHistorySession(spots)
+        ten_days = 10 * 86400
+
+        with (
+            patch("api.main.async_session", new=lambda: session),
+            patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "search",
+                    "dx_callsign": " k3abc ",
+                    "start_time": 100,
+                    "end_time": 100 + ten_days,
+                }
+            )
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "search",
+                    "dx_callsign": "K3ABC",
+                    "start_time": 100,
+                    "end_time": 100 + ten_days,
+                    "truncated": False,
+                    "spots": spots,
+                },
+            )
+
+    def test_ws_search_truncates_to_newest_spots(self):
+        # The query returns newest first; the response is oldest first.
+        rows = [{"dx_callsign": "K3ABC", "time": t} for t in (300, 200, 100)]
+        session = FakeHistorySession(rows)
+
+        with (
+            patch("api.main.MAX_SEARCH_RESULTS", 2),
+            patch("api.main.async_session", new=lambda: session),
+            patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {"version": 1, "type": "search", "dx_callsign": "K3ABC", "start_time": 0, "end_time": 1000}
+            )
+            response = websocket.receive_json()
+
+        self.assertTrue(response["truncated"])
+        self.assertEqual([spot["time"] for spot in response["spots"]], [200, 300])
+
+    def test_ws_search_errors(self):
+        cases = [
+            (
+                {"start_time": 100, "end_time": 200},
+                {"error_type": "MissingField", "message": "Missing dx_callsign", "field": "dx_callsign"},
+            ),
+            (
+                {"dx_callsign": "K3ABC", "end_time": 200},
+                {"error_type": "MissingField", "message": "Missing start_time", "field": "start_time"},
+            ),
+            (
+                {"dx_callsign": "K3 ABC!", "start_time": 100, "end_time": 200},
+                {"error_type": "MalformedMessage", "message": "Invalid dx_callsign", "field": "dx_callsign"},
+            ),
+            (
+                {"dx_callsign": "K3ABC", "start_time": 200, "end_time": 100},
+                {
+                    "error_type": "MalformedMessage",
+                    "message": "end_time must be greater than start_time",
+                    "field": "start_time",
+                },
+            ),
+            (
+                {"dx_callsign": "K3ABC", "start_time": 100, "end_time": 100 + 15 * 86400},
+                {"error_type": "MalformedMessage", "message": "time range cannot exceed 14 days", "field": "end_time"},
+            ),
+        ]
+
+        with self.client.websocket_connect("/ws") as websocket:
+            for fields, expected in cases:
+                with self.subTest(fields=fields):
+                    websocket.send_json({"version": 1, "type": "search", **fields})
+                    self.assertEqual(websocket.receive_json(), {"version": 1, "type": "error", **expected})
+
     def test_ws_rejects_unknown_spots_action(self):
         with self.client.websocket_connect("/ws") as websocket:
             websocket.send_json({"version": 1, "type": "spots", "action": "unknown"})

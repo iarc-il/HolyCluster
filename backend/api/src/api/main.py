@@ -423,6 +423,7 @@ class WsMessageType(StrEnum):
     MISSING = "missing"
     HISTORY = "history"
     UI_REFRESH = "ui_refresh"
+    SEARCH = "search"
 
 
 class WsSpotAction(StrEnum):
@@ -880,6 +881,10 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
         await record_ui_refresh(websocket, send_lock, message)
         return
 
+    if message.get("type") == WsMessageType.SEARCH.value:
+        await send_ws_search(websocket, send_lock, message)
+        return
+
     await send_ws_json(
         websocket,
         send_lock,
@@ -1065,6 +1070,80 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
             ),
         )
         metrics.HISTORY_RECORDS.labels("spots").inc(len(spots))
+
+
+MAX_SEARCH_RANGE_SECONDS = 14 * 86400
+MAX_SEARCH_RESULTS = 10_000
+
+
+async def send_ws_search(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    metrics.FEATURES.labels("callsign_search").inc()
+
+    for field_name in ("dx_callsign", "start_time", "end_time"):
+        if message.get(field_name) is None:
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.MISSING_FIELD, f"Missing {field_name}", field=field_name),
+            )
+            return
+
+    start_time = message["start_time"]
+    end_time = message["end_time"]
+    dx_callsign = str(message["dx_callsign"]).strip().upper()
+
+    if not MISSING_CALLSIGN_PATTERN.fullmatch(dx_callsign):
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "Invalid dx_callsign", field="dx_callsign"),
+        )
+        return
+    if end_time < start_time:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(
+                WsErrorType.MALFORMED_MESSAGE, "end_time must be greater than start_time", field="start_time"
+            ),
+        )
+        return
+    if end_time - start_time > MAX_SEARCH_RANGE_SECONDS:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "time range cannot exceed 14 days", field="end_time"),
+        )
+        return
+
+    # Newest first so a busy DX is cut off at its oldest spots; one extra row
+    # tells us whether anything was cut.
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.dx_callsign == dx_callsign)
+            .where(HolySpot.timestamp >= start_time)
+            .where(HolySpot.timestamp <= end_time)
+            .order_by(desc(HolySpot.timestamp))
+            .limit(MAX_SEARCH_RESULTS + 1)
+        )
+        rows = list((await session.execute(query)).scalars().all())
+    truncated = len(rows) > MAX_SEARCH_RESULTS
+    spots = cleanup_spots(reversed(rows[:MAX_SEARCH_RESULTS]))
+
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_message(
+            WsMessageType.SEARCH,
+            dx_callsign=dx_callsign,
+            start_time=start_time,
+            end_time=end_time,
+            truncated=truncated,
+            spots=spots,
+        ),
+    )
+    metrics.HISTORY_RECORDS.labels("search").inc(len(spots))
 
 
 async def cancel_missing_jobs(missing_jobs):

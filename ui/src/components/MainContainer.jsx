@@ -6,6 +6,7 @@ import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
+import CallsignHistoryLauncher from "@/components/search/CallsignHistoryLauncher.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
@@ -107,6 +108,7 @@ function MainContent({
         set_filter_missing_flags,
         committed_start: spots_committed_start,
         committed_end: spots_committed_end,
+        set_callsign_search,
     } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
     const is_history_mode = !!(history_start && history_end);
@@ -378,6 +380,7 @@ function MainContent({
             set_history_start(null);
             set_history_end(null);
         } else {
+            set_callsign_search(null);
             const bar_start_ms = now_ms() - display_hours * 3_600_000;
             set_history_start(new Date(bar_start_ms));
             set_history_end(new Date(bar_start_ms + window_size_ms));
@@ -575,6 +578,7 @@ function MainContent({
                         />
                     </Suspense>
                 )}
+                <CallsignHistoryLauncher />
             </div>
             {is_md_device && (
                 <MobileWorkspaceNavigation
@@ -601,6 +605,17 @@ function MainContainer() {
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
     const [is_dragging, set_is_dragging] = useState(false);
+    const [callsign_search, set_callsign_search] = useState(null);
+
+    // Playback and callsign search both replace the live spots, so starting a
+    // search leaves playback.
+    function start_callsign_search(search) {
+        if (search) {
+            set_history_start(null);
+            set_history_end(null);
+        }
+        set_callsign_search(search);
+    }
 
     function set_window_size_ms(value_or_setter) {
         update_active_profile_section("history", history => ({
@@ -649,6 +664,8 @@ function MainContainer() {
                 endTime={history_end}
                 window_size_ms={window_size_ms}
                 step_size_ms={step_size_ms}
+                callsign_search={callsign_search}
+                set_callsign_search={start_callsign_search}
             >
                 <MainContent
                     history_start={history_start}

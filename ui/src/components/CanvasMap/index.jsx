@@ -7,6 +7,7 @@ import SpotContextMenu from "@/components/SpotContextMenu.jsx";
 import SpotPopup from "@/components/SpotPopup.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import { get_dxcc_label, is_filterable_dxcc_entity } from "@/data/dxcc_entities.js";
+import { view_callsign_history } from "@/hooks/useCallsignSearch";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
@@ -99,11 +100,19 @@ function CanvasMap({
         get_filter_add_status,
         add_filter_if_allowed,
     );
-    const spot_menu_actions = build_spot_context_menu_actions(
-        map_context_menu.spot,
-        get_filter_add_status,
-        add_filter_if_allowed,
-    );
+    const spot_menu_actions = [
+        ...build_spot_context_menu_actions(
+            map_context_menu.spot,
+            get_filter_add_status,
+            add_filter_if_allowed,
+        ),
+        {
+            label: "View History",
+            disabled: spot => !spot?.dx_callsign?.trim(),
+            disabled_reason: spot => (spot?.dx_callsign?.trim() ? null : "Missing DX callsign"),
+            onClick: spot => view_callsign_history(spot.dx_callsign),
+        },
+    ];
 
     const [div_ref, { width, height }] = useMeasure();
 

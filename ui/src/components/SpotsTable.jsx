@@ -1,5 +1,5 @@
-import CallsignSearch from "@/components/CallsignSearch.jsx";
 import { QUICK_SPOT_EVENT } from "@/components/SubmitSpot.jsx";
+import CallsignSearch from "@/components/search/CallsignSearch.jsx";
 import Button from "@/components/ui/Button.jsx";
 import X from "@/components/ui/X.jsx";
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -13,6 +13,7 @@ import {
 import { get_dxcc_label } from "@/data/dxcc_entities.js";
 import { get_dxcc_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
+import { view_callsign_history } from "@/hooks/useCallsignSearch";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import useRadio from "@/hooks/useRadio";
@@ -363,7 +364,7 @@ const Spot = forwardRef(function Spot(
     },
     ref,
 ) {
-    const { current_freq_spots, is_history_mode } = useSpotData();
+    const { current_freq_spots, is_history_mode, is_callsign_search } = useSpotData();
     const { settings } = useSettings();
     const [is_fading, set_is_fading] = useState(false);
 
@@ -379,8 +380,11 @@ const Spot = forwardRef(function Spot(
         set_is_fading(false);
     }, [is_new_spot]);
 
-    const { format_time } = useTimeZone();
-    const formatted_time = format_time(new Date(spot.time * 1000));
+    const { format_time, format_date } = useTimeZone();
+    const spot_date = new Date(spot.time * 1000);
+    const formatted_time = format_time(spot_date);
+    // A callsign search spans days, so the time alone is ambiguous
+    const formatted_date = is_callsign_search ? format_date(spot_date) : null;
     const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id === pinned_spot;
     const is_previewed = spot.id === hovered_spot.id;
@@ -513,6 +517,11 @@ const Spot = forwardRef(function Spot(
                                 return set_pinned_spot(null);
                             }}
                         />
+                    </div>
+                ) : formatted_date ? (
+                    <div className="leading-tight">
+                        {formatted_time}
+                        <div className="text-xs opacity-70">{formatted_date}</div>
                     </div>
                 ) : (
                     formatted_time
@@ -1034,6 +1043,11 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                   }),
                               );
                           },
+                      },
+                      // The history search looks up DX callsigns only
+                      {
+                          label: () => "View History",
+                          onClick: spot => view_callsign_history(spot.dx_callsign),
                       },
                   ]),
             {
