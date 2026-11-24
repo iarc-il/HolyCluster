@@ -26,7 +26,6 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST_DEV }}" >> ~/.ssh/known_hosts
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST_INT }}" >> ~/.ssh/known_hosts
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST_PROD }}" >> ~/.ssh/known_hosts
 
       - name: Clean hosts
@@ -34,9 +33,6 @@ jobs:
           DEPLOY_USER_DEV: ${{ secrets.DEPLOY_USER_DEV }}
           DEPLOY_HOST_DEV: ${{ secrets.DEPLOY_HOST_DEV }}
           REPO_ROOT_DEV: ${{ secrets.REPO_ROOT_DEV }}
-          DEPLOY_USER_INT: ${{ secrets.DEPLOY_USER_INT }}
-          DEPLOY_HOST_INT: ${{ secrets.DEPLOY_HOST_INT }}
-          REPO_ROOT_INT: ${{ secrets.REPO_ROOT_INT }}
           DEPLOY_USER_PROD: ${{ secrets.DEPLOY_USER_PROD }}
           DEPLOY_HOST_PROD: ${{ secrets.DEPLOY_HOST_PROD }}
           REPO_ROOT_PROD: ${{ secrets.REPO_ROOT_PROD }}
@@ -54,6 +50,5 @@ jobs:
 
           status=0
           cleanup_host development "$DEPLOY_USER_DEV" "$DEPLOY_HOST_DEV" "$REPO_ROOT_DEV" || status=1
-          cleanup_host integration "$DEPLOY_USER_INT" "$DEPLOY_HOST_INT" "$REPO_ROOT_INT" || status=1
           cleanup_host production "$DEPLOY_USER_PROD" "$DEPLOY_HOST_PROD" "$REPO_ROOT_PROD" || status=1
           exit "$status"
