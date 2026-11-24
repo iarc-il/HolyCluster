@@ -1585,7 +1585,7 @@ async def spot_history(start_time: int, end_time: int):
     return fastapi.Response(content=payload, media_type="application/json")
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     try:
         async with async_session() as session:
@@ -1596,7 +1596,7 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def get_index():
     response = FileResponse(f"{settings.ui_dist_path}/index.html", media_type="text/html")
     response.headers["Cache-Control"] = "no-store"
