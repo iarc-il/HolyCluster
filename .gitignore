@@ -10,6 +10,7 @@ nginx/nginx.conf*
 # Runtime-rendered nginx configs (envsubst output); keep the conf.d dir + templates
 backend/infra/nginx/nginx.conf
 backend/infra/nginx/conf.d/alt.conf
+backend/infra/nginx/conf.d/vm-proxy.conf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
