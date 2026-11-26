@@ -32,8 +32,9 @@ export default function CallsignSearchChip({ compact = false }) {
     const format = date => `${format_date(date)} ${format_time(date)}`;
     const exact_range = `${format(callsign_search.start)} – ${format(callsign_search.end)} (${label})`;
     const from_preset = FROM_PRESETS.find(p => p.value === callsign_search.from_preset);
+    // A custom range is too long for the chip; the tooltip shows it in full
     const range_text =
-        callsign_search.to_preset === "now" && from_preset ? from_preset.summary : exact_range;
+        callsign_search.to_preset === "now" && from_preset ? from_preset.summary : "Custom";
 
     const is_loading = search_fetch_state === "loading";
     const is_error = search_fetch_state === "error";

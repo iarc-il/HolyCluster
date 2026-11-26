@@ -20,7 +20,7 @@ test("a custom range does not push the search chip out of its row", async ({ pag
     const row = page.locator(tour_target("table-search"));
     const chip = row.locator(tour_target("callsign-search-chip"));
     await expect(chip).toContainText("JA1XYZ");
-    await expect(chip).toContainText("20 Nov");
+    await expect(chip).toContainText("Custom");
 
     // The range text must truncate instead of pushing the exit button out of
     // the chip and over the reference selector
