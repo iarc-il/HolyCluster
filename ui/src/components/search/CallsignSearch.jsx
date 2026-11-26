@@ -36,11 +36,7 @@ export default function CallsignSearch({
     const [single_spot_hover, set_single_spot_hover] = useState(false);
     const history_search_ref = useRef(null);
     const [history_search_hover, set_history_search_hover] = useState(false);
-    // Same blue as the active playback button on the map
-    const active_icon_color = colors.buttons.active ?? "#3b82f6";
-    const history_search_label = is_callsign_search
-        ? "Edit DX History Search"
-        : "Search DX History";
+    const history_search_label = "Search DX History";
 
     const toggle_button_base = {
         border: `1px solid ${colors.theme.text}38`,
@@ -87,7 +83,8 @@ export default function CallsignSearch({
             data-tour={data_tour}
             style={border_style}
         >
-            {/* The text filter is ignored during a callsign search, so hide it */}
+            {/* The text filter is ignored during a callsign search, and the
+                chip replaces the history button, so hide both */}
             {!is_callsign_search && (
                 <>
                     {!compact && <SearchIcon color={colors.theme.text} />}
@@ -104,55 +101,54 @@ export default function CallsignSearch({
                         }}
                     />
                     {search_query && <X size="24" on_click={() => set_search_query("")} />}
+                    <CallsignSearchModal
+                        data_tour={`${data_tour}-history-search`}
+                        button={
+                            <span
+                                ref={history_search_ref}
+                                className={`flex items-center rounded-md ${compact ? "px-1 py-1" : "px-2 py-1"}`}
+                                onMouseEnter={() => set_history_search_hover(true)}
+                                onMouseLeave={() => set_history_search_hover(false)}
+                                // The popup sits above the modal this click opens
+                                onClick={() => set_history_search_hover(false)}
+                                style={{
+                                    ...toggle_button_base,
+                                    ...(history_search_hover ? toggle_button_hover_style : {}),
+                                }}
+                            >
+                                <span className="sr-only">{history_search_label}</span>
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke={colors.theme.text}
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                                    <path d="M3 3v5h5" />
+                                    <path d="M12 7v5l3 2" />
+                                </svg>
+                            </span>
+                        }
+                    />
+                    {history_search_hover && (
+                        <Popup anchor_ref={history_search_ref} keep_in_view={true}>
+                            <div
+                                className="py-1 px-2 rounded shadow-lg"
+                                style={{
+                                    color: colors.theme.text,
+                                    background: colors.theme.background,
+                                }}
+                            >
+                                {history_search_label}
+                            </div>
+                        </Popup>
+                    )}
                 </>
-            )}
-            <CallsignSearchModal
-                data_tour={`${data_tour}-history-search`}
-                button={
-                    <span
-                        ref={history_search_ref}
-                        className={`flex items-center rounded-md ${compact ? "px-1 py-1" : "px-2 py-1"}`}
-                        onMouseEnter={() => set_history_search_hover(true)}
-                        onMouseLeave={() => set_history_search_hover(false)}
-                        // The popup sits above the modal this click opens
-                        onClick={() => set_history_search_hover(false)}
-                        style={{
-                            ...toggle_button_base,
-                            ...(is_callsign_search ? toggle_button_active : {}),
-                            ...(history_search_hover ? toggle_button_hover_style : {}),
-                        }}
-                    >
-                        <span className="sr-only">{history_search_label}</span>
-                        <svg
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke={is_callsign_search ? active_icon_color : colors.theme.text}
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-                            <path d="M3 3v5h5" />
-                            <path d="M12 7v5l3 2" />
-                        </svg>
-                    </span>
-                }
-            />
-            {history_search_hover && (
-                <Popup anchor_ref={history_search_ref} keep_in_view={true}>
-                    <div
-                        className="py-1 px-2 rounded shadow-lg"
-                        style={{
-                            color: colors.theme.text,
-                            background: colors.theme.background,
-                        }}
-                    >
-                        {history_search_label}
-                    </div>
-                </Popup>
             )}
             <CallsignSearchChip compact={compact} />
             <Select
