@@ -86,6 +86,9 @@ export default function CallsignSearchChip({ compact = false }) {
                 button={
                     <span
                         className={`flex items-center gap-1.5 min-w-0 ${compact ? "pl-1.5" : "pl-2"} py-1`}
+                        // The modal is portaled inside the chip's React tree,
+                        // so mouseleave never fires and the tooltip would stay
+                        onClick={() => set_is_hovered(false)}
                     >
                         {is_loading && <Spinner size="14" color={colors.theme.text} />}
                         <span className="font-semibold whitespace-nowrap">
