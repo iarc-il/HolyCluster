@@ -58,3 +58,23 @@ test("the chip replaces the history button during a search", async ({ page }) =>
     await expect(chip).toHaveCount(0);
     await expect(history_button).toBeVisible();
 });
+
+test("opening the modal from the chip hides its tooltip", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    await expect(page.locator(tour_target("spot-row")).first()).toBeVisible();
+
+    const row = page.locator(tour_target("table-search"));
+    await row.locator(tour_target("table-search-history-search")).click();
+    await page.getByRole("dialog").locator("input").first().fill("JA1XYZ");
+    await page.locator(tour_target("modal-apply-button")).click();
+
+    const chip = row.locator(tour_target("callsign-search-chip"));
+    await chip.getByText("JA1XYZ").hover();
+    await expect(page.getByRole("tooltip")).toBeVisible();
+
+    await chip.getByText("JA1XYZ").click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("dialog").locator("input").first().hover();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+});
