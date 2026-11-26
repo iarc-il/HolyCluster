@@ -79,6 +79,7 @@ export default function CallsignSearchChip({ compact = false }) {
             }}
         >
             <CallsignSearchModal
+                trigger_class_name="min-w-0"
                 button={
                     <span
                         className={`flex items-center gap-1.5 min-w-0 ${compact ? "pl-1.5" : "pl-2"} py-1`}

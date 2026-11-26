@@ -23,6 +23,7 @@ function Modal({
     backdrop = false,
     modal_style = null,
     data_tour = null,
+    trigger_class_name = "",
     dialog_data_tour = null,
     children,
     footer = null,
@@ -154,7 +155,7 @@ function Modal({
         <>
             <div
                 ref={trigger_ref}
-                className="cursor-pointer"
+                className={`cursor-pointer ${trigger_class_name}`}
                 data-tour={data_tour}
                 onClick={() => {
                     if (on_open != null) {

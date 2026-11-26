@@ -111,6 +111,7 @@ export default function CallsignSearchModal({
     dx = null,
     external_open = null,
     data_tour = null,
+    trigger_class_name = "",
 }) {
     const { colors } = useColors();
     const { callsign_search, set_callsign_search } = useSpotData();
@@ -178,6 +179,7 @@ export default function CallsignSearchModal({
             button={button}
             external_open={external_open}
             data_tour={data_tour}
+            trigger_class_name={trigger_class_name}
             on_open={reset_form}
             on_cancel={() => {}}
             on_apply={() => {
