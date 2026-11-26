@@ -33,3 +33,28 @@ test("a custom range does not push the search chip out of its row", async ({ pag
         .boundingBox();
     expect(chip_box.x + chip_box.width).toBeLessThanOrEqual(selector_box.x);
 });
+
+test("the chip replaces the history button during a search", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    await expect(page.locator(tour_target("spot-row")).first()).toBeVisible();
+
+    const row = page.locator(tour_target("table-search"));
+    const history_button = row.locator(tour_target("table-search-history-search"));
+    await history_button.click();
+    await page.getByRole("dialog").locator("input").first().fill("JA1XYZ");
+    await page.locator(tour_target("modal-apply-button")).click();
+
+    const chip = row.locator(tour_target("callsign-search-chip"));
+    await expect(chip).toContainText("JA1XYZ");
+    await expect(history_button).toHaveCount(0);
+
+    // The chip opens the same modal to edit the search
+    await chip.getByText("JA1XYZ").click();
+    await expect(page.getByRole("dialog").locator("input").first()).toHaveValue("JA1XYZ");
+    await page.keyboard.press("Escape");
+
+    await chip.getByLabel("Exit callsign search").click();
+    await expect(chip).toHaveCount(0);
+    await expect(history_button).toBeVisible();
+});
