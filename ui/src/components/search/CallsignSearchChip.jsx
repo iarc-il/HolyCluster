@@ -75,7 +75,9 @@ export default function CallsignSearchChip({ compact = false }) {
             onMouseLeave={() => set_is_hovered(false)}
             style={{
                 border: `1px solid ${accent}`,
-                background: `${colors.theme.text}2E`,
+                // Brighter on hover, like the history button it replaces
+                background: `${colors.theme.text}${is_hovered ? "40" : "2E"}`,
+                transition: "background-color 140ms ease",
                 color: colors.theme.text,
             }}
         >
