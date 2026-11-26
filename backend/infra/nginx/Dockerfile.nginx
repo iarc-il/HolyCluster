@@ -12,7 +12,7 @@ COPY nginx.conf.template .
 COPY nginx-glitchtip.conf.template .
 
 # Expose HTTP and HTTPS ports
-EXPOSE 80 443 9999
+EXPOSE 80 443
 
 # Use envsubst to replace environment variables at container start.
 # When optional domains are set, also render their server blocks into conf.d.

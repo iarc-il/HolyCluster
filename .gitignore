@@ -6,8 +6,6 @@ nginx/streams-available/
 nginx/streams-enabled/
 nginx/nginx.conf
 nginx/nginx.conf*
-nginx-ui/app.ini
-nginx-ui/database.db
 
 # Runtime-rendered nginx configs (envsubst output); keep the conf.d dir + templates
 backend/infra/nginx/nginx.conf

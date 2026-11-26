@@ -261,7 +261,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "9999:9999"
     volumes:
       - ./infra/certbot/conf:/etc/letsencrypt
       - ./infra/certbot/www:/var/www/certbot
@@ -298,22 +297,6 @@ services:
     entrypoint: >
       /bin/sh -c 'trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew; done'
 
-  nginx_ui:
-      profiles: ["dev"]
-      stdin_open: true
-      tty: true
-      image: uozi/nginx-ui:latest
-      restart: unless-stopped
-      ports:
-        - "8080:80"
-        - "8443:443"
-      volumes:
-        - infra/nginx:/etc/nginx
-        - infra/nginx-ui:/etc/nginx-ui
-        - infra/certbot/conf:/etc/letsencrypt
-        - /var/run/docker.sock:/var/run/docker.sock
-      environment:
-        - TZ=Asia/Jerusalem
 
 networks:
   proxy:
