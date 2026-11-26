@@ -1,0 +1,38 @@
+# Read-only VictoriaMetrics endpoint for the IARC management Grafana (iarc-mgmt).
+#
+# Rendered into /etc/nginx/conf.d/vm-proxy.conf at container start ONLY when
+# VM_PROXY_TOKEN is set (see Dockerfile.nginx CMD and the nginx service command in
+# docker-compose). Only ${DOMAIN} and ${VM_PROXY_TOKEN} are substituted.
+#
+# Why: iarc-il/iarc-mgmt-grafana ADR 0001. Port 8428 is reachable only from
+# iarc-mgmt (46.224.40.226) through the Hetzner Cloud Firewall `holycluster-fw`.
+# On top of that: TLS with DOMAIN's cert, a bearer token, and only the query API.
+# Writes, deletes and the admin API are never proxied.
+server {
+    listen 8428 ssl;
+
+    server_name ${DOMAIN};
+
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    if ($http_authorization != "Bearer ${VM_PROXY_TOKEN}") {
+        return 401;
+    }
+
+    # Read-only Prometheus query API used by Grafana.
+    location ~ ^/api/v1/(query|query_range|query_exemplars|series|labels|label/[^/]+/values|metadata|status/buildinfo)$ {
+        limit_except GET POST { deny all; }
+        # Resolved per request so nginx still starts when victoriametrics is down.
+        resolver 127.0.0.11 valid=30s;
+        set $victoriametrics http://victoriametrics:8428;
+        proxy_set_header    Authorization       "";
+        proxy_pass          $victoriametrics;
+    }
+
+    location / {
+        return 404;
+    }
+}
