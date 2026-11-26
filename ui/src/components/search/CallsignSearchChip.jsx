@@ -5,7 +5,7 @@ import { FROM_PRESETS } from "@/hooks/useCallsignSearch";
 import { useColors } from "@/hooks/useColors";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useTimeZone } from "@/hooks/useTimeZone";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ERROR_COLOR = "#ef4444";
 const WARNING_COLOR = "#f59e0b";
@@ -26,6 +26,22 @@ export default function CallsignSearchChip({ compact = false }) {
     } = useSpotData();
     const chip_ref = useRef(null);
     const [is_hovered, set_is_hovered] = useState(false);
+    const has_search = callsign_search != null;
+
+    // Native events: React's mouseleave follows the component tree, which
+    // counts the portaled search modal as inside the chip
+    useEffect(() => {
+        const chip = chip_ref.current;
+        if (!chip) return;
+        const enter = () => set_is_hovered(true);
+        const leave = () => set_is_hovered(false);
+        chip.addEventListener("mouseenter", enter);
+        chip.addEventListener("mouseleave", leave);
+        return () => {
+            chip.removeEventListener("mouseenter", enter);
+            chip.removeEventListener("mouseleave", leave);
+        };
+    }, [has_search]);
 
     if (!callsign_search) return null;
 
@@ -71,8 +87,6 @@ export default function CallsignSearchChip({ compact = false }) {
             ref={chip_ref}
             className="flex items-center shrink min-w-0 rounded-md text-sm"
             data-tour="callsign-search-chip"
-            onMouseEnter={() => set_is_hovered(true)}
-            onMouseLeave={() => set_is_hovered(false)}
             style={{
                 border: `1px solid ${accent}`,
                 // Brighter on hover, like the history button it replaces
@@ -86,9 +100,6 @@ export default function CallsignSearchChip({ compact = false }) {
                 button={
                     <span
                         className={`flex items-center gap-1.5 min-w-0 ${compact ? "pl-1.5" : "pl-2"} py-1`}
-                        // The modal is portaled inside the chip's React tree,
-                        // so mouseleave never fires and the tooltip would stay
-                        onClick={() => set_is_hovered(false)}
                     >
                         {is_loading && <Spinner size="14" color={colors.theme.text} />}
                         <span className="font-semibold whitespace-nowrap">
