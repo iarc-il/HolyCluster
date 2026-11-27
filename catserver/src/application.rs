@@ -179,6 +179,22 @@ impl std::error::Error for InstanceContactFailure {
 /// port file appears, then a shorter window for that published port.
 const INSTANCE_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const INSTANCE_CONTACT_TIMEOUT: Duration = Duration::from_secs(3);
+/// A startup wait samples the port file every 100 ms; keep the reported
+/// attempts bounded so the diagnostic stays readable.
+const RETAINED_INSTANCE_ATTEMPTS: usize = 5;
+
+fn bounded_attempts(attempts: &[serde_json::Value]) -> (Vec<serde_json::Value>, usize) {
+    let retained = RETAINED_INSTANCE_ATTEMPTS * 2;
+    if attempts.len() <= retained {
+        return (attempts.to_vec(), 0);
+    }
+    let head = &attempts[..RETAINED_INSTANCE_ATTEMPTS];
+    let tail = &attempts[attempts.len() - RETAINED_INSTANCE_ATTEMPTS..];
+    (
+        head.iter().chain(tail).cloned().collect(),
+        attempts.len() - retained,
+    )
+}
 
 pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &str) -> Result<()> {
     use serde_json::json;
@@ -244,7 +260,13 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
             std::thread::sleep(Duration::from_millis(100));
         }
     })();
-    let evidence = json!({"action": action, "elapsed_ms": started.elapsed().as_millis() as u64, "attempts": attempts});
+    let (attempts, dropped_attempts) = bounded_attempts(&attempts);
+    let evidence = json!({
+        "action": action,
+        "elapsed_ms": started.elapsed().as_millis() as u64,
+        "attempts": attempts,
+        "dropped_attempts": dropped_attempts,
+    });
     match result {
         Ok(()) => {
             tracing::info!(target: "catserver::diagnostic", evidence = %evidence, "Existing instance contact completed");
@@ -401,6 +423,24 @@ mod singleton_diagnostic_tests {
         });
         super::contact_existing_instance(&port_file, "open").unwrap();
         started.join().unwrap();
+    }
+
+    #[test]
+    fn instance_contact_evidence_keeps_bounded_attempts() {
+        let attempts: Vec<_> = (0..40)
+            .map(|index| serde_json::json!({"attempt": index + 1}))
+            .collect();
+        let (retained, dropped) = super::bounded_attempts(&attempts);
+        assert_eq!(dropped, 30);
+        assert_eq!(retained.len(), 10);
+        assert_eq!(retained[0]["attempt"], 1);
+        assert_eq!(retained[4]["attempt"], 5);
+        assert_eq!(retained[5]["attempt"], 36);
+        assert_eq!(retained[9]["attempt"], 40);
+        assert_eq!(
+            super::bounded_attempts(&attempts[..3]),
+            (attempts[..3].to_vec(), 0)
+        );
     }
 
     #[test]
