@@ -173,10 +173,18 @@ impl std::error::Error for InstanceContactFailure {
     }
 }
 
+/// The running instance publishes its port only after it initializes the
+/// radio and rotator, and Hamlib initialization alone can wait ten seconds for
+/// an unresponsive rig. Contact therefore allows a startup window until the
+/// port file appears, then a shorter window for that published port.
+const INSTANCE_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
+const INSTANCE_CONTACT_TIMEOUT: Duration = Duration::from_secs(3);
+
 pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &str) -> Result<()> {
     use serde_json::json;
     let started = Instant::now();
-    let deadline = started + Duration::from_secs(3);
+    let startup_deadline = started + INSTANCE_STARTUP_TIMEOUT;
+    let mut contact_deadline = None;
     let mut attempts = Vec::new();
     let result = (|| -> Result<()> {
         let client = reqwest::blocking::Client::builder()
@@ -190,6 +198,8 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
             });
             match instance_port::read(port_file) {
                 Ok(port) => {
+                    let deadline = *contact_deadline
+                        .get_or_insert_with(|| Instant::now() + INSTANCE_CONTACT_TIMEOUT);
                     attempt["port"] = port.into();
                     match client
                         .post(format!("http://127.0.0.1:{port}/{action}"))
@@ -215,7 +225,7 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
                     attempts.push(attempt);
                 }
             }
-            if Instant::now() >= deadline {
+            if Instant::now() >= contact_deadline.unwrap_or(startup_deadline) {
                 anyhow::bail!("running catserver did not publish a reachable local port");
             }
             std::thread::sleep(Duration::from_millis(100));
@@ -354,6 +364,32 @@ mod resume_update_tests {
 
 #[cfg(test)]
 mod singleton_diagnostic_tests {
+    #[test]
+    fn contact_waits_for_a_starting_instance_to_publish_its_port() {
+        use std::io::{Read, Write};
+        // The first instance publishes its port only after radio and rotator
+        // initialization, which can outlast a short contact deadline.
+        let directory = tempfile::tempdir().unwrap();
+        let port_file = directory.path().join("instance-port");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let started = std::thread::spawn({
+            let port_file = port_file.clone();
+            move || {
+                std::thread::sleep(std::time::Duration::from_secs(4));
+                crate::instance_port::publish(&port_file, port).unwrap();
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0; 4096];
+                assert!(stream.read(&mut request).unwrap() > 0);
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .unwrap();
+            }
+        });
+        super::contact_existing_instance(&port_file, "open").unwrap();
+        started.join().unwrap();
+    }
+
     #[test]
     fn failed_contact_retains_port_metadata_and_attempt_evidence() {
         use std::io::{Read, Write};
