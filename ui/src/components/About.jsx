@@ -8,6 +8,17 @@ import { useColors } from "@/hooks/useColors.jsx";
 
 const RELEASES = [
     [
+        "27/11/2026",
+        [
+            "🔎 New callsign history search",
+            "📱 Mobile update: redesigned mobile interface",
+            "When no spots are shown, the table explains which filters hide them and offers a one-click fix",
+            "Desktop interface improvements to the table",
+            "Smoother filter drag and drop on desktop",
+            "📡 extended spot sources",
+        ],
+    ],
+    [
         "9/10/2026",
         [
             "▶️ playback mode to explore past spots and propagation conditions",

@@ -5,6 +5,10 @@ import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 const CAT_RELEASE_NOTES = {
+    "1.3.4": [
+        "Fixed tuning on OmniRig radios that did not respond to spot clicks",
+        "Fixed Linux auto-updates that could hang or not finish",
+    ],
     "1.3.3": [
         <b key="rotator-toggle">Clicking the rotator button now disables it</b>,
         "RTTY is now supported for OmniRig",
