@@ -116,7 +116,10 @@ class UpdateWorkflowTests(unittest.TestCase):
 
     def test_production_baseline_requires_package_validation(self):
         step = self.step("inspect-candidate-packages", "catserver_baseline.py")
-        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", step)
+        self.assertIn(
+            "if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')",
+            step,
+        )
         self.assertIn("--validator", step)
 
     def test_product_scenarios_require_offline_direct_fuse(self):
@@ -132,7 +135,10 @@ class UpdateWorkflowTests(unittest.TestCase):
             "--attestation",
         ):
             self.assertIn(required, step)
-        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", step)
+        self.assertIn(
+            "if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')",
+            step,
+        )
         for required in (
             "test -c /dev/fuse",
             'ctypes.CDLL("libfuse.so.2")',
@@ -141,7 +147,23 @@ class UpdateWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(required, smoke)
         build = self.step("smoke-linux-release", "npm run build")
-        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", build)
+        self.assertIn(
+            "if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')",
+            build,
+        )
+
+    def test_dry_run_builds_the_requested_version_like_a_release(self):
+        self.assertIn(
+            "  workflow_dispatch:\n    inputs:\n      release_version:", self.text
+        )
+        self.assertIn("github.ref_name || inputs.release_version || ''", self.text)
+        self.assertIn(
+            "CARGO_PROFILE_RELEASE_LTO: ${{ (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')",
+            self.text,
+        )
+        self.assertIn(
+            "group: catserver-${{ github.event_name }}-${{ github.ref }}", self.text
+        )
 
     def test_aggregate_and_publication_fail_closed(self):
         aggregate = self.jobs["update-process-gate"]
@@ -155,8 +177,12 @@ class UpdateWorkflowTests(unittest.TestCase):
         self.assertIn('test "$LINUX_RESULT" = success', aggregate)
         self.assertIn("name: Linux-update-attestation", aggregate)
         self.assertIn("test -s update-results/attestation.json", aggregate)
-        self.assertIn("!startsWith(github.ref, 'refs/tags/')", aggregate)
+        self.assertIn(
+            "!(startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')",
+            aggregate,
+        )
         publish = self.jobs["publish-catserver"]
+        self.assertIn("if: github.event_name != 'workflow_dispatch' && ", publish)
         self.assertIn("update-process-gate]", publish)
         self.assertIn(
             "if: startsWith(github.ref, 'refs/tags/')",
