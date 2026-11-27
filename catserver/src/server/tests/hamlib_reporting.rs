@@ -28,7 +28,7 @@ impl sentry::Transport for LocalTransport {
 }
 
 #[test]
-fn disabled_radio_command_does_not_report_a_server_error() {
+fn disabled_radio_command_reports_once_then_stays_quiet() {
     let transport = Arc::new(LocalTransport::default());
     let client = Arc::new(Client::from(ClientOptions {
         transport: Some(Arc::new(transport.clone())),
@@ -65,13 +65,19 @@ fn disabled_radio_command_does_not_report_a_server_error() {
                     .await
                     .unwrap();
                 super::session::event(&mut socket, "status").await;
-                let request = serde_json::json!({
-                    "version": 1, "type": "radio", "action": "SetModeAndFreq", "mode": "CW", "freq": 7050
-                });
-                socket
-                    .send(Message::Text(request.to_string().into()))
-                    .await
-                    .unwrap();
+                // A configuration failure cannot be fixed by retrying, so it is
+                // reported once and later attempts stay diagnostics.
+                for _ in 0..3 {
+                    let request = serde_json::json!({
+                        "version": 1, "type": "radio", "action": "SetModeAndFreq", "mode": "CW", "freq": 7050
+                    });
+                    socket
+                        .send(Message::Text(request.to_string().into()))
+                        .await
+                        .unwrap();
+                }
+                // Capabilities are answered after the queued commands, so this
+                // completes them before the socket closes.
                 socket
                     .send(Message::Text(
                         r#"{"version":1,"type":"radio","action":"GetCapabilities"}"#.into(),
@@ -86,10 +92,11 @@ fn disabled_radio_command_does_not_report_a_server_error() {
         })
     });
     let envelopes = transport.0.lock().unwrap();
-    assert!(
-        envelopes.is_empty(),
-        "disconnected radio command reported: {}",
-        String::from_utf8_lossy(&envelopes[0])
+    assert_eq!(
+        envelopes.len(),
+        1,
+        "the configuration failure must be reported exactly once: {}",
+        String::from_utf8_lossy(envelopes.first().map(Vec::as_slice).unwrap_or_default())
     );
 }
 

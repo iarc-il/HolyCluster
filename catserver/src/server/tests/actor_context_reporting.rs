@@ -460,8 +460,8 @@ fn recovery_clears_the_previous_disconnect_origin() {
 
 #[tokio::test]
 async fn unavailable_reports_keep_initialization_and_disconnect_origins() {
-    // Radio commands while the radio is unavailable are reported as diagnostics
-    // rather than Sentry errors; the evidence they carry is unchanged.
+    // The evidence a rejected command carries does not depend on how the session
+    // reports it; session reporting is covered by the reporting tests.
     let mut reports = Vec::new();
     for case in 0..4 {
         let mut backend =

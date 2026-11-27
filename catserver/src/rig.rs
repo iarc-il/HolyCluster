@@ -159,6 +159,7 @@ pub enum RadioOperationErrorKind {
     Failure,
     UnsupportedMode,
     Unavailable,
+    NotConfigured,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -198,6 +199,15 @@ impl RadioOperationError {
         Self {
             kind: RadioOperationErrorKind::Unavailable,
             ..Self::new(rig, operation, "radio unavailable")
+        }
+    }
+
+    /// No radio can serve the command because none is configured or usable; the
+    /// command cannot succeed until the configuration changes.
+    pub fn not_configured(rig: u8, operation: &'static str) -> Self {
+        Self {
+            kind: RadioOperationErrorKind::NotConfigured,
+            ..Self::new(rig, operation, "radio not configured")
         }
     }
 
@@ -264,12 +274,12 @@ impl Radio for UnavailableRadio {
         })
     }
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
-        Err(RadioOperationError::unavailable(1, "set mode"))
+        Err(RadioOperationError::not_configured(1, "set mode"))
     }
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
-        Err(RadioOperationError::unavailable(1, "set frequency"))
+        Err(RadioOperationError::not_configured(1, "set frequency"))
     }
     fn get_status(&mut self) -> Result<Status, RadioOperationError> {
-        Err(RadioOperationError::unavailable(1, "read status"))
+        Err(RadioOperationError::not_configured(1, "read status"))
     }
 }

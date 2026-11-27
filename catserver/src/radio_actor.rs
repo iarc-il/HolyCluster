@@ -263,7 +263,7 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RadioSnapshot>>) 
                     .as_mut()
                     .map_or_else(
                         || {
-                            Err(RadioOperationError::unavailable(
+                            Err(RadioOperationError::not_configured(
                                 1,
                                 "set mode and frequency",
                             ))

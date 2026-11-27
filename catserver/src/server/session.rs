@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use anyhow::{Result, anyhow};
 use axum::extract::{
@@ -17,6 +20,10 @@ use super::{
     ServerConfig, availability_trace::AvailabilityTrace, radio, radio_actions, rotator,
     state::AppState, update,
 };
+
+/// A missing radio configuration is reported once per process so a broken setup
+/// stays visible without one server error per rejected command.
+static NOT_CONFIGURED_REPORTED: AtomicBool = AtomicBool::new(false);
 
 pub(super) async fn ws_handler(
     websocket: WebSocketUpgrade,
@@ -153,6 +160,15 @@ async fn handle_ws_socket(
                                 // connection state to the client.
                                 Some(crate::rig::RadioOperationErrorKind::Unavailable) => {
                                     tracing::warn!(target: "catserver::diagnostic", %error, action, failure_evidence = %serde_json::json!(evidence), "Radio command skipped while disconnected");
+                                }
+                                // Retrying cannot fix a configuration, so report it once
+                                // and keep later attempts as diagnostics.
+                                Some(crate::rig::RadioOperationErrorKind::NotConfigured) => {
+                                    if !NOT_CONFIGURED_REPORTED.swap(true, Ordering::Relaxed) {
+                                        tracing::error!(%error, action, failure_evidence = %serde_json::json!(evidence), "Radio command rejected: no usable radio configuration");
+                                    } else {
+                                        tracing::warn!(target: "catserver::diagnostic", %error, action, failure_evidence = %serde_json::json!(evidence), "Radio command skipped: no usable radio configuration");
+                                    }
                                 }
                                 _ => {
                                     tracing::error!(%error, action, failure_evidence = %serde_json::json!(evidence), "Failed to process radio WebSocket message");
