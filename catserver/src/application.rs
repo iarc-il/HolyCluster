@@ -67,11 +67,7 @@ pub fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    let restart = args
-        .resume_update
-        .as_deref()
-        .map(crate::updater::restart_context)
-        .transpose()?;
+    let restart = resume_update_context(args.resume_update.as_deref())?;
     #[cfg(target_os = "linux")]
     let restart = restart.or_else(crate::updater::linux_restart::startup_context);
     let mut server_config = server_config(&args)?;
@@ -320,6 +316,40 @@ async fn run_singleton(
     shutdown_radio.shutdown().await?;
     shutdown_rotator.shutdown().await?;
     result
+}
+
+fn resume_update_context(
+    plan: Option<&std::path::Path>,
+) -> Result<Option<crate::updater::RestartContext>> {
+    let Some(plan) = plan else {
+        return Ok(None);
+    };
+    match crate::updater::restart_context(plan) {
+        Ok(context) => Ok(Some(context)),
+        // Nothing relaunches the app on Linux, so a rejected handoff must not stop it from starting
+        #[cfg(target_os = "linux")]
+        Err(error) => {
+            tracing::error!(
+                ?error,
+                "Rejected the Linux update handoff; starting normally"
+            );
+            Ok(None)
+        }
+        #[cfg(not(target_os = "linux"))]
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod resume_update_tests {
+    #[test]
+    fn rejected_linux_handoff_starts_normally() {
+        let directory = tempfile::tempdir().unwrap();
+        let plan = directory.path().join("install-plan.json");
+        std::fs::write(&plan, b"not a plan").unwrap();
+
+        assert!(super::resume_update_context(Some(&plan)).unwrap().is_none());
+    }
 }
 
 #[cfg(test)]
