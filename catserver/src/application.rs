@@ -40,13 +40,17 @@ pub fn run(args: Args) -> Result<()> {
         tracing::warn!("--local-ui is deprecated and no longer changes CATServer behavior");
     }
     crate::diagnostics::phase("singleton_acquisition");
-    let instance = SingleInstance::new(INSTANCE_NAME)?;
+    let mut instance = SingleInstance::new(INSTANCE_NAME)?;
     // single-instance's Linux socket must not escape into the browser process.
     #[cfg(target_os = "linux")]
     crate::updater::close_inherited_descriptors_on_exec()?;
     tracing::info!("Version tag: {}", env!("VERSION"));
     let port_file = instance_port::path()?;
-    if !instance.is_single() {
+    // A second launch waits for the running instance to publish its port. If
+    // that instance exits before it publishes, take over instead of reporting
+    // a failure the user cannot act on.
+    let mut took_over = false;
+    while !instance.is_single() {
         anyhow::ensure!(
             args.resume_update.is_none(),
             "another CAT Control instance is already running; update restart cannot take over its port"
@@ -58,7 +62,18 @@ pub fn run(args: Args) -> Result<()> {
                 return Ok(());
             }
         }
-        return contact_existing_instance(&port_file, path);
+        match contact_existing_instance(&port_file, path, owner_running) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.is::<InstanceOwnerVanished>() && !took_over => {
+                tracing::warn!(
+                    %error,
+                    "Existing instance exited before publishing its port; taking over"
+                );
+                took_over = true;
+                instance = SingleInstance::new(INSTANCE_NAME)?;
+            }
+            Err(error) => return Err(error),
+        }
     }
     crate::diagnostics::phase("loading_configuration");
     instance_port::clear(&port_file)?;
@@ -173,6 +188,27 @@ impl std::error::Error for InstanceContactFailure {
     }
 }
 
+/// The running instance released the single-instance lock before publishing a
+/// port, so a waiting launch can start instead of waiting for it.
+#[derive(Debug)]
+pub(crate) struct InstanceOwnerVanished;
+
+impl std::fmt::Display for InstanceOwnerVanished {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("existing instance exited before publishing its port")
+    }
+}
+
+impl std::error::Error for InstanceOwnerVanished {}
+
+/// A running instance holds the single-instance lock until it exits, so probing
+/// that lock detects an owner that died during startup. Probing never disturbs
+/// the owner: the lock is a named mutex on Windows and an abstract socket on
+/// Linux.
+fn owner_running() -> bool {
+    SingleInstance::new(INSTANCE_NAME).is_ok_and(|probe| !probe.is_single())
+}
+
 /// The running instance publishes its port only after it initializes the
 /// radio and rotator, and Hamlib initialization alone can wait ten seconds for
 /// an unresponsive rig. Contact therefore allows a startup window until the
@@ -182,6 +218,9 @@ const INSTANCE_CONTACT_TIMEOUT: Duration = Duration::from_secs(3);
 /// A startup wait samples the port file every 100 ms; keep the reported
 /// attempts bounded so the diagnostic stays readable.
 const RETAINED_INSTANCE_ATTEMPTS: usize = 5;
+/// The owner's liveness is sampled once a second so an instance that exits
+/// during startup ends the wait instead of holding it for the full window.
+const INSTANCE_LIVENESS_INTERVAL: Duration = Duration::from_secs(1);
 
 fn bounded_attempts(attempts: &[serde_json::Value]) -> (Vec<serde_json::Value>, usize) {
     let retained = RETAINED_INSTANCE_ATTEMPTS * 2;
@@ -196,11 +235,16 @@ fn bounded_attempts(attempts: &[serde_json::Value]) -> (Vec<serde_json::Value>, 
     )
 }
 
-pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &str) -> Result<()> {
+pub(crate) fn contact_existing_instance(
+    port_file: &std::path::Path,
+    action: &str,
+    owner_running: impl Fn() -> bool,
+) -> Result<()> {
     use serde_json::json;
     let started = Instant::now();
     let startup_deadline = started + INSTANCE_STARTUP_TIMEOUT;
     let mut contact_deadline = None;
+    let mut last_liveness_check = started;
     let mut attempts = Vec::new();
     let result = (|| -> Result<()> {
         let client = reqwest::blocking::Client::builder()
@@ -254,8 +298,16 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
                     attempts.push(attempt);
                 }
             }
+            if last_liveness_check.elapsed() >= INSTANCE_LIVENESS_INTERVAL {
+                last_liveness_check = Instant::now();
+                if !owner_running() {
+                    return Err(InstanceOwnerVanished.into());
+                }
+            }
             if Instant::now() >= contact_deadline.unwrap_or(startup_deadline) {
-                anyhow::bail!("running catserver did not publish a reachable local port");
+                anyhow::bail!(
+                    "the running CAT Control instance did not publish a local port; quit it and start again"
+                );
             }
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -271,6 +323,11 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
         Ok(()) => {
             tracing::info!(target: "catserver::diagnostic", evidence = %evidence, "Existing instance contact completed");
             Ok(())
+        }
+        // Control flow rather than a failure: the caller may take over.
+        Err(error) if error.is::<InstanceOwnerVanished>() => {
+            tracing::warn!(target: "catserver::diagnostic", evidence = %evidence, "Existing instance exited before publishing a port");
+            Err(error)
         }
         Err(error) => Err(InstanceContactFailure { evidence, error }.into()),
     }
@@ -421,7 +478,7 @@ mod singleton_diagnostic_tests {
                     .unwrap();
             }
         });
-        super::contact_existing_instance(&port_file, "open").unwrap();
+        super::contact_existing_instance(&port_file, "open", || true).unwrap();
         started.join().unwrap();
     }
 
@@ -469,8 +526,23 @@ mod singleton_diagnostic_tests {
                     .unwrap();
             }
         });
-        super::contact_existing_instance(&port_file, "open").unwrap();
+        super::contact_existing_instance(&port_file, "open", || true).unwrap();
         started.join().unwrap();
+    }
+
+    #[test]
+    fn owner_exit_ends_the_startup_wait() {
+        // The owner can exit during radio initialization, before it publishes a
+        // port; waiting out the full startup window would only delay the launch.
+        let directory = tempfile::tempdir().unwrap();
+        let port_file = directory.path().join("instance-port");
+        let started = std::time::Instant::now();
+        let error = super::contact_existing_instance(&port_file, "open", || false).unwrap_err();
+        assert!(error.is::<super::InstanceOwnerVanished>());
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "the wait ignored the owner exit"
+        );
     }
 
     #[test]
@@ -488,7 +560,7 @@ mod singleton_diagnostic_tests {
                 .write_all(b"HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n")
                 .unwrap();
         });
-        let error = super::contact_existing_instance(&port_file, "open").unwrap_err();
+        let error = super::contact_existing_instance(&port_file, "open", || true).unwrap_err();
         server.join().unwrap();
         let diagnostic = crate::error_format::diagnostic(&error);
         assert!(diagnostic.contains("503"));
