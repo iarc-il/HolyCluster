@@ -198,8 +198,21 @@ pub(crate) fn contact_existing_instance(port_file: &std::path::Path, action: &st
             });
             match instance_port::read(port_file) {
                 Ok(port) => {
-                    let deadline = *contact_deadline
-                        .get_or_insert_with(|| Instant::now() + INSTANCE_CONTACT_TIMEOUT);
+                    // A port file left behind by an earlier run says nothing
+                    // about the instance that is starting now; only a port
+                    // published during this wait starts the contact window.
+                    let published_while_waiting = std::fs::metadata(port_file)
+                        .and_then(|metadata| metadata.modified())
+                        .ok()
+                        .and_then(|modified| modified.elapsed().ok())
+                        .is_some_and(|age| age <= started.elapsed());
+                    let deadline = match contact_deadline {
+                        Some(deadline) => deadline,
+                        None if published_while_waiting => {
+                            *contact_deadline.insert(Instant::now() + INSTANCE_CONTACT_TIMEOUT)
+                        }
+                        None => startup_deadline,
+                    };
                     attempt["port"] = port.into();
                     match client
                         .post(format!("http://127.0.0.1:{port}/{action}"))
@@ -371,6 +384,36 @@ mod singleton_diagnostic_tests {
         // initialization, which can outlast a short contact deadline.
         let directory = tempfile::tempdir().unwrap();
         let port_file = directory.path().join("instance-port");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let started = std::thread::spawn({
+            let port_file = port_file.clone();
+            move || {
+                std::thread::sleep(std::time::Duration::from_secs(4));
+                crate::instance_port::publish(&port_file, port).unwrap();
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0; 4096];
+                assert!(stream.read(&mut request).unwrap() > 0);
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .unwrap();
+            }
+        });
+        super::contact_existing_instance(&port_file, "open").unwrap();
+        started.join().unwrap();
+    }
+
+    #[test]
+    fn stale_instance_port_does_not_shorten_the_startup_wait() {
+        use std::io::{Read, Write};
+        // A previous run can leave its port file behind. Reading that stale
+        // port must not start the short contact window while the live
+        // instance is still initializing.
+        let directory = tempfile::tempdir().unwrap();
+        let port_file = directory.path().join("instance-port");
+        let stale = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        crate::instance_port::publish(&port_file, stale.local_addr().unwrap().port()).unwrap();
+        drop(stale);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let started = std::thread::spawn({
