@@ -61,7 +61,7 @@ describe("CallsignSearchChip", () => {
         expect(screen.getByText("(2)")).toBeTruthy();
     });
 
-    it("shows the exact range for a custom range", () => {
+    it("shows Custom for a custom range and the exact range in the tooltip", () => {
         render_chip({
             start: new Date(Date.UTC(2026, 0, 1, 8, 30)),
             end: new Date(Date.UTC(2026, 0, 3, 17, 5)),
@@ -69,7 +69,12 @@ describe("CallsignSearchChip", () => {
             to_preset: "custom",
         });
 
-        expect(screen.getByText("· 01 Jan 08:30 – 03 Jan 17:05 (UTC)")).toBeTruthy();
+        expect(screen.getByText("· Custom")).toBeTruthy();
+
+        fireEvent.mouseEnter(document.querySelector("[data-tour='callsign-search-chip']"));
+        expect(screen.getByRole("tooltip").textContent).toMatch(
+            /01 Jan 08:30 – 03 Jan 17:05 \(UTC\)/,
+        );
     });
 
     it("hides the range in compact mode", () => {
