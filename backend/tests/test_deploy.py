@@ -563,12 +563,17 @@ class DeployTests(unittest.TestCase):
         self.assertIn("buildx prune --all --force --max-used-space 4gb", calls)
         self.assertEqual(calls.count("system df"), 2)
 
-    def test_cleanup_failure_happens_after_deployment_marker(self):
-        root, result = self.run_deploy(IMAGE_PRUNE_STATUS="47")
-        self.assertEqual(result.returncode, 47, result.stderr)
-        self.assertEqual((root / "deployed").read_text(), "newhead\n")
-        self.assertIn("Deploy complete.", result.stdout)
-        self.assertNotIn("buildx prune", (root / "docker.log").read_text())
+    def test_cleanup_failure_does_not_fail_a_completed_deploy(self):
+        for overrides in (
+            {"IMAGE_PRUNE_STATUS": "47"},
+            {"CACHE_PRUNE_STATUS": "48"},
+            {"IMAGE_PRUNE_STATUS": "47", "CHANGED_FILES": "README.md"},
+        ):
+            with self.subTest(overrides=overrides):
+                root, result = self.run_deploy(**overrides)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "deployed").read_text(), "newhead\n")
+                self.assertIn("Docker cleanup failed", result.stderr)
 
     def test_failures_do_not_advance_existing_success_marker(self):
         for overrides in (

@@ -32,6 +32,13 @@ mark_deployed() {
     rm -f "$DEPLOYMENT_BASE"
 }
 
+# Runs after the deploy succeeded, so a cleanup failure must not fail the deploy
+cleanup_docker() {
+    if ! bash cleanup-docker.sh; then
+        echo "Docker cleanup failed; the deploy itself succeeded." >&2
+    fi
+}
+
 # The checkout can differ from the marker after an older script rolls back.
 # Keep this baseline if checkout advances before deployment fails.
 if [ ! -f "$DEPLOYMENT_BASE" ]; then
@@ -230,7 +237,7 @@ SERVICE_LIST="${!SERVICES[*]}"
 if [ -z "$SERVICE_LIST" ]; then
     mark_deployed
     echo "Changed files don't map to any services. Nothing to deploy."
-    bash cleanup-docker.sh
+    cleanup_docker
     exit 0
 fi
 
@@ -339,4 +346,4 @@ fi
 
 mark_deployed
 echo "Deploy complete."
-bash cleanup-docker.sh
+cleanup_docker
