@@ -28,6 +28,72 @@ impl sentry::Transport for LocalTransport {
 }
 
 #[test]
+fn disabled_radio_command_does_not_report_a_server_error() {
+    let transport = Arc::new(LocalTransport::default());
+    let client = Arc::new(Client::from(ClientOptions {
+        transport: Some(Arc::new(transport.clone())),
+        ..sentry_options(Some("http://public@127.0.0.1:1/1")).unwrap()
+    }));
+    let hub = Arc::new(sentry::Hub::new(
+        Some(client),
+        Arc::new(sentry::Scope::default()),
+    ));
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    sentry::Hub::run(hub, || {
+        tracing::subscriber::with_default(subscriber, || {
+            runtime.block_on(async {
+                // A session can serve without an initialized radio backend; a
+                // command in that state is an expected failure, not a crash.
+                let radio = RadioManager::new(
+                    RadioConfig { rig: None },
+                    ActiveRadioBackend::Configured(RadioBackendKind::Unconfigured),
+                )
+                .unwrap();
+                let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let (server, _) = super::spawn_catserver_with_radio(
+                    upstream.local_addr().unwrap(),
+                    None,
+                    radio.clone(),
+                )
+                .await;
+                let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
+                    .await
+                    .unwrap();
+                super::session::event(&mut socket, "status").await;
+                let request = serde_json::json!({
+                    "version": 1, "type": "radio", "action": "SetModeAndFreq", "mode": "CW", "freq": 7050
+                });
+                socket
+                    .send(Message::Text(request.to_string().into()))
+                    .await
+                    .unwrap();
+                socket
+                    .send(Message::Text(
+                        r#"{"version":1,"type":"radio","action":"GetCapabilities"}"#.into(),
+                    ))
+                    .await
+                    .unwrap();
+                super::session::event(&mut socket, "capabilities").await;
+                socket.close(None).await.unwrap();
+                drop(server);
+                radio.shutdown().await.unwrap();
+            })
+        })
+    });
+    let envelopes = transport.0.lock().unwrap();
+    assert!(
+        envelopes.is_empty(),
+        "disconnected radio command reported: {}",
+        String::from_utf8_lossy(&envelopes[0])
+    );
+}
+
+#[test]
 fn hamlib_native_codes_reach_the_session_envelope() {
     let transport = Arc::new(LocalTransport::default());
     let client = Arc::new(Client::from(ClientOptions {

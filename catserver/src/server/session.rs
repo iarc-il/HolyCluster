@@ -132,20 +132,31 @@ async fn handle_ws_socket(
                         Ok(None) => {}
                         Err(error) => {
                             let snapshot = radio_manager.snapshot();
-                            let unsupported = error.chain().any(|cause| {
-                                cause.downcast_ref::<crate::rig::RadioOperationError>().is_some_and(|error| {
-                                    error.kind == crate::rig::RadioOperationErrorKind::UnsupportedMode
-                                })
-                            });
-                            if unsupported {
-                                let evidence = crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref());
-                                tracing::warn!(target: "catserver::diagnostic", %error, action, failure_evidence = %serde_json::json!(evidence), "Radio mode rejected");
-                                client_sender.send(radio::message("command_result", &serde_json::json!({
-                                    "action": action, "ok": false, "reason": "unsupported_mode",
-                                    "mode": evidence.get("request").and_then(|request| request.get("mode"))
-                                }))?).await?;
-                            } else {
-                                tracing::error!(%error, action, failure_evidence = %serde_json::json!(crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref())), "Failed to process radio WebSocket message");
+                            let kind = error
+                                .chain()
+                                .find_map(|cause| {
+                                    cause
+                                        .downcast_ref::<crate::rig::RadioOperationError>()
+                                        .map(|error| error.kind)
+                                });
+                            let evidence = crate::tracing_setup::radio_evidence(&error, &before_command, &snapshot, text.as_ref());
+                            match kind {
+                                Some(crate::rig::RadioOperationErrorKind::UnsupportedMode) => {
+                                    tracing::warn!(target: "catserver::diagnostic", %error, action, failure_evidence = %serde_json::json!(evidence), "Radio mode rejected");
+                                    client_sender.send(radio::message("command_result", &serde_json::json!({
+                                        "action": action, "ok": false, "reason": "unsupported_mode",
+                                        "mode": evidence.get("request").and_then(|request| request.get("mode"))
+                                    }))?).await?;
+                                }
+                                // A radio that is not connected rejects every command
+                                // until it reconnects; the session already reports that
+                                // connection state to the client.
+                                Some(crate::rig::RadioOperationErrorKind::Unavailable) => {
+                                    tracing::warn!(target: "catserver::diagnostic", %error, action, failure_evidence = %serde_json::json!(evidence), "Radio command skipped while disconnected");
+                                }
+                                _ => {
+                                    tracing::error!(%error, action, failure_evidence = %serde_json::json!(evidence), "Failed to process radio WebSocket message");
+                                }
                             }
                         }
                     }

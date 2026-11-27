@@ -158,6 +158,7 @@ impl RadioBackendContext {
 pub enum RadioOperationErrorKind {
     Failure,
     UnsupportedMode,
+    Unavailable,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -190,6 +191,13 @@ impl RadioOperationError {
         Self {
             kind: RadioOperationErrorKind::UnsupportedMode,
             ..Self::new(rig, "set mode", message)
+        }
+    }
+
+    pub fn unavailable(rig: u8, operation: &'static str) -> Self {
+        Self {
+            kind: RadioOperationErrorKind::Unavailable,
+            ..Self::new(rig, operation, "radio unavailable")
         }
     }
 
@@ -251,20 +259,12 @@ impl Radio for UnavailableRadio {
         })
     }
     fn set_mode(&mut self, _: Mode) -> Result<(), RadioOperationError> {
-        Err(RadioOperationError::new(1, "set mode", "radio unavailable"))
+        Err(RadioOperationError::unavailable(1, "set mode"))
     }
     fn set_frequency(&mut self, _: Slot, _: Freq) -> Result<(), RadioOperationError> {
-        Err(RadioOperationError::new(
-            1,
-            "set frequency",
-            "radio unavailable",
-        ))
+        Err(RadioOperationError::unavailable(1, "set frequency"))
     }
     fn get_status(&mut self) -> Result<Status, RadioOperationError> {
-        Err(RadioOperationError::new(
-            1,
-            "read status",
-            "radio unavailable",
-        ))
+        Err(RadioOperationError::unavailable(1, "read status"))
     }
 }
