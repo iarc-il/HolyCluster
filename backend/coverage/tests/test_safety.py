@@ -101,6 +101,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
             aiohttp.ClientResponseError(MagicMock(), (), status=502, message="Bad Gateway"),
             httpx.ConnectError("unavailable", request=request),
             httpx.ReadTimeout("unavailable", request=request),
+            httpx.RemoteProtocolError("incomplete chunked read", request=request),
             httpx.HTTPStatusError(
                 "service unavailable",
                 request=request,
@@ -164,17 +165,22 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
                 capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
 
     async def test_unexpected_adapter_failure_remains_reported(self):
-        error = RuntimeError("broken adapter")
-        adapter = FakeAdapter("dxsummit", [])
-        adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
-        adapter.close = AsyncMock()
-        with (
-            patch("coverage_comparator.service.capture_exception") as capture,
-            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
-            self.assertRaises(asyncio.CancelledError),
+        request = httpx.Request("GET", "https://example.test")
+        for error in (
+            RuntimeError("broken adapter"),
+            httpx.LocalProtocolError("invalid request", request=request),
         ):
-            await run_adapter(self.matcher, adapter)
-        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+            with self.subTest(error=type(error).__name__):
+                adapter = FakeAdapter("dxsummit", [])
+                adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
+                adapter.close = AsyncMock()
+                with (
+                    patch("coverage_comparator.service.capture_exception") as capture,
+                    patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+                    self.assertRaises(asyncio.CancelledError),
+                ):
+                    await run_adapter(self.matcher, adapter)
+                capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
 
     async def test_many_windows_recover_and_finalize_in_bounded_batches(self):
         for number in range(105):
