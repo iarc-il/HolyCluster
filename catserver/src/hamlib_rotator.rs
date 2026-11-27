@@ -101,12 +101,19 @@ impl Rotator for HamlibRotator {
             .handle
             .as_mut()
             .ok_or_else(|| unavailable("stop"))?
-            .stop()
-            .map_err(|error| operation_error("stop", error, true));
-        if result.is_err() {
-            self.handle = None;
+            .stop();
+        match result {
+            Ok(()) => Ok(()),
+            // Rotators without a stop command still accept positions and
+            // report status, so an unavailable command is not a lost handle.
+            Err(error) if error.is_unavailable("rot_stop") => {
+                Err(operation_error("stop", error, true).unsupported())
+            }
+            Err(error) => {
+                self.handle = None;
+                Err(operation_error("stop", error, true))
+            }
         }
-        result
     }
 
     fn status(&mut self) -> Result<RotatorStatus, RotatorError> {

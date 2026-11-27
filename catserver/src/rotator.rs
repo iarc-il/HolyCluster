@@ -17,12 +17,20 @@ impl RotatorStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum RotatorErrorKind {
+    Failure,
+    Unsupported,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct RotatorError {
     pub operation: &'static str,
     pub message: String,
     pub native_error: Option<serde_json::Value>,
     pub execution_state: Option<serde_json::Value>,
+    #[serde(skip)]
+    kind: RotatorErrorKind,
 }
 
 impl RotatorError {
@@ -32,7 +40,17 @@ impl RotatorError {
             message: message.into(),
             native_error: None,
             execution_state: None,
+            kind: RotatorErrorKind::Failure,
         }
+    }
+
+    pub(crate) fn unsupported(mut self) -> Self {
+        self.kind = RotatorErrorKind::Unsupported;
+        self
+    }
+
+    pub(crate) fn is_unsupported(&self) -> bool {
+        self.kind == RotatorErrorKind::Unsupported
     }
 }
 

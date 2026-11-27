@@ -133,6 +133,68 @@ async fn reports_stop_failure_without_clearing_the_target() {
     manager.shutdown().await.unwrap();
 }
 
+struct UnsupportedStop;
+
+impl Rotator for UnsupportedStop {
+    fn init(&mut self) -> Result<(), RotatorError> {
+        Ok(())
+    }
+
+    fn name(&self) -> &str {
+        "unsupported stop"
+    }
+
+    fn set_azimuth(&mut self, _: f64) -> Result<(), RotatorError> {
+        Ok(())
+    }
+
+    fn stop(&mut self) -> Result<(), RotatorError> {
+        Err(RotatorError::new("stop", "unsupported").unsupported())
+    }
+
+    fn status(&mut self) -> Result<RotatorStatus, RotatorError> {
+        Ok(RotatorStatus {
+            azimuth: 90.0,
+            status: "connected".into(),
+            name: self.name().into(),
+        })
+    }
+}
+
+#[tokio::test]
+async fn reports_unsupported_stop_without_disconnecting() {
+    let config = RotatorConfig::hamlib_dummy();
+    let selected = ActiveRotatorBackend::Configured(config.hamlib().unwrap().clone());
+    let manager = RotatorManager::new(config.clone()).unwrap();
+    manager
+        .replace(config, selected, || Box::new(UnsupportedStop))
+        .await
+        .unwrap();
+    manager.set_azimuth(180.0).await.unwrap();
+    let service = RotatorConfiguration::new(manager.clone());
+
+    let response = process(
+        r#"{"version":1,"type":"rotator","action":"Stop"}"#.into(),
+        &manager,
+        &service,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let response = response_json(response);
+
+    assert_eq!(response["event"], "command_result");
+    assert_eq!(response["action"], "Stop");
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["reason"], "unsupported");
+    assert_eq!(
+        manager.snapshot().connection,
+        crate::rotator_manager::RotatorConnectionState::Connected
+    );
+    assert_eq!(manager.snapshot().target_azimuth, Some(180.0));
+    manager.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn tests_candidate_without_replacing_active_configuration() {
     let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();

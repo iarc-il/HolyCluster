@@ -220,8 +220,10 @@ fn run(receiver: mpsc::Receiver<Command>, snapshot: Arc<RwLock<RotatorSnapshot>>
                         error
                     });
                 if let Err(error) = &result {
-                    publish_error(&snapshot, error.clone());
-                    next_action = Some(schedule_after_attempt(false, &mut retry_delay));
+                    if !error.is_unsupported() {
+                        publish_error(&snapshot, error.clone());
+                        next_action = Some(schedule_after_attempt(false, &mut retry_delay));
+                    }
                 } else {
                     snapshot
                         .write()

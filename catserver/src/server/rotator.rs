@@ -83,6 +83,15 @@ pub(super) async fn process(
                 "command_result",
                 serde_json::json!({"action": "Stop", "ok": true}),
             ),
+            Err(crate::rotator_manager::RotatorManagerError::Operation(error))
+                if error.is_unsupported() =>
+            {
+                tracing::warn!(target: "catserver::diagnostic", action = "Stop", "Rotator stop unsupported");
+                (
+                    "command_result",
+                    serde_json::json!({"action": "Stop", "ok": false, "reason": "unsupported"}),
+                )
+            }
             Err(error) => {
                 let error = anyhow::Error::new(error);
                 tracing::error!(%error, action = "Stop", failure_evidence = %serde_json::json!(crate::tracing_setup::rotator_evidence(&error, &before, &rotator.snapshot(), &message_text)), "Failed to stop rotator");
