@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import asyncpg
 import httpx
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import DataError
 
 os.environ.setdefault("SENTRY_ENVIRONMENT", "dev")
 os.environ.setdefault("SENTRY_RELEASE", "test")
@@ -129,6 +130,41 @@ class PersistSpotTest(IsolatedAsyncioTestCase):
             hide_parameters=True,
         )
         engine.dispose.assert_awaited_once_with()
+
+    async def test_processor_drops_spots_the_database_rejects(self):
+        queue = asyncio.Queue()
+        queue.put_nowait(SpotEnvelope("POTA", {"dx_callsign": "K1ABC"}))
+        queue.put_nowait(SpotEnvelope("POTA", {"dx_callsign": "K2ABC"}))
+        enriched = {
+            "dx_callsign": "K1ABC",
+            "frequency": 14074,
+            "spotter_locator": "FN31",
+            "dx_locator": "EM00",
+        }
+        # A NUL character in a comment is rejected by Postgres text columns
+        error = DataError("INSERT INTO holy_spots2", {}, Exception('invalid byte sequence for encoding "UTF8": 0x00'))
+        manager = MagicMock()
+        manager.get_key.return_value = "key"
+
+        with (
+            patch("collectors.main.get_valkey_client", return_value=AsyncMock()),
+            patch("collectors.main.create_async_engine", return_value=AsyncMock()),
+            patch("collectors.main.enrich_spot", AsyncMock(return_value=enriched)),
+            patch("collectors.main.add_spot_to_postgres", AsyncMock(side_effect=[error, None])) as add_spot,
+            patch("collectors.main.publish_coverage_pipeline_result", AsyncMock(return_value="success")),
+            patch("collectors.main.capture_exception") as capture,
+        ):
+            task = asyncio.create_task(collectors.main.process_spots(queue, manager))
+            try:
+                async with asyncio.timeout(1):
+                    await queue.join()
+                self.assertFalse(task.done())
+            finally:
+                task.cancel()
+                await task
+
+        self.assertEqual(add_spot.await_count, 2)
+        capture.assert_called_once_with(error, operation="collector.persist")
 
     async def test_processor_does_not_hide_programming_failures(self):
         queue = asyncio.Queue()

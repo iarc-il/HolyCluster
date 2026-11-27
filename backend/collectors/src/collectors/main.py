@@ -16,8 +16,10 @@ from shared.qrz import QrzSessionManager
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.exc import (
+    DataError,
     DBAPIError,
     DisconnectionError,
+    IntegrityError,
     InterfaceError as SQLAlchemyInterfaceError,
     OperationalError,
     TimeoutError as SQLAlchemyTimeoutError,
@@ -248,6 +250,11 @@ def is_retryable_persistence_error(error: Exception) -> bool:
     )
 
 
+def is_rejected_spot_error(error: Exception) -> bool:
+    """The database refused this spot's data, so retrying or restarting will not help."""
+    return isinstance(error, (DataError, IntegrityError)) and not is_retryable_persistence_error(error)
+
+
 async def persist_spot(engine, valkey_client, spot: dict):
     for attempt in range(PERSIST_ATTEMPTS):
         try:
@@ -323,9 +330,12 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                         await persist_spot(engine, valkey_client, enriched_spot)
                     result = "success"
                 except Exception as e:
-                    if not is_retryable_persistence_error(e):
+                    if is_rejected_spot_error(e):
+                        logger.opt(exception=e).warning(f"Dropping spot rejected by the database: {enriched_spot}")
+                    elif is_retryable_persistence_error(e):
+                        logger.opt(exception=e).warning("Failed to persist spot after retries")
+                    else:
                         raise
-                    logger.opt(exception=e).warning("Failed to persist spot after retries")
                     capture_exception(e, operation="collector.persist")
             except asyncio.CancelledError:
                 result = "cancelled"
