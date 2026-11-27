@@ -99,6 +99,10 @@ struct FakeRotctld {
 
 impl FakeRotctld {
     fn start() -> Self {
+        Self::start_with_stop_result(0)
+    }
+
+    fn start_with_stop_result(stop_result: i32) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap().to_string();
         let commands = Arc::new(Mutex::new(Vec::new()));
@@ -128,7 +132,7 @@ impl FakeRotctld {
                     assert_eq!(values.next(), Some("0.000000"));
                     writeln!(stream, "RPRT 0").unwrap();
                 } else if command == "S" {
-                    writeln!(stream, "RPRT 0").unwrap();
+                    writeln!(stream, "RPRT {stop_result}").unwrap();
                 } else if command == "q" {
                     break;
                 }
@@ -189,6 +193,46 @@ async fn net_rotctl_runs_through_hamlib_and_manager() {
             .any(|command| command == "P -90.000000 0.000000")
     );
     assert!(commands.iter().any(|command| command == "S"));
+}
+
+#[tokio::test]
+async fn unsupported_stop_keeps_the_rotator_connected() {
+    // Hamlib reports RIG_ENAVAIL (-11) when a rotator backend has no stop
+    // command; a rotator such as PstRotator then still works normally.
+    let server = FakeRotctld::start_with_stop_result(-11);
+    let manager = RotatorManager::new(RotatorConfig::unconfigured()).unwrap();
+    let config = HamlibDeviceConfig {
+        model_id: hamlib::RotatorModelId::NET_ROTCTL.to_string(),
+        token_values: BTreeMap::from([("rot_pathname".into(), server.address.clone())]),
+    };
+    let persisted = RotatorConfig::Hamlib {
+        hamlib: config.clone(),
+    };
+    manager
+        .replace(
+            persisted.clone(),
+            configured_backend(&persisted),
+            move || Box::new(HamlibRotator::new(config.clone())),
+        )
+        .await
+        .unwrap();
+    manager.set_azimuth(90.0).await.unwrap();
+
+    let error = manager.stop().await.unwrap_err();
+    let crate::rotator_manager::RotatorManagerError::Operation(error) = error else {
+        panic!("expected rotator operation failure");
+    };
+    assert!(error.is_unsupported());
+    assert_eq!(error.native_error.as_ref().unwrap()["code"], -11);
+    assert_eq!(
+        manager.snapshot().connection,
+        RotatorConnectionState::Connected
+    );
+    assert_eq!(manager.snapshot().target_azimuth, Some(90.0));
+    manager.poll_status().await.unwrap();
+    assert_eq!(manager.status().azimuth, 90.0);
+    manager.set_azimuth(120.0).await.unwrap();
+    manager.shutdown().await.unwrap();
 }
 
 #[tokio::test]

@@ -148,7 +148,7 @@ fn open(config: &HamlibRigConfig) -> Result<hamlib::Rig<hamlib::Open>, OpenError
 }
 
 fn unavailable(operation: &'static str) -> RadioOperationError {
-    RadioOperationError::new(1, operation, "radio unavailable")
+    RadioOperationError::unavailable(1, operation)
 }
 
 fn operation_error(

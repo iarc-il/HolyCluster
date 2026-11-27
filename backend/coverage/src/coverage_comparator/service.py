@@ -29,7 +29,13 @@ def is_expected_poll_error(error: Exception) -> bool:
         return False
     return isinstance(
         error,
-        (aiohttp.ClientConnectionError, httpx.TimeoutException, httpx.NetworkError, TimeoutError),
+        (
+            aiohttp.ClientConnectionError,
+            httpx.TimeoutException,
+            httpx.NetworkError,
+            httpx.RemoteProtocolError,
+            TimeoutError,
+        ),
     )
 
 

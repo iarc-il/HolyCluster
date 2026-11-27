@@ -192,12 +192,11 @@ impl Radio for OmnirigRadio {
         };
         context.resolved_mode = Some(resolved);
         let Some(rig) = self.current_rig() else {
-            return Err(RadioOperationError::new(
-                self.rig_number(),
-                "set mode",
-                "OmniRig unavailable",
-            )
-            .with_backend_context(context));
+            return Err(
+                RadioOperationError::unavailable(self.rig_number(), "set mode")
+                    .with_message("OmniRig unavailable")
+                    .with_backend_context(context),
+            );
         };
         rig.invoke_put("Mode", &winsafe::Variant::I4(mode))
             .map(|_| ())
@@ -213,12 +212,11 @@ impl Radio for OmnirigRadio {
         let Some(rig) = self.current_rig() else {
             let mut backend_context = context("resolve_frequency_property", None, false);
             backend_context.resolved_frequency_hz = Some(freq);
-            return Err(RadioOperationError::new(
-                self.rig_number(),
-                "set frequency",
-                "OmniRig unavailable",
-            )
-            .with_backend_context(backend_context));
+            return Err(
+                RadioOperationError::unavailable(self.rig_number(), "set frequency")
+                    .with_message("OmniRig unavailable")
+                    .with_backend_context(backend_context),
+            );
         };
         let writable = read_capability_mask(&rig, self.rig_number(), "WriteableParams")?;
         let Some(property) = select_write_property(slot, writable) else {
@@ -246,12 +244,11 @@ impl Radio for OmnirigRadio {
 
     fn get_status(&mut self) -> Result<Status, RadioOperationError> {
         let Some(rig) = self.current_rig() else {
-            return Err(RadioOperationError::new(
-                self.rig_number(),
-                "read status",
-                "OmniRig unavailable",
-            )
-            .with_backend_context(context("invoke_get", Some("StatusStr"), false)));
+            return Err(
+                RadioOperationError::unavailable(self.rig_number(), "read status")
+                    .with_message("OmniRig unavailable")
+                    .with_backend_context(context("invoke_get", Some("StatusStr"), false)),
+            );
         };
 
         let status_str = match rig.invoke_get("StatusStr", &[]) {
@@ -391,6 +388,28 @@ mod tests {
             &unknown,
         );
         assert_eq!(context.hresult, None);
+    }
+
+    #[test]
+    fn dropped_com_object_reports_commands_as_unavailable() {
+        // OmniRig drops its COM object after a failed call; later commands are
+        // an expected failure while the actor reconnects, not a server error.
+        let mut radio = OmnirigRadio::new(OmniRigSlot::Rig1);
+        let errors = [
+            radio.set_mode(Mode::USB).unwrap_err(),
+            radio
+                .set_frequency(Slot::A, Freq::from_u32_hz(7_050_000))
+                .unwrap_err(),
+            radio.get_status().unwrap_err(),
+        ];
+        for error in errors {
+            assert_eq!(
+                error.kind,
+                crate::rig::RadioOperationErrorKind::Unavailable,
+                "{error}"
+            );
+            assert_eq!(error.message, "OmniRig unavailable");
+        }
     }
 
     #[test]

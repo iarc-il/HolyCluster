@@ -223,6 +223,31 @@ describe("module load recovery", () => {
         expect(reload).not.toHaveBeenCalled();
     });
 
+    it("ignores error events whose target cannot be inspected", async () => {
+        const listeners = new Map();
+        const events = {
+            addEventListener: (type, listener) => listeners.set(type, listener),
+            removeEventListener: (type, listener) => {
+                if (listeners.get(type) === listener) listeners.delete(type);
+            },
+            dispatchEvent: () => {},
+        };
+        const reload = vi.fn();
+        const check = vi.fn();
+        install_module_load_recovery({ events, entry: "/assets/old.js", reload, check });
+        const event = new Event("error", { cancelable: true });
+        Object.defineProperty(event, "target", {
+            get() {
+                throw new Error('Permission denied to access property "target"');
+            },
+        });
+
+        await expect(listeners.get("error")(event)).resolves.toBeUndefined();
+        expect(check).not.toHaveBeenCalled();
+        expect(reload).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+    });
+
     it("ignores other module and dynamic import failures", async () => {
         const events = entry_script("/assets/lazy.js");
         const reload = vi.fn();

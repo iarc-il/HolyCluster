@@ -1,3 +1,4 @@
+use hamlib_sys as sys;
 use thiserror::Error;
 
 use crate::{RigModelId, RotatorModelId};
@@ -95,6 +96,17 @@ impl HamlibError {
             Self::Call { short_message, .. } => short_message.clone(),
             error => error.to_string(),
         }
+    }
+
+    pub fn is_unavailable(&self, operation: &str) -> bool {
+        matches!(
+            self,
+            Self::Call {
+                operation: actual,
+                code,
+                ..
+            } if *actual == operation && *code == -(sys::rig_errcode_e_RIG_ENAVAIL as i32)
+        )
     }
 }
 

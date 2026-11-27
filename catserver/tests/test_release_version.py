@@ -31,9 +31,10 @@ class ReleaseVersionTests(unittest.TestCase):
 
     def test_tagged_and_development_versions_match_in_all_jobs(self):
         workflow = WORKFLOW.read_text()
-        self.assertIn(
-            "CATSERVER_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}",
+        self.assertRegex(
             workflow,
+            r"CATSERVER_VERSION: \$\{\{ github\.ref_type == 'tag' && github\.ref_name "
+            r"(\|\| inputs\.release_version )?\|\| '' \}\}",
         )
         selectors = [
             line.strip()

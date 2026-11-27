@@ -137,7 +137,14 @@ export function install_module_load_recovery({
     let active_controller;
 
     async function recover(event) {
-        const script = event.target;
+        let script;
+        try {
+            script = event.target;
+        } catch {
+            // Firefox denies cross-origin event targets; this listener only
+            // handles the page's own module script.
+            return;
+        }
         const expected = new URL(entry, window.location.origin).href;
         const initial_failure =
             event.type === "error" &&

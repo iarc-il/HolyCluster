@@ -3,6 +3,7 @@ import Button from "@/components/ui/Button.jsx";
 import Modal from "@/components/ui/Modal.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
+import { annotateDiagnosticError } from "@/sentry.js";
 
 const CAT_RELEASE_NOTES = {
     "1.3.4": [
@@ -18,14 +19,28 @@ const CAT_RELEASE_NOTES = {
 
 const INTERNAL_RELEASE_NOTES = ["Release notes are available only for public releases."];
 
-function release_notes_for(version) {
-    if (Object.prototype.hasOwnProperty.call(CAT_RELEASE_NOTES, version)) {
-        return { heading: "What's new", notes: CAT_RELEASE_NOTES[version] };
+export function release_notes_for(version) {
+    let step = "lookup";
+    try {
+        if (Object.prototype.hasOwnProperty.call(CAT_RELEASE_NOTES, version)) {
+            return { heading: "What's new", notes: CAT_RELEASE_NOTES[version] };
+        }
+        step = "version_test";
+        if (/^\d+\.\d+\.\d+-\d+(?:-g[0-9a-f]+)?$/i.test(version ?? "")) {
+            return { heading: "Development build", notes: INTERNAL_RELEASE_NOTES };
+        }
+        return { heading: null, notes: [] };
+    } catch (error) {
+        try {
+            annotateDiagnosticError(error, {
+                operation: "release_notes",
+                release_notes_step: step,
+                version_type: version === null ? "null" : typeof version,
+                version_length: typeof version === "string" ? version.length : null,
+            });
+        } catch {}
+        throw error;
     }
-    if (/^\d+\.\d+\.\d+-\d+(?:-g[0-9a-f]+)?$/i.test(version ?? "")) {
-        return { heading: "Development build", notes: INTERNAL_RELEASE_NOTES };
-    }
-    return { heading: null, notes: [] };
 }
 
 export function UpdateConsentDialog() {

@@ -104,6 +104,19 @@ async fn tune_mode(socket: &mut super::session::Socket, mode: &str, freq: u32) {
     super::session::event(socket, "capabilities").await;
 }
 
+async fn tune_evidence(radio: &RadioManager) -> serde_json::Value {
+    let before = radio.snapshot();
+    let error = radio
+        .set_mode_and_frequency(Mode::CW, Freq::from_u32_hz(7_050_000))
+        .await
+        .unwrap_err();
+    serde_json::Value::Object(
+        radio_evidence(&anyhow::Error::new(error), &before, &radio.snapshot(), "{}")
+            .into_iter()
+            .collect(),
+    )
+}
+
 fn evidence(event: &serde_json::Value) -> serde_json::Value {
     assert_eq!(event["release"], env!("VERSION"));
     assert_eq!(
@@ -445,66 +458,54 @@ fn recovery_clears_the_previous_disconnect_origin() {
     }
 }
 
-#[test]
-fn unavailable_reports_keep_initialization_and_disconnect_origins() {
-    let reports = capture(async {
-        for case in 0..4 {
-            let mut backend =
-                FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
-            let mut native = net_config(backend.address());
-            if case == 1 {
-                native.model_id = "999999".into();
-            }
-            let config = if case == 0 {
-                RadioConfig { rig: None }
-            } else {
-                configured(&native)
-            };
-            let selected = config.effective_backend();
-            let radio = RadioManager::new(config.clone(), selected.clone()).unwrap();
-            let factory = crate::radio_factory::factory(config.clone(), selected.clone());
-            radio
-                .replace(config, selected, move || factory())
-                .await
-                .unwrap();
-            if case >= 2 {
-                assert_eq!(radio.status().status, "connected");
-                backend.disconnect();
-                tokio::time::timeout(Duration::from_secs(3), async {
-                    while radio.poll_status().await.status == "connected" {
-                        tokio::task::yield_now().await;
-                    }
-                })
-                .await
-                .expect("status read detects the closed connection");
-                if case == 3 {
-                    backend.stop();
-                    radio.retry().await.unwrap();
-                    assert!(radio.snapshot().last_error.is_some());
-                }
-            }
-            let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let (server, _) = super::spawn_catserver_with_radio(
-                upstream.local_addr().unwrap(),
-                None,
-                radio.clone(),
-            )
-            .await;
-            let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
-                .await
-                .unwrap();
-            super::session::event(&mut socket, "status").await;
-            tune(&mut socket).await;
-            if case == 1 {
-                tune(&mut socket).await;
-            }
-            socket.close(None).await.unwrap();
-            drop(server);
-            radio.shutdown().await.unwrap();
+#[tokio::test]
+async fn unavailable_reports_keep_initialization_and_disconnect_origins() {
+    // The evidence a rejected command carries does not depend on how the session
+    // reports it; session reporting is covered by the reporting tests.
+    let mut reports = Vec::new();
+    for case in 0..4 {
+        let mut backend =
+            FakeRigctld::start(SocketAddr::from(([127, 0, 0, 1], 0)), 7_100_000, "USB");
+        let mut native = net_config(backend.address());
+        if case == 1 {
+            native.model_id = "999999".into();
         }
-    });
+        let config = if case == 0 {
+            RadioConfig { rig: None }
+        } else {
+            configured(&native)
+        };
+        let selected = config.effective_backend();
+        let radio = RadioManager::new(config.clone(), selected.clone()).unwrap();
+        let factory = crate::radio_factory::factory(config.clone(), selected.clone());
+        radio
+            .replace(config, selected, move || factory())
+            .await
+            .unwrap();
+        if case >= 2 {
+            assert_eq!(radio.status().status, "connected");
+            backend.disconnect();
+            tokio::time::timeout(Duration::from_secs(3), async {
+                while radio.poll_status().await.status == "connected" {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("status read detects the closed connection");
+            if case == 3 {
+                backend.stop();
+                radio.retry().await.unwrap();
+                assert!(radio.snapshot().last_error.is_some());
+            }
+        }
+        reports.push(tune_evidence(&radio).await);
+        if case == 1 {
+            reports.push(tune_evidence(&radio).await);
+        }
+        radio.shutdown().await.unwrap();
+    }
     assert_eq!(reports.len(), 5);
-    let retry = evidence(&reports[4]);
+    let retry = &reports[4];
     assert_eq!(
         retry["execution_state"]["initialization"]["outcome"],
         "failed"
@@ -536,10 +537,9 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
         "{retry}"
     );
     assert_status_read_disconnect(&retry["execution_state"]["disconnect"]);
-    let unconfigured = evidence(&reports[0]);
+    let unconfigured = &reports[0];
     assert!(unconfigured["execution_state"]["config"]["rig"].is_null());
-    for report in &reports[1..3] {
-        let evidence = evidence(report);
+    for evidence in &reports[1..3] {
         let pre = &evidence["execution_state"];
         assert_eq!(pre["initialization"]["outcome"], "failed", "{evidence}");
         assert!(
@@ -551,7 +551,7 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
         assert_eq!(pre["disconnect"]["origin"], "initialization");
         assert_eq!(pre["config"]["rig"]["model_id"], "hamlib:999999");
     }
-    let disconnected = evidence(&reports[3]);
+    let disconnected = &reports[3];
     let pre = &disconnected["execution_state"];
     assert_eq!(
         pre["initialization"]["outcome"], "succeeded",
@@ -562,39 +562,26 @@ fn unavailable_reports_keep_initialization_and_disconnect_origins() {
     assert_eq!(disconnected["backend_call"]["handle_present"], false);
 }
 
-#[test]
-fn actor_context_distinguishes_missing_backend_from_failed_initialization() {
-    let reports = capture(async {
-        let config = RadioConfig {
-            rig: Some(RadioRigConfig {
-                model_id: "hamlib:1".into(),
-                token_values: Default::default(),
-            }),
-        };
-        let radio = RadioManager::new(config.clone(), selected()).unwrap();
-        let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let (server, _) =
-            super::spawn_catserver_with_radio(upstream.local_addr().unwrap(), None, radio.clone())
-                .await;
-        let (mut socket, _) = connect_async(format!("ws://{}/ws", server.address))
-            .await
-            .unwrap();
-        super::session::event(&mut socket, "status").await;
-        tune(&mut socket).await;
-        radio
-            .replace(config, selected(), || {
-                Box::new(UnavailableRadio::new("hamlib"))
-            })
-            .await
-            .unwrap();
-        tune(&mut socket).await;
-        socket.close(None).await.unwrap();
-        drop(server);
-        radio.shutdown().await.unwrap();
-    });
-    assert_eq!(reports.len(), 2);
-    for (report, initialized) in reports.iter().zip([false, true]) {
-        let evidence = evidence(report);
+#[tokio::test]
+async fn actor_context_distinguishes_missing_backend_from_failed_initialization() {
+    let config = RadioConfig {
+        rig: Some(RadioRigConfig {
+            model_id: "hamlib:1".into(),
+            token_values: Default::default(),
+        }),
+    };
+    let radio = RadioManager::new(config.clone(), selected()).unwrap();
+    let missing = tune_evidence(&radio).await;
+    radio
+        .replace(config, selected(), || {
+            Box::new(UnavailableRadio::new("hamlib"))
+        })
+        .await
+        .unwrap();
+    let failed = tune_evidence(&radio).await;
+    radio.shutdown().await.unwrap();
+    let reports = [missing, failed];
+    for (evidence, initialized) in reports.iter().zip([false, true]) {
         assert_eq!(evidence["post_state"]["connection"], "Disconnected");
         let pre = &evidence["execution_state"];
         assert_eq!(
