@@ -10,10 +10,21 @@ services:
       # This is for local development only,
       # It's OK to expose these ports on the server because they are accessible only from localhost.
       - "127.0.0.1:15432:5432"
+      # Remote read-only Grafana (iarc-mgmt). Unset = a second localhost-only port.
+      # On a server: the box's public IP and 15432, gated by the Hetzner Cloud Firewall.
+      - "${POSTGRES_PUBLIC_BIND:-127.0.0.1}:${POSTGRES_PUBLIC_PORT:-15433}:5432"
     env_file:
       - .env
+    # SSL reads server.crt/server.key from the data directory. Defaults keep local setups unchanged.
+    command:
+      - postgres
+      - -c
+      - ssl=${POSTGRES_SSL:-off}
+      - -c
+      - hba_file=${POSTGRES_HBA_FILE:-/var/lib/postgresql/data/pg_hba.conf}
     volumes:
       - ./infra/postgres/data:/var/lib/postgresql/data
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "postgres"]
       interval: 5s
