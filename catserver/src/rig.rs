@@ -201,6 +201,11 @@ impl RadioOperationError {
         }
     }
 
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.message = message.into();
+        self
+    }
+
     pub fn with_backend_context(mut self, context: RadioBackendContext) -> Self {
         self.backend_context = Some(Box::new(context));
         self
