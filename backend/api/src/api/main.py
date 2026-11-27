@@ -16,7 +16,6 @@ import redis.asyncio
 from fastapi import HTTPException, Query, websockets
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, Info, generate_latest
 from shared.cty import ensure_cty_available
@@ -35,7 +34,7 @@ from .coverage import CoveragePublisher
 from .release_cache import ReleaseCacheMiddleware
 from .release_response import validated_response
 from .settings import settings
-from .static_files import ImmutableStaticFiles
+from .static_files import ImmutableStaticFiles, OptionalStaticFiles
 from .user_presence import parse_user_presence, upsert_user_presence
 
 initialize_sentry(settings, "api")
@@ -1605,8 +1604,12 @@ async def get_index():
 
 @app.get("/manifest.webmanifest")
 async def get_manifest():
+    manifest_path = settings.ui_dist_path / "manifest.webmanifest"
+    # UI builds before the PWA files have no manifest
+    if not manifest_path.is_file():
+        raise HTTPException(status_code=404)
     response = FileResponse(
-        f"{settings.ui_dist_path}/manifest.webmanifest",
+        manifest_path,
         media_type="application/manifest+json",
     )
     response.headers["Cache-Control"] = "no-store"
@@ -1620,7 +1623,8 @@ app.mount(
 )
 app.mount(
     "/icons",
-    StaticFiles(directory=f"{settings.ui_dist_path}/icons"),
+    # UI builds before the PWA files have no icons directory
+    OptionalStaticFiles(directory=f"{settings.ui_dist_path}/icons"),
     name="icons",
 )
 
