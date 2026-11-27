@@ -23,46 +23,58 @@ function FeedbackButton({ size }) {
     );
 }
 
-function CatserverDownload({ size, update_available, open_dialog }) {
+function CatserverDownload({ update_available, open_dialog, show_dialog }) {
     const { colors } = useColors();
 
+    const content = (
+        <>
+            {update_available && (
+                <span className="absolute right-16 flex w-5 -translate-y-1 translate-x-1 z-10">
+                    <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
+                        !
+                    </span>
+                </span>
+            )}
+            <strong className="text-lg" style={{ color: colors.buttons.utility }}>
+                CAT
+            </strong>
+        </>
+    );
     return (
         <div data-tour="cat-download-link">
-            <a
-                href="/addons"
-                target="_blank"
-                rel="noreferrer"
-                onClick={event => {
-                    if (update_available) {
-                        event.preventDefault();
-                        open_dialog();
-                    }
-                }}
-            >
-                {update_available ? (
-                    <span className="absolute right-16 flex w-5 -translate-y-1 translate-x-1 z-10">
-                        <span className="relative inline-flex border border-gray-900 bg-orange-600 text-white font-medium justify-center items-center rounded-full h-5 w-5 text-center text-[12px]">
-                            !
-                        </span>
-                    </span>
-                ) : (
-                    ""
-                )}
-                <strong className="text-lg" style={{ color: colors.buttons.utility }}>
-                    CAT
-                </strong>
-            </a>{" "}
+            {update_available ? (
+                <button
+                    type="button"
+                    aria-label="Open CAT Control update"
+                    title="CAT Control update"
+                    aria-haspopup="dialog"
+                    aria-expanded={Boolean(show_dialog)}
+                    onClick={open_dialog}
+                >
+                    {content}
+                </button>
+            ) : (
+                <a
+                    href="/addons"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open CAT Control downloads"
+                    title="CAT Control downloads"
+                >
+                    {content}
+                </a>
+            )}
         </div>
     );
 }
 
 function UtilityButtons() {
-    const { update_available, open_dialog } = useUpdate();
+    const { update_available, open_dialog, show_dialog } = useUpdate();
 
     return (
         <div className="space-y-3" data-tour="utility-buttons">
             <CatserverDownload
-                size="36"
+                show_dialog={show_dialog}
                 update_available={update_available}
                 open_dialog={open_dialog}
             />

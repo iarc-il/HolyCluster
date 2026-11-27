@@ -1,7 +1,6 @@
 import UpdateControls from "@/components/UpdateControls.jsx";
 import UpdateProgress from "@/components/UpdateProgress.jsx";
 import { UpdateProvider, normalize_update_status, useUpdate } from "@/hooks/useUpdate.jsx";
-import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -18,14 +17,12 @@ it("honors explicit same-version availability without treating ordinary equality
     expect(
         normalize_update_status({
             state: "available",
-            local_version: "1.3.0",
             available_version: "1.3.0",
         }).status,
     ).toBe("available");
     expect(
         normalize_update_status({
             state: "idle",
-            local_version: "1.3.0",
             available_version: "1.3.0",
         }).status,
     ).toBe("current");
@@ -95,7 +92,7 @@ function Page() {
     );
 }
 beforeEach(() => {
-    cat.current = { local_version: [...NATIVE_UPDATER_MIN_VERSION] };
+    cat.current = { local_version: [1, 3, 0, 0] };
     refresh_blocker.mockReset();
 });
 afterEach(() => {

@@ -2,9 +2,7 @@ name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME to holycluster-backend-de
 
 services:
   postgres:
-    build:
-      context: infra/postgres
-      dockerfile: Dockerfile.postgres
+    image: postgres:16.9-bookworm
     restart: unless-stopped
     ports:
       # This is for local development only,
@@ -22,8 +20,6 @@ services:
       start_period: 10s
     environment:
         - TZ=Asia/Jerusalem
-    expose:
-      - "${POSTGRES_PORT}"
 
   valkey:
     build:
@@ -32,9 +28,6 @@ services:
     # Mount a volume for data persistence (optional, but recommended)
     # volumes:
     #   - valkey_data:/data
-    environment:
-    # Password needs to be passed to the healthcheck command
-      - VALKEY_PASSWORD=${VALKEY_PASSWORD}
     ports:
       # This is for local development only,
       # It's OK to expose these ports on the server because they are accessible only from localhost.
@@ -81,8 +74,6 @@ services:
       start_period: 10s
     volumes:
       - ${LOG_DIR}:${LOG_DIR}
-    expose:
-      - "${VALKEY_PORT}"
     cap_add:
       - SYS_PTRACE
 
@@ -98,8 +89,6 @@ services:
         condition: service_completed_successfully
     env_file:
       - .env
-    expose:
-      - "9102"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9102/health', timeout=3)"]
       interval: 5s
@@ -130,8 +119,6 @@ services:
       - ${UI_DIST_PATH}:${UI_DIST_PATH}
       - ${CATSERVER_MSI_DIR}:${CATSERVER_MSI_DIR}
       - ${LOG_DIR}:${LOG_DIR}
-    expose:
-      - "8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 3s
@@ -224,6 +211,48 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  grafana-mcp:
+    profiles: ["grafana-mcp"]
+    image: grafana/mcp-grafana:2.3.0-alpine
+    restart: unless-stopped
+    depends_on:
+      grafana:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GRAFANA_MCP_PORT:-8001}:8000"
+    environment:
+      GRAFANA_URL: http://grafana:3000/grafana
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${GRAFANA_MCP_SERVICE_ACCOUNT_TOKEN:-}
+      MCP_GRAFANA_SERVER_TOKEN: ${GRAFANA_MCP_SERVER_TOKEN:-}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        : "$${GRAFANA_SERVICE_ACCOUNT_TOKEN:?Set GRAFANA_MCP_SERVICE_ACCOUNT_TOKEN to a Grafana Viewer token.}"
+        : "$${MCP_GRAFANA_SERVER_TOKEN:?Set GRAFANA_MCP_SERVER_TOKEN to a separate random secret.}"
+        exec /app/mcp-grafana "$$@"
+      - --
+    command:
+      - --transport=streamable-http
+      - --address=0.0.0.0:8000
+      - --allowed-hosts=localhost:${GRAFANA_MCP_PORT:-8001},127.0.0.1:${GRAFANA_MCP_PORT:-8001},localhost:8000,127.0.0.1:8000
+      - --enabled-tools=search,datasource,prometheus,dashboard,alerting,sql,navigation
+      - --disable-write
+      - --enable-query
+      - --usage-stats=disabled
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header=\"Authorization: Bearer $$MCP_GRAFANA_SERVER_TOKEN\" http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   nginx:
     build:

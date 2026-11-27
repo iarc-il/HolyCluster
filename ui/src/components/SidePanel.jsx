@@ -6,34 +6,40 @@ import FrequencyBar from "@/components/FrequencyBar.jsx";
 import Heatmap from "@/components/Heatmap.jsx";
 import MissingPanel from "@/components/MissingPanel.jsx";
 import UtilityButtons from "@/components/UtilityButtons";
+import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import { TOUR_SELECT_SIDE_PANEL_TAB_EVENT } from "@/components/tour/tour_events.js";
 import { continents } from "@/data/filters_data.js";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useLocalStorage } from "@uidotdev/usehooks";
 
 import { useEffect } from "react";
 
 const continent_title = { dx: "DX", spotter: "DE" };
 
-function ContinentColumn({ spot_type, colors }) {
+export function ContinentColumn({ spot_type, colors, mobile = false }) {
     const { filters, setFilters } = useFilters();
     const filter_key = `${spot_type}_continents`;
     const color = colors.buttons[`${spot_type}_continents`];
 
     return (
         <div
-            className="flex flex-col gap-3 items-center p-1"
+            className={`flex ${mobile ? "flex-wrap p-3" : "flex-col p-1"} gap-3 items-center`}
             data-tour={`${spot_type}-continent-filters`}
         >
-            <strong style={{ color: colors.theme.text }}>{continent_title[spot_type]}</strong>
+            <strong className={mobile ? "w-full" : ""} style={{ color: colors.theme.text }}>
+                {continent_title[spot_type]}
+            </strong>
             {continents.map(continent => (
                 <FilterOptions
+                    touch={mobile}
                     key={`${spot_type}_${continent}`}
                     filter_key={filter_key}
                     filter_value={continent}
                     orientation="left"
                 >
                     <FilterButton
+                        className={mobile ? "min-w-16" : ""}
                         color={color}
                         text={continent}
                         text_color={colors.theme.text}
@@ -55,7 +61,7 @@ function ContinentColumn({ spot_type, colors }) {
     );
 }
 
-function SwapButton({ colors }) {
+export function SwapButton({ colors }) {
     const { filters, setFilters } = useFilters();
 
     const areFiltersEqual = continents.every(
@@ -81,6 +87,7 @@ function SwapButton({ colors }) {
                     : "cursor-pointer hover:brightness-110"
             }`}
             style={{ backgroundColor: colors.buttons.disabled_background }}
+            aria-label="Swap DX and DE continent filters"
             title="Swap DX and DE continent filters"
             disabled={areFiltersEqual}
             data-tour="swap-continent-filters"
@@ -176,18 +183,29 @@ const view_options = [
         size: 32,
         is_disabled: false,
     },
+    {
+        label: "Tours",
+        bg: "#3b82f6",
+        icon: "M1 2.828c.885-.37 2.154-.769 3.5-.769 1.258 0 2.294.31 3.5 1.436V14.5c-1.206-1.126-2.242-1.436-3.5-1.436-1.346 0-2.615.4-3.5.769zm14 0c-.885-.37-2.154-.769-3.5-.769-1.258 0-2.294.31-3.5 1.436V14.5c1.206-1.126 2.242-1.436 3.5-1.436 1.346 0 2.615.4 3.5.769z",
+        viewbox: "0 0 16 16",
+        size: 32,
+        is_disabled: false,
+        mobile_only: true,
+    },
 ];
 
-function ViewSelectorTabs({ active_view, set_active_view, colors }) {
+function ViewSelectorTabs({ active_view, set_active_view, colors, mobile = false }) {
     return (
         <div
             className="flex shrink-0 border-b-2"
             data-tour="side-panel-tabs"
             style={{
                 borderColor: colors.table.header_arrow,
+                color: mobile ? colors.theme.text : undefined,
             }}
         >
             {view_options.map((option, index) => {
+                if ((mobile && index === 0) || (!mobile && option.mobile_only)) return null;
                 const is_active = active_view === index;
                 return (
                     <div
@@ -207,7 +225,7 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                                 set_active_view(index);
                             }
                         }}
-                        className={`flex items-center justify-center flex-1 py-0.5 transition-colors rounded-md${
+                        className={`flex items-center justify-center flex-1 ${mobile ? "min-h-14 flex-col gap-0.5" : ""} py-0.5 transition-colors rounded-md${
                             !is_active && !option.is_disabled
                                 ? " cursor-pointer opacity-60 hover:opacity-100"
                                 : ""
@@ -215,47 +233,84 @@ function ViewSelectorTabs({ active_view, set_active_view, colors }) {
                         style={{
                             backgroundColor: is_active ? colors.buttons.active_tab : undefined,
                         }}
+                        aria-label={mobile && index === 1 ? "Band activity" : option.label}
                         title={option.label}
                         role="button"
                         tabIndex={0}
-                        data-tour={`side-panel-tab-${option.label.toLowerCase().replaceAll(" ", "-")}`}
+                        data-tour={`side-panel-tab-${option.label.toLowerCase().replace(/ /g, "-")}`}
                         data-tour-state={is_active ? "active" : "inactive"}
                         aria-pressed={is_active}
                     >
-                        <svg
-                            width={option.size}
-                            height={option.size}
-                            viewBox={option.viewbox}
-                            fill={is_active ? option.bg : colors.buttons.utility}
-                        >
-                            <title>{option.label || "View option"}</title>
-                            <path d={option.icon} />
-                        </svg>
+                        {mobile ? (
+                            <>
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox={option.viewbox}
+                                    fill={is_active ? option.bg : colors.buttons.utility}
+                                    aria-hidden="true"
+                                >
+                                    <path d={option.icon} />
+                                </svg>
+                                <span className="text-xs font-semibold">
+                                    {{ "Band Bar": "Band", DXpeditions: "DX" }[option.label] ??
+                                        option.label}
+                                </span>
+                            </>
+                        ) : (
+                            <svg
+                                width={option.size}
+                                height={option.size}
+                                viewBox={option.viewbox}
+                                fill={is_active ? option.bg : colors.buttons.utility}
+                            >
+                                <title>{option.label || "View option"}</title>
+                                <path d={option.icon} />
+                            </svg>
+                        )}
                     </div>
                 );
             })}
-            <div className="w-18 shrink-0" />
+            {!mobile && <div className="w-18 shrink-0" />}
         </div>
     );
 }
 
-function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, set_active_view }) {
+function SidePanel({
+    visible,
+    mobile = false,
+    overlay,
+    on_close,
+    on_open,
+    set_cat_to_spot,
+    active_view,
+    set_active_view,
+}) {
     const { colors } = useColors();
+    const [mobile_view, set_mobile_view] = useLocalStorage("mobile_tools_view", 1);
+    const set_displayed_view = mobile ? set_mobile_view : set_active_view;
 
     useEffect(() => {
         function select_tab(event) {
             const index = view_options.findIndex(option => option.label === event.detail?.label);
-            if (index >= 0) set_active_view(index);
+            if (index >= 0) set_displayed_view(index);
         }
 
         document.addEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
         return () => document.removeEventListener(TOUR_SELECT_SIDE_PANEL_TAB_EVENT, select_tab);
-    }, [set_active_view]);
+    }, [set_displayed_view]);
 
-    if (active_view === null) return null;
+    if (active_view === null && !mobile) return null;
+    const numeric_mobile_view = Number(mobile_view);
+    const displayed_view =
+        mobile && [1, 2, 3, 4, 5].includes(numeric_mobile_view)
+            ? numeric_mobile_view
+            : mobile
+              ? 1
+              : active_view;
 
     function handle_import_complete() {
-        set_toggled_ui(state => ({ ...state, right_visible: true }));
+        on_open();
     }
 
     const content = [
@@ -265,26 +320,45 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
             set_cat_to_spot={set_cat_to_spot}
             className={"px-2 h-full"}
         />,
-        <div key="heatmap" className="p-2">
+        <div key="heatmap" className="h-full p-2">
             <Heatmap />
         </div>,
         <DXpeditions key="dxpeditions" />,
         <MissingPanel key="missing" on_import_complete={handle_import_complete} />,
+        <WebsiteTour key="tours" is_mobile launcher_inline />,
     ];
-    const active_view_label = view_options[active_view]?.label.toLowerCase().replaceAll(" ", "-");
+    const active_view_label = view_options[displayed_view]?.label.toLowerCase().replace(/ /g, "-");
 
-    const toggled_classes = toggled_ui.right_visible
-        ? "max-2xl:absolute max-2xl:flex right-0 top-0"
-        : "hidden";
+    const panel_classes = visible ? (overlay ? "absolute right-0 top-0 flex" : "flex") : "hidden";
     return (
-        <div
-            className={`${toggled_classes} 2xl:flex flex-col h-full z-50 max-2xl:max-h-full max-2xl:overflow-auto`}
+        <aside
+            id="tools-panel"
+            aria-label="Tools"
+            className={`${panel_classes} flex-col h-full min-w-0 z-50 max-h-full overflow-auto`}
             data-tour="side-panel"
             style={{ backgroundColor: colors.theme.background, maxWidth: "100vw" }}
         >
+            {overlay && (
+                <div
+                    className="flex shrink-0 items-center justify-between border-b px-3 py-1"
+                    style={{ color: colors.theme.text, borderColor: colors.theme.borders }}
+                >
+                    <span className="text-sm font-semibold">Tools</span>
+                    <button
+                        id="tools-panel-close"
+                        type="button"
+                        aria-label="Close Tools"
+                        onClick={on_close}
+                        className="cursor-pointer rounded px-3 py-1 text-xl"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             <ViewSelectorTabs
-                active_view={active_view}
-                set_active_view={set_active_view}
+                mobile={mobile}
+                active_view={displayed_view}
+                set_active_view={set_displayed_view}
                 colors={colors}
             />
             <div className="flex flex-1 overflow-hidden" data-tour="side-panel-body">
@@ -292,11 +366,23 @@ function SidePanel({ toggled_ui, set_toggled_ui, set_cat_to_spot, active_view, s
                     className="flex-1 overflow-y-auto divide-y divide-slate-300 w-64 min-w-0"
                     data-tour={active_view_label ? `side-panel-view-${active_view_label}` : null}
                 >
-                    {content[active_view]}
+                    {mobile
+                        ? content.map(
+                              (view, index) =>
+                                  index > 0 && (
+                                      <div
+                                          key={view.key}
+                                          className={displayed_view === index ? "h-full" : "hidden"}
+                                      >
+                                          {view}
+                                      </div>
+                                  ),
+                          )
+                        : content[active_view]}
                 </div>
-                <RightColumnContent colors={colors} />
+                {!mobile && <RightColumnContent colors={colors} />}
             </div>
-        </div>
+        </aside>
     );
 }
 

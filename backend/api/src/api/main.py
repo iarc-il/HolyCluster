@@ -16,7 +16,6 @@ import redis.asyncio
 from fastapi import HTTPException, Query, websockets
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, Info, generate_latest
 from shared.cty import ensure_cty_available
@@ -35,6 +34,8 @@ from .coverage import CoveragePublisher
 from .release_cache import ReleaseCacheMiddleware
 from .release_response import validated_response
 from .settings import settings
+from .static_files import ImmutableStaticFiles, OptionalStaticFiles
+from .user_presence import parse_user_presence, upsert_user_presence
 
 initialize_sentry(settings, "api")
 Info("holycluster_api_build", "API build release").info({"release": settings.sentry_release})
@@ -280,6 +281,51 @@ async def spots_broadcast_task(app):
         await valkey_client.aclose()
 
 
+def get_user_presence_write_tasks():
+    tasks = getattr(app.state, "user_presence_write_tasks", None)
+    if tasks is None:
+        tasks = set()
+        app.state.user_presence_write_tasks = tasks
+    return tasks
+
+
+async def record_user_presence(observation):
+    try:
+        await upsert_user_presence(async_session, {observation})
+    except (SQLAlchemyError, OSError, TimeoutError) as exc:
+        logger.opt(exception=exc).warning("Failed to record anonymous user presence")
+        capture_exception(exc, operation="api.user_presence")
+
+
+def schedule_user_presence_write(websocket: fastapi.WebSocket, observation):
+    websocket.scope["user_presence"] = observation
+    tasks = get_user_presence_write_tasks()
+    task = asyncio.create_task(record_user_presence(observation))
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+
+
+async def cancel_user_presence_write_tasks():
+    tasks = list(get_user_presence_write_tasks())
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def user_presence_task(app: fastapi.FastAPI):
+    while True:
+        await asyncio.sleep(300)
+        connections = app.state.active_connections | app.state.active_ws_spot_connections
+        observations = {websocket.scope.get("user_presence") for websocket in connections}
+        observations.discard(None)
+        try:
+            await upsert_user_presence(async_session, observations)
+        except (SQLAlchemyError, OSError, TimeoutError) as exc:
+            logger.opt(exception=exc).warning("Failed to refresh anonymous user presence")
+            capture_exception(exc, operation="api.user_presence")
+
+
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
     if not settings.ui_dist_path.is_dir():
@@ -290,6 +336,7 @@ async def lifespan(app: fastapi.FastAPI):
     app.state.websocket_send_locks = weakref.WeakKeyDictionary()
     app.state.closed_websockets = weakref.WeakSet()
     app.state.websocket_close_tasks = set()
+    app.state.user_presence_write_tasks = set()
     app.state.propagation = None
     app.state.spot_snapshot = SpotSnapshot()
 
@@ -304,11 +351,12 @@ async def lifespan(app: fastapi.FastAPI):
     tasks = []
 
     try:
-        await ensure_cty_available(http_client=app.state.http_client)
+        await ensure_cty_available()
 
         tasks = [
             asyncio.create_task(propagation_data_collector(app)),
             asyncio.create_task(spots_broadcast_task(app)),
+            asyncio.create_task(user_presence_task(app)),
         ]
 
         yield
@@ -318,6 +366,7 @@ async def lifespan(app: fastapi.FastAPI):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         await cancel_websocket_close_tasks()
+        await cancel_user_presence_write_tasks()
         await asyncio.gather(
             app.state.http_client.aclose(),
             app.state.valkey_client.aclose(),
@@ -373,6 +422,7 @@ class WsMessageType(StrEnum):
     MISSING = "missing"
     HISTORY = "history"
     UI_REFRESH = "ui_refresh"
+    SEARCH = "search"
 
 
 class WsSpotAction(StrEnum):
@@ -800,7 +850,7 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
     error = validate_ws_protocol_message(message)
     if error is not None:
         await send_ws_json(websocket, send_lock, error)
-        return
+        return WsErrorType(error["error_type"])
 
     if message.get("type") == WsMessageType.SPOTS.value:
         await send_ws_spots(websocket, send_lock, message)
@@ -828,6 +878,10 @@ async def dispatch_ws_message(websocket, send_lock, missing_jobs, message):
 
     if message.get("type") == WsMessageType.UI_REFRESH.value:
         await record_ui_refresh(websocket, send_lock, message)
+        return
+
+    if message.get("type") == WsMessageType.SEARCH.value:
+        await send_ws_search(websocket, send_lock, message)
         return
 
     await send_ws_json(
@@ -864,7 +918,10 @@ async def ws(websocket: fastapi.WebSocket):
                 )
                 continue
 
-            await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
+            error_type = await dispatch_ws_message(websocket, send_lock, missing_jobs, message)
+            if error_type == WsErrorType.MISSING_VERSION:
+                await websocket.close(code=1008)
+                break
     except websockets.WebSocketDisconnect:
         pass
     finally:
@@ -1012,6 +1069,80 @@ async def send_ws_history(websocket: fastapi.WebSocket, send_lock: asyncio.Lock,
             ),
         )
         metrics.HISTORY_RECORDS.labels("spots").inc(len(spots))
+
+
+MAX_SEARCH_RANGE_SECONDS = 14 * 86400
+MAX_SEARCH_RESULTS = 10_000
+
+
+async def send_ws_search(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
+    metrics.FEATURES.labels("callsign_search").inc()
+
+    for field_name in ("dx_callsign", "start_time", "end_time"):
+        if message.get(field_name) is None:
+            await send_ws_json(
+                websocket,
+                send_lock,
+                build_ws_error(WsErrorType.MISSING_FIELD, f"Missing {field_name}", field=field_name),
+            )
+            return
+
+    start_time = message["start_time"]
+    end_time = message["end_time"]
+    dx_callsign = str(message["dx_callsign"]).strip().upper()
+
+    if not MISSING_CALLSIGN_PATTERN.fullmatch(dx_callsign):
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "Invalid dx_callsign", field="dx_callsign"),
+        )
+        return
+    if end_time < start_time:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(
+                WsErrorType.MALFORMED_MESSAGE, "end_time must be greater than start_time", field="start_time"
+            ),
+        )
+        return
+    if end_time - start_time > MAX_SEARCH_RANGE_SECONDS:
+        await send_ws_json(
+            websocket,
+            send_lock,
+            build_ws_error(WsErrorType.MALFORMED_MESSAGE, "time range cannot exceed 14 days", field="end_time"),
+        )
+        return
+
+    # Newest first so a busy DX is cut off at its oldest spots; one extra row
+    # tells us whether anything was cut.
+    async with async_session() as session:
+        query = (
+            select(HolySpot)
+            .where(HolySpot.dx_callsign == dx_callsign)
+            .where(HolySpot.timestamp >= start_time)
+            .where(HolySpot.timestamp <= end_time)
+            .order_by(desc(HolySpot.timestamp))
+            .limit(MAX_SEARCH_RESULTS + 1)
+        )
+        rows = list((await session.execute(query)).scalars().all())
+    truncated = len(rows) > MAX_SEARCH_RESULTS
+    spots = cleanup_spots(reversed(rows[:MAX_SEARCH_RESULTS]))
+
+    await send_ws_json(
+        websocket,
+        send_lock,
+        build_ws_message(
+            WsMessageType.SEARCH,
+            dx_callsign=dx_callsign,
+            start_time=start_time,
+            end_time=end_time,
+            truncated=truncated,
+            spots=spots,
+        ),
+    )
+    metrics.HISTORY_RECORDS.labels("search").inc(len(spots))
 
 
 async def cancel_missing_jobs(missing_jobs):
@@ -1285,8 +1416,13 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
     # Registration must not depend on the duration of the snapshot query.
     app.state.active_ws_spot_connections.add(websocket)
+    observation = parse_user_presence(message)
+    if observation:
+        schedule_user_presence_write(websocket, observation)
     if connection := websocket.scope.get("metrics_connection"):
         connection.report_client_versions(message)
+        if observation:
+            connection.report_user_id(str(observation.user_id))
     if isinstance(message.get("subscription_id"), str):
         await send_ws_json(
             websocket,
@@ -1309,8 +1445,13 @@ async def send_ws_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, m
 
 async def send_spots(websocket: fastapi.WebSocket, send_lock: asyncio.Lock, message: dict):
     if "initial" in message or "last_time" in message:
+        observation = parse_user_presence(message)
+        if observation:
+            schedule_user_presence_write(websocket, observation)
         if connection := websocket.scope.get("metrics_connection"):
             connection.report_client_versions(message)
+            if observation:
+                connection.report_user_id(str(observation.user_id))
     if "initial" in message:
         metrics.FEATURES.labels("initial_spots").inc()
         spots = await get_initial_spots()
@@ -1443,7 +1584,7 @@ async def spot_history(start_time: int, end_time: int):
     return fastapi.Response(content=payload, media_type="application/json")
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     try:
         async with async_session() as session:
@@ -1454,14 +1595,38 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def get_index():
     response = FileResponse(f"{settings.ui_dist_path}/index.html", media_type="text/html")
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
-app.mount("/assets", StaticFiles(directory=f"{settings.ui_dist_path}/assets"), name="static")
+@app.get("/manifest.webmanifest")
+async def get_manifest():
+    manifest_path = settings.ui_dist_path / "manifest.webmanifest"
+    # UI builds before the PWA files have no manifest
+    if not manifest_path.is_file():
+        raise HTTPException(status_code=404)
+    response = FileResponse(
+        manifest_path,
+        media_type="application/manifest+json",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+app.mount(
+    "/assets",
+    ImmutableStaticFiles(directory=f"{settings.ui_dist_path}/assets"),
+    name="static",
+)
+app.mount(
+    "/icons",
+    # UI builds before the PWA files have no icons directory
+    OptionalStaticFiles(directory=f"{settings.ui_dist_path}/icons"),
+    name="icons",
+)
 
 
 @app.get("/{path:path}")

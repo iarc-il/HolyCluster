@@ -4,6 +4,21 @@ from .adapters import SERVICES, SOURCES
 
 REASONS = ("feed_down", "warmup", "stale", "generation", "saturated", "unrecoverable", "capacity", "sample_limit")
 RESULTS = ("matched", "holy_only", "service_only")
+PIPELINE_RESULTS = (
+    "success",
+    "invalid_band",
+    "invalid_callsign",
+    "geo_error",
+    "enrich_error",
+    "south_pole",
+    "persist_error",
+)
+SERVICE_ONLY_CAUSES = (
+    *PIPELINE_RESULTS[1:],
+    "multiple_drops",
+    "pipeline_gap",
+    "not_observed",
+)
 PREFIX = "holycluster_coverage_"
 
 
@@ -14,6 +29,12 @@ class Metrics:
         )
         self.skipped = Counter(
             PREFIX + "skipped_total", "Skipped comparisons", ("service", "reason"), registry=registry
+        )
+        self.service_only_causes = Counter(
+            PREFIX + "service_only_causes_total",
+            "Final service-only outcomes by HolyCluster pipeline cause",
+            ("service", "cause"),
+            registry=registry,
         )
         self.feed_up = Gauge(PREFIX + "feed_up", "Feed transport is healthy", ("service",), registry=registry)
         self.eligible = Gauge(PREFIX + "comparison_eligible", "Pair can be compared", ("service",), registry=registry)
@@ -39,6 +60,8 @@ class Metrics:
                 self.outcomes.labels(service, result)
             for reason in REASONS:
                 self.skipped.labels(service, reason)
+            for cause in SERVICE_ONLY_CAUSES:
+                self.service_only_causes.labels(service, cause)
         for source in SOURCES:
             for metric in (self.feed_up, self.last_success, self.last_spot):
                 metric.labels(source).set(0)
@@ -46,7 +69,7 @@ class Metrics:
                 metric.labels(source)
 
     def sync(self, state: dict, now: float, eligibility):
-        for name in ("outcomes", "skipped"):
+        for name in ("outcomes", "skipped", "service_only_causes"):
             for labels, value in state[name].items():
                 key = (name, labels)
                 previous = self._totals.get(key, 0)

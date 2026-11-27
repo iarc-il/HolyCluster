@@ -1,0 +1,30 @@
+{
+    "name": "HolyCluster",
+    "short_name": "HolyCluster",
+    "description": "Amateur radio DX cluster. Requires an internet connection.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "theme_color": "#0b141a",
+    "background_color": "#0b141a",
+    "icons": [
+        {
+            "src": "/icons/holycluster-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/holycluster-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/holycluster-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

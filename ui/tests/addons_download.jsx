@@ -44,7 +44,7 @@ it.each(["Linux", "Windows"])("shows a spinner until %s downloads load", async p
     expect(screen.getByRole("status").querySelector("svg.animate-spin")).not.toBeNull();
     expect(screen.queryByText(/upcoming/i)).toBeNull();
     finish();
-    const link = await screen.findByRole("link", { name: `Download for ${platform}` });
+    const link = await screen.findByRole("link", { name: `Download CAT Control for ${platform}` });
     const url = new URL(link.getAttribute("href"), window.location.origin);
     expect(url.pathname).toBe(release(platform.toLowerCase()).artifact.location);
     expect(url.searchParams.get("download_policy")).toBe("2");
@@ -59,7 +59,7 @@ it("stops loading and shows unavailable when requests fail", async () => {
     vi.stubGlobal("navigator", { userAgent: "Linux" });
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
     render(<Download />);
-    await screen.findByText("Linux download unavailable");
+    await screen.findByText("CAT Control for Linux is unavailable.");
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByText(/upcoming/i)).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();

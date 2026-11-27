@@ -22,7 +22,7 @@ groups:
           type: prometheus
           uid: victoriametrics
         editorMode: code
-        expr: up{job=~"api|collector"} == bool 0
+        expr: up{job=~"api|collector|coverage"} == bool 0
         instant: true
         range: false
         intervalMs: 30000

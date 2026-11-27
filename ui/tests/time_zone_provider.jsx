@@ -20,7 +20,8 @@ function Probe() {
             <span data-testid="time-zone">{tz.time_zone}</span>
             <span data-testid="label">{tz.label}</span>
             <span data-testid="hours">{tz.hours(INSTANT)}</span>
-            <span data-testid="to-string">{tz.to_string(INSTANT)}</span>
+            <span data-testid="formatted-time">{tz.format_time(INSTANT)}</span>
+            <span data-testid="formatted-date">{tz.format_date(INSTANT)}</span>
             <span data-testid="offset-ms">{tz.offset_ms(INSTANT)}</span>
             <button type="button" onClick={tz.toggle_time_zone}>
                 toggle
@@ -66,7 +67,8 @@ describe("time zone provider", () => {
         expect(text("time-zone")).toBe("utc");
         expect(text("label")).toBe("UTC");
         expect(text("hours")).toBe("4");
-        expect(text("to-string")).toBe("01 Nov 2026, 04:05:09");
+        expect(text("formatted-time")).toBe("04:05");
+        expect(text("formatted-date")).toBe("01 Nov");
         expect(text("offset-ms")).toBe("0");
     });
 
@@ -108,22 +110,19 @@ describe("time zone provider", () => {
     });
 });
 
-describe("time zone string layout", () => {
-    // Call sites slice this string, so the layout must not differ between modes or zones
+describe("time zone formatting", () => {
     it.each(
         ZONES.flatMap(zone => [
             [zone, "utc"],
             [zone, "local"],
         ]),
-    )("keeps the layout in %s (%s mode)", (zone, mode) => {
+    )("uses fixed layouts in %s (%s mode)", (zone, mode) => {
         use_tz(zone);
         window.localStorage.setItem("time_zone", JSON.stringify(mode));
         render_probe();
 
-        const value = text("to-string");
-        expect(value).toMatch(/^\d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/);
-        expect(value.slice(13, 18)).toMatch(/^\d{2}:\d{2}$/);
-        expect(value.slice(0, 6)).toMatch(/^\d{2} [A-Z][a-z]{2}$/);
+        expect(text("formatted-time")).toMatch(/^\d{2}:\d{2}$/);
+        expect(text("formatted-date")).toMatch(/^\d{2} [A-Z][a-z]{2}$/);
     });
 });
 
@@ -138,7 +137,7 @@ describe("local time values", () => {
         render_probe();
 
         expect(text("hours")).toBe(hours);
-        expect(text("to-string").slice(13, 18)).toBe(hhmm);
+        expect(text("formatted-time")).toBe(hhmm);
         expect(text("label")).toBe(label);
         expect(Number(text("offset-ms"))).toBe(offset_ms);
     });

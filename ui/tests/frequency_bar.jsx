@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { scroll_frequency_range, zoom_frequency_range } from "@/components/FrequencyBar.jsx";
+import {
+    normalize_selected_band,
+    scroll_frequency_range,
+    zoom_frequency_range,
+} from "@/components/FrequencyBar.jsx";
+
+describe("FrequencyBar band selection", () => {
+    it("normalizes numeric option values without changing named bands", () => {
+        expect(normalize_selected_band("20")).toBe(20);
+        expect(normalize_selected_band("-1")).toBe(-1);
+        expect(normalize_selected_band("VHF")).toBe("VHF");
+    });
+});
 
 describe("FrequencyBar viewport", () => {
     const full_range = { min: 14, max: 14.4 };

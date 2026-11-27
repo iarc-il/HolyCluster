@@ -1,0 +1,748 @@
+{
+    "provenance": {
+        "historical_commit": "e0dd5438ef10a2b1c47ca8e8a2242af1372aca9e",
+        "historical_module": "ui/src/utils/profile_data.js",
+        "historical_dependencies": "All transitive local imports loaded from the same commit; CTY virtual module uses the migration test's United States (291) and Japan (339) mock.",
+        "migration_commit": "654f65ae610ddb2a9ba68ee8b17298486316faf3",
+        "legacy_store": "Historical sanitize_profile_store of Home/Portable profiles with uppercase callsigns, time_limit 7200, hunter DXCC [291, 339], US state CA, import {id: log, filename: log.adi, imported_at: 2026-10-09}, history display_hours 24; active Portable, version 1.",
+        "old_tab_rewrite": "Historical sanitize_profile_store applied to the current sanitizer's migration of legacy_store. The old tab discards missing progress and creates empty hunter progress."
+    },
+    "legacy_store": {
+        "version": 1,
+        "active_profile_name": "Portable",
+        "profiles": [
+            {
+                "name": "Home",
+                "data": {
+                    "settings": {
+                        "locator": "",
+                        "default_radius": 20000,
+                        "theme": "Dark",
+                        "map_theme": "colorful",
+                        "callsign": "HOME",
+                        "is_miles": false,
+                        "propagation_displayed": true,
+                        "main_view_mode": "both",
+                        "main_view_order": "map_table",
+                        "show_flags": true,
+                        "show_state_abbreviations": true,
+                        "highlight_enabled": true,
+                        "highlight_port": 2237,
+                        "alert_sound_enabled": false,
+                        "disabled_bands": {
+                            "4": false,
+                            "6": false,
+                            "8": false,
+                            "10": false,
+                            "12": false,
+                            "15": false,
+                            "17": false,
+                            "20": false,
+                            "30": false,
+                            "40": false,
+                            "60": false,
+                            "80": false,
+                            "160": false,
+                            "SHF": false,
+                            "UHF": false,
+                            "VHF": false
+                        },
+                        "show_disabled_bands": false,
+                        "disabled_modes": {
+                            "SSB": false,
+                            "CW": false,
+                            "FT8": false,
+                            "FT4": false,
+                            "DIGI": false,
+                            "RTTY": false
+                        },
+                        "show_disabled_modes": false
+                    },
+                    "filters": {
+                        "bands": {
+                            "4": true,
+                            "6": true,
+                            "8": true,
+                            "10": true,
+                            "12": true,
+                            "15": true,
+                            "17": true,
+                            "20": true,
+                            "30": true,
+                            "40": true,
+                            "60": true,
+                            "80": true,
+                            "160": true,
+                            "SHF": true,
+                            "UHF": true,
+                            "VHF": true
+                        },
+                        "modes": {
+                            "SSB": true,
+                            "CW": true,
+                            "FT8": true,
+                            "FT4": true,
+                            "DIGI": true,
+                            "RTTY": true
+                        },
+                        "radio_band": false,
+                        "dx_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "spotter_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "time_limit": 7200,
+                        "show_only_latest_spot": false,
+                        "zone_filters": {
+                            "disabled_by_system": {
+                                "cq": [],
+                                "itu": [],
+                                "us_state": [],
+                                "ca_province": []
+                            }
+                        }
+                    },
+                    "callsign_filters": {
+                        "is_alert_filters_active": true,
+                        "is_show_only_filters_active": true,
+                        "is_hide_filters_active": true,
+                        "filters": []
+                    },
+                    "hunter": {
+                        "worked": {
+                            "dxcc": {
+                                "global": [291, 339]
+                            },
+                            "cq_zone": {
+                                "global": []
+                            },
+                            "itu_zone": {
+                                "global": []
+                            },
+                            "us_state": {
+                                "global": ["CA"]
+                            },
+                            "ca_province": {
+                                "global": []
+                            }
+                        },
+                        "imports": [
+                            {
+                                "file_name": "ADIF import",
+                                "imported_at": 0,
+                                "qso_count": 0,
+                                "skipped_count": 0,
+                                "resolved_count": 0,
+                                "unresolved_count": 0,
+                                "conflict_count": 0,
+                                "added_counts": {
+                                    "dxcc": 0,
+                                    "cq_zone": 0,
+                                    "itu_zone": 0,
+                                    "us_state": 0,
+                                    "ca_province": 0
+                                }
+                            }
+                        ]
+                    },
+                    "map_controls": {
+                        "night": false,
+                        "is_globe": false,
+                        "show_cq_zones": false,
+                        "show_itu_zones": false,
+                        "show_dxcc_labels": false,
+                        "show_us_states": false,
+                        "show_can_states": false,
+                        "show_maidenhead_grid": false,
+                        "show_equator": false,
+                        "voacap_enabled": false,
+                        "voacap_band": "20",
+                        "voacap_step_deg": 10,
+                        "location": {
+                            "displayed_locator": "JJ00AA",
+                            "location": [0, 0]
+                        }
+                    },
+                    "map_view": {
+                        "auto_radius": true,
+                        "radius_in_km": 20000
+                    },
+                    "table_sort": {
+                        "column": "time",
+                        "ascending": false
+                    },
+                    "history": {
+                        "window_size_ms": 900000,
+                        "step_size_ms": 900000,
+                        "display_hours": 24,
+                        "time_between_shifts": 3
+                    },
+                    "panels": {
+                        "heatmap_continent": "EU",
+                        "frequency_bar_band": 20,
+                        "dxpeditions_sort": "end",
+                        "dxpeditions_filter": "all"
+                    },
+                    "radio": {
+                        "requested_rig": 1
+                    }
+                }
+            },
+            {
+                "name": "Portable",
+                "data": {
+                    "settings": {
+                        "locator": "",
+                        "default_radius": 20000,
+                        "theme": "Dark",
+                        "map_theme": "colorful",
+                        "callsign": "PORTABLE",
+                        "is_miles": false,
+                        "propagation_displayed": true,
+                        "main_view_mode": "both",
+                        "main_view_order": "map_table",
+                        "show_flags": true,
+                        "show_state_abbreviations": true,
+                        "highlight_enabled": true,
+                        "highlight_port": 2237,
+                        "alert_sound_enabled": false,
+                        "disabled_bands": {
+                            "4": false,
+                            "6": false,
+                            "8": false,
+                            "10": false,
+                            "12": false,
+                            "15": false,
+                            "17": false,
+                            "20": false,
+                            "30": false,
+                            "40": false,
+                            "60": false,
+                            "80": false,
+                            "160": false,
+                            "SHF": false,
+                            "UHF": false,
+                            "VHF": false
+                        },
+                        "show_disabled_bands": false,
+                        "disabled_modes": {
+                            "SSB": false,
+                            "CW": false,
+                            "FT8": false,
+                            "FT4": false,
+                            "DIGI": false,
+                            "RTTY": false
+                        },
+                        "show_disabled_modes": false
+                    },
+                    "filters": {
+                        "bands": {
+                            "4": true,
+                            "6": true,
+                            "8": true,
+                            "10": true,
+                            "12": true,
+                            "15": true,
+                            "17": true,
+                            "20": true,
+                            "30": true,
+                            "40": true,
+                            "60": true,
+                            "80": true,
+                            "160": true,
+                            "SHF": true,
+                            "UHF": true,
+                            "VHF": true
+                        },
+                        "modes": {
+                            "SSB": true,
+                            "CW": true,
+                            "FT8": true,
+                            "FT4": true,
+                            "DIGI": true,
+                            "RTTY": true
+                        },
+                        "radio_band": false,
+                        "dx_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "spotter_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "time_limit": 7200,
+                        "show_only_latest_spot": false,
+                        "zone_filters": {
+                            "disabled_by_system": {
+                                "cq": [],
+                                "itu": [],
+                                "us_state": [],
+                                "ca_province": []
+                            }
+                        }
+                    },
+                    "callsign_filters": {
+                        "is_alert_filters_active": true,
+                        "is_show_only_filters_active": true,
+                        "is_hide_filters_active": true,
+                        "filters": []
+                    },
+                    "hunter": {
+                        "worked": {
+                            "dxcc": {
+                                "global": [291, 339]
+                            },
+                            "cq_zone": {
+                                "global": []
+                            },
+                            "itu_zone": {
+                                "global": []
+                            },
+                            "us_state": {
+                                "global": ["CA"]
+                            },
+                            "ca_province": {
+                                "global": []
+                            }
+                        },
+                        "imports": [
+                            {
+                                "file_name": "ADIF import",
+                                "imported_at": 0,
+                                "qso_count": 0,
+                                "skipped_count": 0,
+                                "resolved_count": 0,
+                                "unresolved_count": 0,
+                                "conflict_count": 0,
+                                "added_counts": {
+                                    "dxcc": 0,
+                                    "cq_zone": 0,
+                                    "itu_zone": 0,
+                                    "us_state": 0,
+                                    "ca_province": 0
+                                }
+                            }
+                        ]
+                    },
+                    "map_controls": {
+                        "night": false,
+                        "is_globe": false,
+                        "show_cq_zones": false,
+                        "show_itu_zones": false,
+                        "show_dxcc_labels": false,
+                        "show_us_states": false,
+                        "show_can_states": false,
+                        "show_maidenhead_grid": false,
+                        "show_equator": false,
+                        "voacap_enabled": false,
+                        "voacap_band": "20",
+                        "voacap_step_deg": 10,
+                        "location": {
+                            "displayed_locator": "JJ00AA",
+                            "location": [0, 0]
+                        }
+                    },
+                    "map_view": {
+                        "auto_radius": true,
+                        "radius_in_km": 20000
+                    },
+                    "table_sort": {
+                        "column": "time",
+                        "ascending": false
+                    },
+                    "history": {
+                        "window_size_ms": 900000,
+                        "step_size_ms": 900000,
+                        "display_hours": 24,
+                        "time_between_shifts": 3
+                    },
+                    "panels": {
+                        "heatmap_continent": "EU",
+                        "frequency_bar_band": 20,
+                        "dxpeditions_sort": "end",
+                        "dxpeditions_filter": "all"
+                    },
+                    "radio": {
+                        "requested_rig": 1
+                    }
+                }
+            }
+        ]
+    },
+    "old_tab_rewrite": {
+        "version": 1,
+        "active_profile_name": "Portable",
+        "profiles": [
+            {
+                "name": "Home",
+                "data": {
+                    "settings": {
+                        "locator": "",
+                        "default_radius": 20000,
+                        "theme": "Dark",
+                        "map_theme": "colorful",
+                        "callsign": "HOME",
+                        "is_miles": false,
+                        "propagation_displayed": true,
+                        "main_view_mode": "both",
+                        "main_view_order": "map_table",
+                        "show_flags": true,
+                        "show_state_abbreviations": true,
+                        "highlight_enabled": true,
+                        "highlight_port": 2237,
+                        "alert_sound_enabled": false,
+                        "disabled_bands": {
+                            "4": false,
+                            "6": false,
+                            "8": false,
+                            "10": false,
+                            "12": false,
+                            "15": false,
+                            "17": false,
+                            "20": false,
+                            "30": false,
+                            "40": false,
+                            "60": false,
+                            "80": false,
+                            "160": false,
+                            "SHF": false,
+                            "UHF": false,
+                            "VHF": false
+                        },
+                        "show_disabled_bands": false,
+                        "disabled_modes": {
+                            "SSB": false,
+                            "CW": false,
+                            "FT8": false,
+                            "FT4": false,
+                            "DIGI": false,
+                            "RTTY": false
+                        },
+                        "show_disabled_modes": false
+                    },
+                    "filters": {
+                        "bands": {
+                            "4": true,
+                            "6": true,
+                            "8": true,
+                            "10": true,
+                            "12": true,
+                            "15": true,
+                            "17": true,
+                            "20": true,
+                            "30": true,
+                            "40": true,
+                            "60": true,
+                            "80": true,
+                            "160": true,
+                            "SHF": true,
+                            "UHF": true,
+                            "VHF": true
+                        },
+                        "modes": {
+                            "SSB": true,
+                            "CW": true,
+                            "FT8": true,
+                            "FT4": true,
+                            "DIGI": true,
+                            "RTTY": true
+                        },
+                        "radio_band": false,
+                        "dx_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "spotter_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "time_limit": 7200,
+                        "show_only_latest_spot": false,
+                        "zone_filters": {
+                            "disabled_by_system": {
+                                "cq": [],
+                                "itu": [],
+                                "us_state": [],
+                                "ca_province": []
+                            }
+                        }
+                    },
+                    "callsign_filters": {
+                        "is_alert_filters_active": true,
+                        "is_show_only_filters_active": true,
+                        "is_hide_filters_active": true,
+                        "filters": []
+                    },
+                    "hunter": {
+                        "worked": {
+                            "dxcc": {
+                                "global": []
+                            },
+                            "cq_zone": {
+                                "global": []
+                            },
+                            "itu_zone": {
+                                "global": []
+                            },
+                            "us_state": {
+                                "global": []
+                            },
+                            "ca_province": {
+                                "global": []
+                            }
+                        },
+                        "imports": []
+                    },
+                    "map_controls": {
+                        "night": false,
+                        "is_globe": false,
+                        "show_cq_zones": false,
+                        "show_itu_zones": false,
+                        "show_dxcc_labels": false,
+                        "show_us_states": false,
+                        "show_can_states": false,
+                        "show_maidenhead_grid": false,
+                        "show_equator": false,
+                        "voacap_enabled": false,
+                        "voacap_band": "20",
+                        "voacap_step_deg": 10,
+                        "location": {
+                            "displayed_locator": "JJ00AA",
+                            "location": [0, 0]
+                        }
+                    },
+                    "map_view": {
+                        "auto_radius": true,
+                        "radius_in_km": 20000
+                    },
+                    "table_sort": {
+                        "column": "time",
+                        "ascending": false
+                    },
+                    "history": {
+                        "window_size_ms": 900000,
+                        "step_size_ms": 900000,
+                        "display_hours": 24,
+                        "time_between_shifts": 3
+                    },
+                    "panels": {
+                        "heatmap_continent": "EU",
+                        "frequency_bar_band": 20,
+                        "dxpeditions_sort": "end",
+                        "dxpeditions_filter": "all"
+                    },
+                    "radio": {
+                        "requested_rig": 1
+                    }
+                }
+            },
+            {
+                "name": "Portable",
+                "data": {
+                    "settings": {
+                        "locator": "",
+                        "default_radius": 20000,
+                        "theme": "Dark",
+                        "map_theme": "colorful",
+                        "callsign": "PORTABLE",
+                        "is_miles": false,
+                        "propagation_displayed": true,
+                        "main_view_mode": "both",
+                        "main_view_order": "map_table",
+                        "show_flags": true,
+                        "show_state_abbreviations": true,
+                        "highlight_enabled": true,
+                        "highlight_port": 2237,
+                        "alert_sound_enabled": false,
+                        "disabled_bands": {
+                            "4": false,
+                            "6": false,
+                            "8": false,
+                            "10": false,
+                            "12": false,
+                            "15": false,
+                            "17": false,
+                            "20": false,
+                            "30": false,
+                            "40": false,
+                            "60": false,
+                            "80": false,
+                            "160": false,
+                            "SHF": false,
+                            "UHF": false,
+                            "VHF": false
+                        },
+                        "show_disabled_bands": false,
+                        "disabled_modes": {
+                            "SSB": false,
+                            "CW": false,
+                            "FT8": false,
+                            "FT4": false,
+                            "DIGI": false,
+                            "RTTY": false
+                        },
+                        "show_disabled_modes": false
+                    },
+                    "filters": {
+                        "bands": {
+                            "4": true,
+                            "6": true,
+                            "8": true,
+                            "10": true,
+                            "12": true,
+                            "15": true,
+                            "17": true,
+                            "20": true,
+                            "30": true,
+                            "40": true,
+                            "60": true,
+                            "80": true,
+                            "160": true,
+                            "SHF": true,
+                            "UHF": true,
+                            "VHF": true
+                        },
+                        "modes": {
+                            "SSB": true,
+                            "CW": true,
+                            "FT8": true,
+                            "FT4": true,
+                            "DIGI": true,
+                            "RTTY": true
+                        },
+                        "radio_band": false,
+                        "dx_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "spotter_continents": {
+                            "EU": true,
+                            "NA": true,
+                            "SA": true,
+                            "AS": true,
+                            "AF": true,
+                            "OC": true,
+                            "AN": true
+                        },
+                        "time_limit": 7200,
+                        "show_only_latest_spot": false,
+                        "zone_filters": {
+                            "disabled_by_system": {
+                                "cq": [],
+                                "itu": [],
+                                "us_state": [],
+                                "ca_province": []
+                            }
+                        }
+                    },
+                    "callsign_filters": {
+                        "is_alert_filters_active": true,
+                        "is_show_only_filters_active": true,
+                        "is_hide_filters_active": true,
+                        "filters": []
+                    },
+                    "hunter": {
+                        "worked": {
+                            "dxcc": {
+                                "global": []
+                            },
+                            "cq_zone": {
+                                "global": []
+                            },
+                            "itu_zone": {
+                                "global": []
+                            },
+                            "us_state": {
+                                "global": []
+                            },
+                            "ca_province": {
+                                "global": []
+                            }
+                        },
+                        "imports": []
+                    },
+                    "map_controls": {
+                        "night": false,
+                        "is_globe": false,
+                        "show_cq_zones": false,
+                        "show_itu_zones": false,
+                        "show_dxcc_labels": false,
+                        "show_us_states": false,
+                        "show_can_states": false,
+                        "show_maidenhead_grid": false,
+                        "show_equator": false,
+                        "voacap_enabled": false,
+                        "voacap_band": "20",
+                        "voacap_step_deg": 10,
+                        "location": {
+                            "displayed_locator": "JJ00AA",
+                            "location": [0, 0]
+                        }
+                    },
+                    "map_view": {
+                        "auto_radius": true,
+                        "radius_in_km": 20000
+                    },
+                    "table_sort": {
+                        "column": "time",
+                        "ascending": false
+                    },
+                    "history": {
+                        "window_size_ms": 900000,
+                        "step_size_ms": 900000,
+                        "display_hours": 24,
+                        "time_between_shifts": 3
+                    },
+                    "panels": {
+                        "heatmap_continent": "EU",
+                        "frequency_bar_band": 20,
+                        "dxpeditions_sort": "end",
+                        "dxpeditions_filter": "all"
+                    },
+                    "radio": {
+                        "requested_rig": 1
+                    }
+                }
+            }
+        ]
+    }
+}

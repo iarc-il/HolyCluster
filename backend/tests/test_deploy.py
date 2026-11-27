@@ -1,4 +1,4 @@
-"""Deploy regression tests using only temporary shell stubs, not Git or Docker."""
+"""Deploy regression tests using temporary fixtures and Docker stubs."""
 
 import fcntl
 import os
@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy.sh"
+CLEANUP = Path(__file__).resolve().parents[1] / "cleanup-docker.sh"
 INITIAL_ENV = "DUMMY_SETTING=test\nSENTRY_RELEASE=oldhead\n"
 BACKGROUND_SERVICES = {"api", "collector", "coverage", "postgres", "valkey", "victoriametrics", "grafana"}
 
@@ -32,7 +33,9 @@ case "$1" in
         ;;
     reset) ;;
     diff)
-        if [[ "$4" == "$CHECKOUT_DIFF_BASE" && -n "$CHECKOUT_CHANGED_FILES" ]]; then
+        if [[ "$3" == --no-relative ]]; then
+            printf '%s\\n' "$ROOT_INPUT_DIFF"
+        elif [[ "$4" == "$CHECKOUT_DIFF_BASE" && -n "$CHECKOUT_CHANGED_FILES" ]]; then
             printf '%s\\n' "$CHECKOUT_CHANGED_FILES"
         else
             printf '%s\\n' "$CHANGED_FILES"
@@ -56,6 +59,9 @@ proxy_network="${proxy_network_input:-holycluster-proxy}"
 if [[ "$*" == 'compose config '* ]]; then
     if [[ -z "$project_name" ]]; then exit 14; fi
     if [[ "$CONFIG_STATUS" != 0 ]]; then exit "$CONFIG_STATUS"; fi
+    if [[ "$*" == 'compose config --services' ]]; then
+        printf '%s\\n' "$ACTIVE_SERVICES"
+    fi
     if [[ "$*" == 'compose config --environment' ]]; then
         printf 'PROXY_NETWORK=%s\\n' "$proxy_network_input"
         exit "$ENVIRONMENT_CONFIG_STATUS"
@@ -68,6 +74,7 @@ if [[ "$*" == "network inspect $proxy_network" ]]; then
 fi
 if [[ "$*" == 'compose ps --all --quiet '* ]]; then
     service="${!#}"
+    service="${service//-/_}"
     state_variable="${service^^}_STATE"
     if [[ "${!state_variable}" != missing ]]; then echo "$service-id"; fi
     exit 0
@@ -75,6 +82,7 @@ fi
 if [[ "$*" == inspect*-id ]]; then
     service="${!#}"
     service="${service%-id}"
+    service="${service//-/_}"
     state_variable="${service^^}_STATE"
     printf '%s\\n' "${!state_variable}"
     exit 0
@@ -116,6 +124,12 @@ if [[ "$*" == 'compose build '* ]]; then
     if [[ -z "$project_name" ]]; then exit 14; fi
     exit "$BUILD_STATUS"
 fi
+if [[ "$*" == 'image prune '* ]]; then
+    exit "$IMAGE_PRUNE_STATUS"
+fi
+if [[ "$*" == 'buildx prune '* ]]; then
+    exit "$CACHE_PRUNE_STATUS"
+fi
 if [[ "$*" == 'compose up '* && "$MISSING_NETWORK" == "$proxy_network" ]]; then exit 15; fi
 if [[ "$*" == 'compose up --abort-on-container-exit --exit-code-from migrate migrate' ]]; then
     exit "$MIGRATION_STATUS"
@@ -156,6 +170,7 @@ class DeployTests(unittest.TestCase):
         root = Path(temporary.name)
         (root / "bin").mkdir()
         (root / "deploy.sh").write_text(DEPLOY.read_text())
+        (root / "cleanup-docker.sh").write_text(CLEANUP.read_text())
         (root / ".env").write_text(overrides.pop("dotenv", INITIAL_ENV))
         (root / "wait.sh").write_text(WAIT_STUB)
         for name, content in (("git", GIT_STUB), ("docker", DOCKER_STUB), ("mv", MV_STUB)):
@@ -168,15 +183,20 @@ class DeployTests(unittest.TestCase):
             "BASH_ENV": str(root / "wait.sh"),
             "CHECKOUT_MODE": "success",
             "SAME_REF": "0",
+            "ACTIVE_SERVICES": "",
+            "GRAFANA_MCP_STATE": "running healthy",
             "CURRENT_HEAD": "newhead",
             "CHECKOUT_CHANGED_FILES": "",
             "CHECKOUT_DIFF_BASE": "",
             "CHANGED_FILES": "docker-compose.yml",
+            "ROOT_INPUT_DIFF": "",
             "MIGRATION_STATUS": "0",
             "FAIL_SERVICES": "",
             "COMPOSE_PROJECT_NAME": "holycluster-backend-dev",
             "CONFIG_STATUS": "0",
             "BUILD_STATUS": "0",
+            "IMAGE_PRUNE_STATUS": "0",
+            "CACHE_PRUNE_STATUS": "0",
             "MARKER_WRITE_STATUS": "0",
             "ENVIRONMENT_CONFIG_STATUS": "0",
             "MISSING_NETWORK": "",
@@ -224,6 +244,100 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(set(background), services)
         waits = (root / "wait.log").read_text().splitlines() if services else []
         self.assertCountEqual(waits, background.values())
+
+    def test_grafana_mcp_profile_controls_deployment(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                root, result = self.run_deploy(ACTIVE_SERVICES="grafana-mcp" if enabled else "")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "start-grafana-mcp").exists(), enabled)
+                if enabled:
+                    self.assertIn("grafana-mcp", (root / "docker.log").read_text().split("--wait-timeout 120")[-1])
+
+    def test_same_ref_recovers_enabled_grafana_mcp(self):
+        root, result = self.run_deploy(SAME_REF="1", ACTIVE_SERVICES="grafana-mcp", GRAFANA_MCP_STATE="missing")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual({p.name for p in root.glob("start-*")}, {"start-grafana-mcp"})
+
+    def test_grafana_mcp_health_failure_preserves_marker(self):
+        root, result = self.run_deploy(
+            SAME_REF="1",
+            ACTIVE_SERVICES="grafana-mcp",
+            GRAFANA_MCP_STATE="running unhealthy",
+            UNHEALTHY_SERVICES="grafana-mcp",
+            deployed_head="oldhead",
+        )
+        self.assertEqual(result.returncode, 44, result.stderr)
+        self.assertEqual((root / "deployed").read_text(), "oldhead\n")
+
+    def test_real_git_root_diff_from_backend_directory_for_branch_and_tag(self):
+        for ref in ("origin/dev", "backend-v1.2.3"):
+            with self.subTest(ref=ref):
+                root, _ = self.run_deploy(CHANGED_FILES="")
+                # Reuse the Docker fixture, but exercise actual Git pathspec/cwd semantics.
+                (root / "bin/git").write_text('#!/bin/sh\nexec /usr/bin/git "$@"\n')
+                repo = root / "repo"
+                backend = repo / "backend"
+                backend.mkdir(parents=True)
+                (backend / "deploy.sh").write_text(DEPLOY.read_text())
+                (backend / "cleanup-docker.sh").write_text(CLEANUP.read_text())
+                (backend / ".env").write_text(INITIAL_ENV)
+                (repo / "shared").mkdir()
+                source = repo / "shared/band_plans.json"
+                source.write_text("{}\n")
+
+                def git(*args):
+                    return subprocess.check_output(
+                        ["/usr/bin/git", *args], cwd=repo, text=True, stderr=subprocess.DEVNULL
+                    ).strip()
+
+                git("init", "-b", "dev")
+                git("config", "user.email", "test@example.invalid")
+                git("config", "user.name", "Deploy test")
+                git("add", "backend/deploy.sh", "shared/band_plans.json")
+                git("commit", "-m", "baseline")
+                baseline = git("rev-parse", "HEAD")
+                source.write_text('{"changed": true}\n')
+                git("add", "shared/band_plans.json")
+                git("commit", "-m", "root input only")
+                target = git("rev-parse", "HEAD")
+                git("update-ref", "refs/remotes/origin/dev", target)
+                git("tag", "backend-v1.2.3")
+                git("checkout", "--detach", baseline)
+                result = subprocess.run(
+                    ["bash", "deploy.sh", ref],
+                    cwd=backend,
+                    env=self.last_env,
+                    text=True,
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("shared/band_plans.json", result.stdout)
+
+    def test_root_band_plan_selects_only_collector_without_migrations(self):
+        root, result = self.run_deploy(CHANGED_FILES="", ROOT_INPUT_DIFF="shared/band_plans.json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_all_waited(root, {"collector"})
+        calls = (root / "docker.log").read_text().splitlines()
+        self.assertIn("compose build --parallel collector", calls)
+        self.assertFalse(any("migrate" in call for call in calls))
+
+    def test_root_band_plan_retry_retains_rollback_checkout_baseline(self):
+        root, result = self.run_deploy(
+            CHANGED_FILES="",
+            ROOT_INPUT_DIFF="shared/band_plans.json",
+            PREVIOUS_HEAD="oldhead",
+            deployed_head="newhead",
+            BUILD_STATUS="45",
+        )
+        self.assertEqual(result.returncode, 45, result.stderr)
+        retried = self.rerun_deploy(root, BUILD_STATUS="0")
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assert_all_waited(root, {"collector"})
+        calls = (root / "git.log").read_text().splitlines()
+        self.assertEqual(calls.count("diff --name-only --no-relative oldhead newhead -- ../shared/band_plans.json"), 2)
 
     def test_unrecoverable_checkout_aborts_before_env_or_docker(self):
         for mode, ref, status in (("fail", "release-tag", 23), ("tracked", "origin/dev", 24)):
@@ -408,12 +522,19 @@ class DeployTests(unittest.TestCase):
         self.assertTrue((root / "start-certbot").exists())
         self.assertEqual((root / "deployed").read_text(), "newhead\n")
         diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
-        self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+        self.assertEqual(
+            diffs,
+            [
+                "diff --name-only --relative oldhead newhead -- .",
+                "diff --name-only --no-relative oldhead newhead -- ../shared/band_plans.json",
+            ]
+            * 2,
+        )
 
     def test_success_marker_advances_only_after_health_and_uses_atomic_rename(self):
         root, result = self.run_deploy(deployed_head="lastsuccess")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(set((root / "marker-at-docker.log").read_text().splitlines()), {"lastsuccess"})
+        self.assertEqual(set((root / "marker-at-docker.log").read_text().splitlines()), {"lastsuccess", "newhead"})
         self.assertEqual((root / "deployed").read_text(), "newhead\n")
         baseline_write, marker_write = (root / "mv.log").read_text().splitlines()
         self.assertEqual(baseline_write.split("|")[1:], [str(root / "deployed.base"), "lastsuccess"])
@@ -424,6 +545,35 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(revision, "newhead")
         self.assertFalse(Path(source).exists())
         self.assertIn("diff --name-only --relative lastsuccess newhead -- .", (root / "git.log").read_text())
+
+    def test_success_cleans_images_and_bounds_build_cache(self):
+        root, result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = (root / "docker.log").read_text().splitlines()
+        self.assertIn(
+            "image prune --all --force --filter label=com.docker.compose.project=holycluster-backend-dev "
+            "--filter until=168h",
+            calls,
+        )
+        self.assertIn(
+            "image prune --all --force --filter label=com.docker.compose.project=backend --filter until=168h",
+            calls,
+        )
+        self.assertIn("image prune --all --force --filter until=720h", calls)
+        self.assertIn("buildx prune --all --force --max-used-space 4gb", calls)
+        self.assertEqual(calls.count("system df"), 2)
+
+    def test_cleanup_failure_does_not_fail_a_completed_deploy(self):
+        for overrides in (
+            {"IMAGE_PRUNE_STATUS": "47"},
+            {"CACHE_PRUNE_STATUS": "48"},
+            {"IMAGE_PRUNE_STATUS": "47", "CHANGED_FILES": "README.md"},
+        ):
+            with self.subTest(overrides=overrides):
+                root, result = self.run_deploy(**overrides)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "deployed").read_text(), "newhead\n")
+                self.assertIn("Docker cleanup failed", result.stderr)
 
     def test_failures_do_not_advance_existing_success_marker(self):
         for overrides in (
@@ -454,6 +604,13 @@ class DeployTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((root / "deployed").read_text(), "newhead\n")
                 self.assertFalse(list(root.glob("start-*")))
+
+    def test_unmapped_backend_change_still_runs_cleanup(self):
+        root, result = self.run_deploy(CHANGED_FILES="cleanup-docker.sh", deployed_head="lastsuccess")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = (root / "docker.log").read_text().splitlines()
+        self.assertIn("buildx prune --all --force --max-used-space 4gb", calls)
+        self.assertFalse(list(root.glob("start-*")))
 
     def test_grafana_preflight_failure_aborts_before_build_or_start(self):
         for overrides, status in (
@@ -511,7 +668,14 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(retried.returncode, 0, retried.stderr)
         self.assert_all_waited(root)
         diffs = [line for line in (root / "git.log").read_text().splitlines() if line.startswith("diff ")]
-        self.assertEqual(diffs, ["diff --name-only --relative oldhead newhead -- ."] * 2)
+        self.assertEqual(
+            diffs,
+            [
+                "diff --name-only --relative oldhead newhead -- .",
+                "diff --name-only --no-relative oldhead newhead -- ../shared/band_plans.json",
+            ]
+            * 2,
+        )
         self.assertFalse((root / "deployed.base").exists())
 
     def test_legacy_rollback_drift_uses_checkout_instead_of_marker(self):

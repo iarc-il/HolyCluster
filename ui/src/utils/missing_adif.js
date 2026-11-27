@@ -13,7 +13,6 @@ import { AdifParser } from "adif-parser-ts";
 export const MISSING_ADIF_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const MISSING_RESOLVE_WS_CHUNK_SIZE = 500;
 const MISSING_RESOLVE_MAX_ATTEMPTS = 3;
-const MISSING_RESOLVE_WS_PROBE_TIMEOUT_MS = 1500;
 const WS_PROTOCOL_VERSION = 1;
 export const MISSING_IMPORT_PHASES = Object.freeze({
     PARSING: "parsing",
@@ -269,123 +268,70 @@ function resolve_missing_callsigns_once(callsigns, pending, results, errors, on_
 
         const protocol = location.protocol === "https:" ? "wss:" : "ws:";
         const base_url = `${protocol}//${location.host}`;
-        let socket;
-        let probe_timeout;
-        let fallback_started = false;
+        const socket = new WebSocket(`${base_url}/ws`);
         let completed = false;
-
-        function clear_probe_timeout() {
-            clearTimeout(probe_timeout);
-            probe_timeout = undefined;
-        }
 
         function fail(error) {
             if (completed) return;
             completed = true;
-            clear_probe_timeout();
             socket.close();
             reject(toError(error));
         }
 
-        function connect(path, allow_fallback) {
-            const candidate = new WebSocket(`${base_url}${path}`);
-            let opened = false;
-            socket = candidate;
-
-            function send(data) {
-                candidate.send(
-                    JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "missing", ...data }),
-                );
-            }
-
-            function start_fallback() {
-                if (!allow_fallback || fallback_started || completed || socket !== candidate)
-                    return;
-                fallback_started = true;
-                clear_probe_timeout();
-                candidate.onclose = null;
-                candidate.onerror = null;
-                candidate.close();
-                connect("/submit_spot", false);
-            }
-
-            candidate.onopen = () => {
-                if (socket !== candidate) return;
-                opened = true;
-                clear_probe_timeout();
-                send({ action: "start", job_id });
-                for (
-                    let index = 0;
-                    index < callsigns.length;
-                    index += MISSING_RESOLVE_WS_CHUNK_SIZE
-                ) {
-                    send({
-                        action: "add",
-                        job_id,
-                        callsigns: callsigns.slice(index, index + MISSING_RESOLVE_WS_CHUNK_SIZE),
-                    });
-                }
-                send({ action: "finish", job_id });
-            };
-
-            candidate.onmessage = event => {
-                if (socket !== candidate) return;
-                let message;
-                try {
-                    message = JSON.parse(event.data);
-                } catch (error) {
-                    fail(error);
-                    return;
-                }
-
-                if (message.type === "error") {
-                    fail(new Error(message.message || "Missing resolver failed."));
-                    return;
-                }
-                if (message.type !== "missing" || message.job_id !== job_id) return;
-
-                if (message.event === "results") {
-                    for (const [callsign, result] of Object.entries(message.results ?? {})) {
-                        results[callsign] = result;
-                        pending.delete(callsign);
-                    }
-                    for (const [callsign, error] of Object.entries(message.errors ?? {})) {
-                        errors[callsign] = error;
-                        pending.delete(callsign);
-                    }
-                    on_progress?.();
-                    return;
-                }
-                if (message.event === "complete") {
-                    completed = true;
-                    clear_probe_timeout();
-                    candidate.close();
-                    resolve();
-                }
-            };
-
-            candidate.onerror = () => {
-                if (allow_fallback && !opened) {
-                    start_fallback();
-                } else {
-                    fail(new Error("Missing resolver websocket failed."));
-                }
-            };
-            candidate.onclose = () => {
-                if (socket !== candidate || completed) return;
-                if (allow_fallback && !opened) {
-                    start_fallback();
-                } else {
-                    fail(new Error("Missing resolver websocket disconnected."));
-                }
-            };
-
-            if (allow_fallback) {
-                probe_timeout = setTimeout(start_fallback, MISSING_RESOLVE_WS_PROBE_TIMEOUT_MS);
-            }
+        function send(data) {
+            socket.send(JSON.stringify({ version: WS_PROTOCOL_VERSION, type: "missing", ...data }));
         }
 
-        connect("/ws", true);
+        socket.onopen = () => {
+            send({ action: "start", job_id });
+            for (let index = 0; index < callsigns.length; index += MISSING_RESOLVE_WS_CHUNK_SIZE) {
+                send({
+                    action: "add",
+                    job_id,
+                    callsigns: callsigns.slice(index, index + MISSING_RESOLVE_WS_CHUNK_SIZE),
+                });
+            }
+            send({ action: "finish", job_id });
+        };
+
+        socket.onmessage = event => {
+            let message;
+            try {
+                message = JSON.parse(event.data);
+            } catch (error) {
+                fail(error);
+                return;
+            }
+
+            if (message.type === "error") {
+                fail(new Error(message.message || "Missing resolver failed."));
+                return;
+            }
+            if (message.type !== "missing" || message.job_id !== job_id) return;
+
+            if (message.event === "results") {
+                for (const [callsign, result] of Object.entries(message.results ?? {})) {
+                    results[callsign] = result;
+                    pending.delete(callsign);
+                }
+                for (const [callsign, error] of Object.entries(message.errors ?? {})) {
+                    errors[callsign] = error;
+                    pending.delete(callsign);
+                }
+                on_progress?.();
+                return;
+            }
+            if (message.event === "complete") {
+                completed = true;
+                socket.close();
+                resolve();
+            }
+        };
+
+        socket.onerror = () => fail(new Error("Missing resolver websocket failed."));
+        socket.onclose = () => {
+            if (!completed) fail(new Error("Missing resolver websocket disconnected."));
+        };
     });
 }
 

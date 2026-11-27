@@ -7,14 +7,16 @@ from pathlib import Path
 from loguru import logger
 from prometheus_client import CollectorRegistry, start_http_server
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from shared.logging import LogFilePolicy, add_bounded_file_sink
 from shared.telemetry import initialize_sentry
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from .adapters import SERVICES, Adapter
-from .consumer import HolyConsumer
+from .consumer import HolyConsumer, PipelineConsumer
 from .feeds.dxdata import DXDataAdapter
 from .feeds.dxheat import DXHeatAdapter
+from .feeds.dxscape import DXscapeAdapter
 from .feeds.dxsummit import DXSummitAdapter
 from .feeds.dxwatch import DXWatchAdapter
 from .feeds.hamqth import HamQTHAdapter
@@ -29,7 +31,14 @@ METRICS_PORT = 9102
 
 
 def default_adapters() -> tuple[Adapter, ...]:
-    return (DXSummitAdapter(), DXHeatAdapter(), DXWatchAdapter(), DXDataAdapter(), HamQTHAdapter())
+    return (
+        DXSummitAdapter(),
+        DXHeatAdapter(),
+        DXWatchAdapter(),
+        DXDataAdapter(),
+        HamQTHAdapter(),
+        DXscapeAdapter(),
+    )
 
 
 async def renew_lease(lease):
@@ -37,6 +46,14 @@ async def renew_lease(lease):
         await asyncio.sleep(10)
         if not await lease.extend(30, replace_ttl=True):
             raise RuntimeError("Coverage process lease lost")
+
+
+async def release_lease(lease):
+    try:
+        if await lease.owned():
+            await lease.release()
+    except RedisError as error:
+        logger.warning("Cannot release coverage process lease: {}", type(error).__name__)
 
 
 async def run(settings: Settings, adapters: tuple[Adapter, ...], sink: SampleSink | None = None):
@@ -70,6 +87,7 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...], sink: SampleSin
                     tasks = [
                         group.create_task(renew_lease(lease)),
                         group.create_task(HolyConsumer(redis, matcher).run()),
+                        group.create_task(PipelineConsumer(redis, matcher).run()),
                         group.create_task(run_finalizer(matcher)),
                     ]
                     tasks.extend(group.create_task(run_adapter(matcher, adapter)) for adapter in adapters)
@@ -77,8 +95,7 @@ async def run(settings: Settings, adapters: tuple[Adapter, ...], sink: SampleSin
                     for task in tasks:
                         task.cancel()
             finally:
-                if await lease.owned():
-                    await lease.release()
+                await release_lease(lease)
     finally:
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.remove_signal_handler(sig)

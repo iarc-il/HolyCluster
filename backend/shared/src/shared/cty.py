@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
 from loguru import logger
 
 
@@ -61,21 +60,6 @@ class CtyResolver:
                 return entity
 
         return None
-
-    def resolve_country(self, callsign: str) -> CtyCountry | None:
-        return self.resolve_entity(callsign)
-
-    def resolve(self, callsign: str) -> tuple[int, str] | None:
-        entity = self.resolve_entity(callsign)
-        if entity is None:
-            return None
-        return entity.dxcc_code, entity.continent
-
-    def resolve_country_and_continent(self, callsign: str) -> tuple[str, str] | None:
-        entity = self.resolve_entity(callsign)
-        if entity is None:
-            return None
-        return entity.country, entity.continent
 
     def get_entity_by_dxcc_code(self, dxcc_code: int) -> CtyCountry | None:
         return self.entities_by_dxcc_code.get(dxcc_code)
@@ -245,23 +229,7 @@ def get_cty_resolver(path: Path = CTY_PATH) -> CtyResolver | None:
     return _CTY_RESOLVER
 
 
-def resolve_country_from_cty(callsign: str, path: Path = CTY_PATH) -> tuple[str, str] | None:
-    resolver = get_cty_resolver(path)
-    if resolver is None:
-        return None
-    return resolver.resolve_country_and_continent(callsign)
-
-
-def resolve_dxcc_from_cty(callsign: str, path: Path = CTY_PATH) -> tuple[int, str] | None:
-    resolver = get_cty_resolver(path)
-    if resolver is None:
-        return None
-    return resolver.resolve(callsign)
-
-
-async def ensure_cty_available(http_client: httpx.AsyncClient | None = None) -> CtyResolver:
-    del http_client
-
+async def ensure_cty_available() -> CtyResolver:
     try:
         _validate_cty_cache(CTY_PATH)
     except (OSError, ValueError) as e:
@@ -290,25 +258,5 @@ def _validate_cty_content(content: bytes) -> None:
     raise ValueError("downloaded CTY file contains no CTY records")
 
 
-def _validate_cty_response(response: httpx.Response) -> None:
-    content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-    if content_type in {"text/html", "application/xhtml+xml"}:
-        raise ValueError(f"downloaded CTY file is HTML ({content_type})")
-    _validate_cty_content(response.content)
-
-
 def _validate_cty_cache(cache_path: Path) -> None:
     _validate_cty_content(cache_path.read_bytes())
-
-
-async def _get_cty_file(
-    url: str,
-    headers: dict[str, str],
-    timeout: float,
-    http_client: httpx.AsyncClient | None,
-) -> httpx.Response:
-    if http_client is not None:
-        return await http_client.get(url, headers=headers, timeout=timeout, follow_redirects=True)
-
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        return await client.get(url, headers=headers, follow_redirects=True)

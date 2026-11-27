@@ -3,7 +3,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import use_radio from "@/hooks/useRadio";
 import { useRestData } from "@/hooks/useRestData";
 import { useSpotData } from "@/hooks/useSpotData";
-import { useLocalStorage, useMediaQuery } from "@uidotdev/usehooks";
+import { useLocalStorage } from "@uidotdev/usehooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACTIONS, EVENTS, Joyride, STATUS } from "react-joyride";
 import TourLauncher from "./TourLauncher.jsx";
@@ -27,6 +27,7 @@ import {
     TOUR_CLOSE_MODAL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
     TOUR_FILTER_OPTIONS_EVENT,
+    TOUR_PREPARE_QUICK_FILTERS_EVENT,
     TOUR_SELECT_SETTINGS_TAB_EVENT,
     TOUR_SELECT_SIDE_PANEL_TAB_EVENT,
     TOUR_TABLE_CONTEXT_MENU_EVENT,
@@ -39,6 +40,9 @@ const wait_poll_interval_ms = 150;
 
 function is_element_visible(element) {
     if (!element) return false;
+
+    if (element.checkVisibility && !element.checkVisibility({ visibilityProperty: true }))
+        return false;
 
     const style = window.getComputedStyle(element);
     if (style.display === "none" || style.visibility === "hidden") return false;
@@ -105,13 +109,12 @@ function dispatch_tour_side_effect(side_effect) {
     document.dispatchEvent(new CustomEvent(side_effect.event, { detail: side_effect.detail }));
 }
 
-function WebsiteTour() {
+function WebsiteTour({ is_mobile, launcher_inline = false }) {
     const { propagation } = useRestData();
     const { filters, setCallsignFilters } = useFilters();
     const { start_temporary_profile, stop_temporary_profile } = useProfiles();
     const { radio_status } = use_radio();
     const { spots, set_spot_buffering } = useSpotData();
-    const is_mobile = useMediaQuery("only screen and (max-width : 768px)");
     const [completed_chapters, set_completed_chapters] = useLocalStorage(
         TOUR_COMPLETED_CHAPTERS_KEY,
         {},
@@ -126,6 +129,7 @@ function WebsiteTour() {
     const wait_for_change_ref = useRef({ key: null, value: null });
     const backward_wait_ref = useRef({ key: null, reset_value: null, saw_unsatisfied: false });
     const pending_backward_side_effect_ref = useRef(null);
+    const visited_step_ids_ref = useRef(new Set());
     const has_temporary_profile_ref = useRef(false);
     const finishing_tour_ref = useRef(false);
     const stop_temporary_profile_ref = useRef(stop_temporary_profile);
@@ -280,11 +284,17 @@ function WebsiteTour() {
 
     const advance_tour = useCallback(
         (from_index, direction = 1) => {
+            // Back must restore visited targets, even when another tab hides them.
             const transition = get_tour_transition({
                 chapter_id: tour_state.current_chapter_id,
                 direction,
                 from_index,
-                should_skip_step,
+                should_skip_step:
+                    direction < 0
+                        ? step =>
+                              should_exclude_step(step) ||
+                              (step.optional && !visited_step_ids_ref.current.has(step.id))
+                        : should_skip_step,
                 steps,
             });
             if (transition.type === "finish") {
@@ -364,7 +374,14 @@ function WebsiteTour() {
 
             set_next_step();
         },
-        [finish_tour, setCallsignFilters, should_skip_step, steps, tour_state.current_chapter_id],
+        [
+            finish_tour,
+            setCallsignFilters,
+            should_exclude_step,
+            should_skip_step,
+            steps,
+            tour_state.current_chapter_id,
+        ],
     );
 
     const start_tour = useCallback(
@@ -388,12 +405,19 @@ function WebsiteTour() {
                 return;
             }
 
-            if (is_mobile) {
-                document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
-                document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
+            // Prepare the hidden subview before the tour waits for the quick-filter rail.
+            if (
+                available_steps.some(step =>
+                    as_array(step.waitFor).includes("[data-tour='left-column']"),
+                )
+            ) {
+                document.dispatchEvent(new Event(TOUR_PREPARE_QUICK_FILTERS_EVENT));
             }
+            document.dispatchEvent(new Event(TOUR_CLOSE_LEFT_PANEL_EVENT));
+            document.dispatchEvent(new Event(TOUR_CLOSE_SIDE_PANEL_EVENT));
 
             finishing_tour_ref.current = false;
+            visited_step_ids_ref.current = new Set();
             start_temporary_profile();
             has_temporary_profile_ref.current = true;
             set_tour_state({
@@ -664,6 +688,10 @@ function WebsiteTour() {
         data => {
             const { action, index, status, type } = data;
 
+            if (type === EVENTS.STEP_BEFORE) {
+                visited_step_ids_ref.current.add(steps[index]?.id);
+            }
+
             if (completed_statuses.has(status)) {
                 finish_tour(status);
                 return;
@@ -694,7 +722,12 @@ function WebsiteTour() {
 
     return (
         <>
-            <TourLauncher completed_chapters={completed_chapters} on_start_tour={start_tour} />
+            <TourLauncher
+                is_mobile={is_mobile}
+                inline={launcher_inline}
+                completed_chapters={completed_chapters}
+                on_start_tour={start_tour}
+            />
             <Joyride
                 continuous={true}
                 onEvent={handle_callback}

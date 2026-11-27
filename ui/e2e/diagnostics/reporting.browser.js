@@ -88,7 +88,8 @@ async function capture(
     });
     await page.goto("/e2e/diagnostics/index.html");
     await page.waitForFunction(() => window.diagnostics_ready);
-    await page.evaluate(scenario => window.run_diagnostic(scenario), scenario);
+    const result = await page.evaluate(scenario => window.run_diagnostic(scenario), scenario);
+    if (count === 0) return { result, events };
     await expect.poll(() => events.filter(select).length).toBeGreaterThanOrEqual(count);
     const selected = events.filter(select).slice(0, count);
     for (const event of selected) {
@@ -216,9 +217,9 @@ testWithBrowserErrors(
                     probe_status: 200,
                     probe_content_type: "text/html",
                     probe_reason: "new_build",
-                    decision: "waiting",
-                    reason: "active_page",
-                    reload_requested: false,
+                    decision: "navigate",
+                    reason: "new_build",
+                    reload_requested: true,
                     online: true,
                     visibility: "visible",
                 },
@@ -252,6 +253,28 @@ testWithBrowserErrors(
         );
         const serialized = JSON.stringify(event);
         expect(serialized).not.toContain("PRIVATE-CALLSIGN");
+        expect(serialized.length).toBeLessThan(16000);
+    },
+);
+
+testWithBrowserErrors(
+    "reports bounded DXCC render evidence through the production SDK",
+    [/^(?:console: InternalError: |pageerror: )too much recursion(?:\n|$)/],
+    async ({ page }) => {
+        const event = await capture(page, "dxcc_render");
+        expect(event.contexts.diagnostic).toMatchObject({
+            operation: "spot_render",
+            dxcc_failure_field: "dx_dxcc_code",
+            dxcc_failure_predicate: "label",
+            dxcc_input_type: "number",
+            dxcc_input_length: null,
+            dxcc_input_positive_integer: true,
+            spot_source: "live",
+            capture_path: "global_error",
+        });
+        const serialized = JSON.stringify(event);
+        expect(serialized).not.toContain("PRIVATE-CALLSIGN");
+        expect(serialized).not.toContain("PRIVATE-COUNTRY");
         expect(serialized.length).toBeLessThan(16000);
     },
 );
@@ -394,20 +417,27 @@ for (const [scenario, kind, stack] of [
     );
 }
 
-for (const [scenario, stage, name, present] of [
-    ["missing_store", "transaction", "NotFoundError", false],
-    ["closed_database", "transaction", "InvalidStateError", true],
-    ["subscriber", "notify", undefined, true],
-]) {
-    test(`distinguishes real IndexedDB ${scenario} failures`, async ({ page }) => {
-        const event = await capture(page, scenario);
-        expect(event.contexts.diagnostic).toMatchObject({
-            operation: "cache_hydration",
-            stage,
-            requested_version: 1,
-            observed_version: 1,
-            expected_store_present: present,
+for (const scenario of ["missing_store", "closed_database"]) {
+    test(`uses memory after real IndexedDB ${scenario} failures`, async ({ page }) => {
+        const { result, events } = await capture(page, scenario, { count: 0 });
+        expect(result).toEqual({
+            records: [{ id: 1, start: 0, end: 10, data: [1] }],
+            remaining: [],
+            transactions: 1,
+            updates: 2,
+            flushed: true,
         });
-        if (name) expect(event.contexts.diagnostic.native_name).toBe(name);
+        expect(events).toEqual([]);
     });
 }
+
+test("distinguishes real IndexedDB subscriber failures", async ({ page }) => {
+    const event = await capture(page, "subscriber");
+    expect(event.contexts.diagnostic).toMatchObject({
+        operation: "cache_hydration",
+        stage: "notify",
+        requested_version: 1,
+        observed_version: 1,
+        expected_store_present: true,
+    });
+});

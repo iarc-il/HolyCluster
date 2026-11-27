@@ -44,9 +44,31 @@ describe("historical spot normalization", () => {
                 spotter_dxcc_code: 291,
                 dx_continent: "NA",
                 spotter_continent: "NA",
+                dx_loc: [-74, 41],
+                spotter_loc: [-75, 40],
             },
         ]);
 
         expect(spot.dx_lotw_status).toBe("infrequent");
+    });
+
+    it("drops spots with invalid locations", () => {
+        const spots = normalize_spots([
+            {
+                time: 1_700_000_000,
+                spotter_callsign: "K1ABC",
+                dx_callsign: "K2ABC",
+                mode: "FT8",
+                band: 20,
+                dx_dxcc_code: 291,
+                spotter_dxcc_code: 291,
+                dx_continent: "NA",
+                spotter_continent: "NA",
+                dx_loc: [0, 91],
+                spotter_loc: [-75, 40],
+            },
+        ]);
+
+        expect(spots).toEqual([]);
     });
 });

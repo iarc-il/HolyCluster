@@ -39,6 +39,7 @@ test("plays back historical spots and propagation over the canonical WebSocket",
     page,
 }) => {
     const history_requests = [];
+    const spot_requests = [];
     let initial_start = null;
 
     await page.addInitScript(profile_store => {
@@ -79,6 +80,7 @@ test("plays back historical spots and propagation over the canonical WebSocket",
             const request = JSON.parse(message);
 
             if (request.type === "spots" && request.action === "initial") {
+                spot_requests.push(request);
                 websocket.send(
                     JSON.stringify({
                         version: 1,
@@ -143,6 +145,7 @@ test("plays back historical spots and propagation over the canonical WebSocket",
     await page.locator("[data-tour='map-history-toggle']").click();
 
     await expect(page.locator("[data-tour='history-bar']")).toBeVisible();
+    await expect.poll(() => spot_requests.at(-1)?.software_id).toBe("HolyCluster");
     await expect(page.getByText("JA1HST", { exact: true })).toBeVisible();
     await expect(page.locator("[data-tour='propagation-a-index']")).toContainText("17");
 

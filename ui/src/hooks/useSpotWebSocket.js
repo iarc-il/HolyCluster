@@ -3,6 +3,7 @@ import { continents, modes } from "@/data/filters_data.js";
 import { annotateDiagnosticError } from "@/sentry.js";
 import { read_live_spot_snapshot, write_live_spot_snapshot } from "@/utils/live_spot_snapshot.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
+import { has_valid_spot_locations } from "@/utils/spot_location.js";
 import { find_zone_number } from "@/utils/zones.js";
 import { addBreadcrumb } from "@sentry/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,22 +18,10 @@ export function normalize_band(band) {
     return band;
 }
 
+export { has_valid_spot_locations };
+
 export function has_valid_enriched_value(value) {
     return value !== undefined && value !== null && value !== "" && value !== -1 && value !== "-1";
-}
-
-function is_valid_location(location) {
-    return (
-        Array.isArray(location) &&
-        location.length === 2 &&
-        location.every(Number.isFinite) &&
-        Math.abs(location[0]) <= 180 &&
-        Math.abs(location[1]) <= 90
-    );
-}
-
-export function has_valid_spot_locations(spot) {
-    return is_valid_location(spot?.dx_loc) && is_valid_location(spot?.spotter_loc);
 }
 
 export function enrich_spot_zones_if_missing(spot) {
@@ -130,7 +119,6 @@ export default function useSpotWebSocket() {
         send_now,
         subscribe,
         spot_socket_epoch,
-        transport,
         network_state,
         readyState,
         now_ms,
@@ -246,15 +234,6 @@ export default function useSpotWebSocket() {
                 return;
             }
             if (!Array.isArray(data.spots) || !["initial", "update"].includes(data.event)) return;
-            if (
-                pending?.active &&
-                data.subscription_id === undefined &&
-                data.subscription_ack === undefined
-            ) {
-                // Old responses prove registration, not correlated catch-up completion.
-                pending.delivered = true;
-                pending.cancel();
-            }
             const observed_at = now_ms();
             let new_spots = data.spots
                 .map(spot => {
@@ -336,10 +315,9 @@ export default function useSpotWebSocket() {
             return unsubscribe;
         }
         let pending = subscription_ref.current;
-        if (pending?.epoch !== spot_socket_epoch || pending?.transport !== transport) {
+        if (pending?.epoch !== spot_socket_epoch) {
             pending = {
                 epoch: spot_socket_epoch,
-                transport,
                 request: {
                     ...(last_spot_time_ref.current > 0
                         ? { action: "catch_up", last_time: last_spot_time_ref.current }
@@ -348,7 +326,6 @@ export default function useSpotWebSocket() {
                 },
                 attempts: 0,
                 acknowledged: false,
-                delivered: false,
             };
             subscription_ref.current = pending;
         }
@@ -356,22 +333,20 @@ export default function useSpotWebSocket() {
         pending.active = true;
         pending.cancel = () => clearTimeout(timer);
         const attempt = () => {
-            if (!pending.active || pending.acknowledged || pending.delivered) return;
+            if (!pending.active || pending.acknowledged) return;
             const sent = send_now("spots", pending.request, pending.epoch);
             pending.attempts += 1;
             if ([1, 2, 5].includes(pending.attempts)) {
                 addBreadcrumb({
                     category: "spots.subscription",
                     data: {
-                        transport,
                         action: pending.request.action,
                         attempt: pending.attempts,
                         sent,
-                        delivered: pending.delivered,
                     },
                 });
             }
-            if (!pending.active || pending.acknowledged || pending.delivered) return;
+            if (!pending.active || pending.acknowledged) return;
             const delay = Math.min(1000 * 2 ** Math.min(pending.attempts - 1, 5), 30000);
             timer = setTimeout(attempt, Math.min(30000, delay * (0.8 + Math.random() * 0.4)));
         };
@@ -381,7 +356,7 @@ export default function useSpotWebSocket() {
             pending.cancel();
             unsubscribe();
         };
-    }, [readyState, spot_socket_epoch, transport, subscribe, send_now, receive_spots]);
+    }, [readyState, spot_socket_epoch, subscribe, send_now, receive_spots]);
 
     return { raw_spots, new_spot_ids, network_state, set_spot_buffering };
 }

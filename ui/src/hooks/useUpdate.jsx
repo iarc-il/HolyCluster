@@ -2,7 +2,6 @@ import { useColors } from "@/hooks/useColors";
 import use_radio from "@/hooks/useRadio";
 import { useUiRefreshBlocker } from "@/hooks/useUiRefresh.jsx";
 import { useWs } from "@/hooks/useWs";
-import { NATIVE_UPDATER_MIN_VERSION, supports_cat_feature } from "@/utils/cat_features.js";
 import {
     createContext,
     useCallback,
@@ -16,113 +15,27 @@ import {
 const UpdateContext = createContext(null);
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-function parse_version(value) {
-    if (typeof value !== "string") return null;
-    const match = value.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?$/);
-    if (!match) return null;
-    return match.slice(1).map(part => Number.parseInt(part ?? "0", 10));
-}
-
-export function compare_update_versions(local, remote) {
-    const local_version = parse_version(local);
-    const remote_version = parse_version(remote);
-    if (!local_version || !remote_version) return null;
-
-    const length = Math.max(local_version.length, remote_version.length);
-    for (let index = 0; index < length; index++) {
-        const difference = (remote_version[index] ?? 0) - (local_version[index] ?? 0);
-        if (difference !== 0) return difference;
-    }
-    return 0;
-}
-
-function get_versions(version) {
-    if (typeof version === "string") return { local: null, remote: version };
-    if (!version || typeof version !== "object" || Array.isArray(version)) {
-        return { local: null, remote: null };
-    }
-    return {
-        local:
-            version.local ?? version.local_version ?? version.current ?? version.installed ?? null,
-        remote:
-            version.remote ??
-            version.remote_version ??
-            version.latest ??
-            version.available ??
-            version.available_version ??
-            null,
-    };
-}
-
 export function normalize_update_status(payload) {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
         return { status: "malformed", local_version: null, remote_version: null, error: null };
     }
 
-    const { local, remote } = get_versions(payload.version ?? payload);
-    const status =
-        typeof payload.status === "string"
-            ? payload.status
-            : typeof payload.state === "string"
-              ? payload.state
-              : "malformed";
-    const error =
-        typeof payload.error === "string"
-            ? payload.error
-            : typeof payload.diagnostic === "string"
-              ? payload.diagnostic
-              : null;
-    const direction = compare_update_versions(local, remote);
-    const aliases = {
-        unavailable: "unavailable",
-        unsupported: "unsupported",
-        manual: "unsupported",
+    const state = typeof payload.state === "string" ? payload.state : "malformed";
+    const remote_version =
+        typeof payload.available_version === "string" ? payload.available_version : null;
+    const error = typeof payload.diagnostic === "string" ? payload.diagnostic : null;
+    const statuses = {
+        idle: "current",
         deferred: "deferred",
-        loading: "loading",
-        checking: "checking",
+        available: "available",
         installing: "installing",
         reboot_required: "reboot_required",
         failed: "failed",
-        error: "failed",
-    };
-
-    if (aliases[status]) {
-        return {
-            status: aliases[status],
-            local_version: local,
-            remote_version: remote,
-            error,
-        };
-    }
-
-    if (local != null && remote != null && direction == null) {
-        return { status: "malformed", local_version: local, remote_version: remote, error };
-    }
-    if (direction > 0)
-        return { status: "available", local_version: local, remote_version: remote, error };
-    if (direction === 0)
-        return {
-            status: status === "available" ? "available" : "current",
-            local_version: local,
-            remote_version: remote,
-            error,
-        };
-    if (direction < 0)
-        return { status: "newer_local", local_version: local, remote_version: remote, error };
-
-    const status_aliases = {
-        available: "available",
-        update_available: "available",
-        current: "current",
-        equal: "current",
-        up_to_date: "current",
-        idle: "current",
-        newer_local: "newer_local",
     };
     return {
-        status: status_aliases[status] ?? "malformed",
-        local_version: local,
-        remote_version: remote,
+        status: statuses[state] ?? "malformed",
+        local_version: null,
+        remote_version,
         error,
     };
 }
@@ -202,7 +115,7 @@ export function UpdateProvider({ children }) {
     const [force_update, set_force_update] = useState(false);
     const [dialog_open, set_dialog_open] = useState(false);
     const update_dev_mode = Boolean(dev_mode && force_update);
-    const supported = supports_cat_feature(local_version, NATIVE_UPDATER_MIN_VERSION);
+    const supported = local_version?.[0] > 0;
     const local_version_key = local_version?.join(".") ?? null;
     const [session, set_session_state] = useState(null);
     const session_ref = useRef(null);

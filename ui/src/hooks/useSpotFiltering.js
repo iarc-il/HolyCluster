@@ -29,6 +29,28 @@ const SECTION_REASON_LABELS = {
 
 const MISSING_SECTION_SET = new Set(MISSING_SECTION_KEYS);
 
+const ACTIONABLE_REASON_ORDER = [
+    "radio_band",
+    "bands",
+    "modes",
+    "dx_continents",
+    "spotter_continents",
+    "show_only",
+    "hide",
+];
+
+function get_combinations(items, size, start = 0, prefix = [], result = []) {
+    if (prefix.length === size) {
+        result.push(prefix);
+        return result;
+    }
+
+    for (let index = start; index <= items.length - (size - prefix.length); index += 1) {
+        get_combinations(items, size, index + 1, [...prefix, items[index]], result);
+    }
+    return result;
+}
+
 function get_spot_feature_value(section, spot) {
     switch (section) {
         case "dxcc":
@@ -92,7 +114,10 @@ function limit_count(count) {
     return Math.min(count, 99);
 }
 
-export default function useSpotFiltering(raw_spots, is_history_mode = false) {
+export default function useSpotFiltering(
+    raw_spots,
+    { is_history_mode = false, is_callsign_search = false } = {},
+) {
     const { filters, callsign_filters } = useFilters();
     const {
         active_profile_data: { table_sort, missing },
@@ -148,8 +173,10 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         });
     }, [source_spots, alerts, callsign_filters.is_alert_filters_active, missing]);
 
-    const spots = useMemo(() => {
+    const filter_result = useMemo(() => {
         const current_time = now_ms() / 1000;
+        const normalized_search = search_query.toLowerCase();
+        const no_relaxed_reasons = new Set();
         const regular_show_only_filters = show_only_filters.filter(
             filter => filter.type !== "missing",
         );
@@ -161,50 +188,47 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
             .filter(filter => filter.type === "missing")
             .map(filter => filter.missing_section);
 
-        let filtered = spots_with_alerts.filter(spot => {
+        function is_spot_visible(spot, relaxed_reasons = no_relaxed_reasons) {
             if (settings.disabled_bands[spot.band] || settings.disabled_modes[spot.mode]) {
                 return false;
             }
 
             if (filter_missing_flags) {
-                if (
+                return (
                     spot.dx_dxcc_code !== "" &&
                     spot.dx_dxcc_code != null &&
                     get_dxcc_flag(spot.dx_dxcc_code) == null
-                ) {
-                    return true;
-                }
-                return false;
+                );
             }
 
             const is_in_time_limit =
-                is_history_mode || current_time - spot.time < filters.time_limit;
+                is_history_mode ||
+                is_callsign_search ||
+                current_time - spot.time < filters.time_limit;
 
-            const normalized_search = search_query.toLowerCase();
-            const is_matching_search = [
-                spot.dx_callsign,
-                spot.spotter_callsign,
-                spot.pota_reference,
-            ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
-            const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
-                (value ?? "").toLowerCase().includes(normalized_search),
-            );
-
-            // If the search is not empty, it override everything else
-            if (search_query.length > 0) {
+            // If the search is not empty, it override everything else. A
+            // callsign search already narrows to one DX, so it keeps the filters.
+            if (search_query.length > 0 && !is_callsign_search) {
+                const is_matching_search = [
+                    spot.dx_callsign,
+                    spot.spotter_callsign,
+                    spot.pota_reference,
+                ].some(value => (value ?? "").toLowerCase().startsWith(normalized_search));
+                const is_matching_pota_text = [spot.pota_name, spot.pota_description].some(value =>
+                    (value ?? "").toLowerCase().includes(normalized_search),
+                );
                 return (is_matching_search || is_matching_pota_text) && is_in_time_limit;
             }
 
-            // Alerted spots are always displayed
             if (spot.is_alerted && is_in_time_limit) {
                 return true;
             }
 
-            const is_band_and_mode_active =
-                ((filters.radio_band && radio_band === spot.band) ||
-                    (!filters.radio_band && filters.bands[spot.band])) &&
-                filters.modes[spot.mode];
-
+            const use_radio_band = filters.radio_band && !relaxed_reasons.has("radio_band");
+            const is_band_active = use_radio_band
+                ? radio_band === spot.band
+                : relaxed_reasons.has("bands") || filters.bands[spot.band];
+            const is_mode_active = relaxed_reasons.has("modes") || filters.modes[spot.mode];
             const are_include_filters_empty = show_only_filters.length === 0;
             const are_exclude_filters_empty = hide_filters.length === 0;
             const is_matching_show_only_filters =
@@ -214,46 +238,105 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
                 is_matching_list(regular_hide_filters, spot) ||
                 Boolean(check_missing_needed(spot, missing, hide_missing_sections));
             const are_filters_including =
+                relaxed_reasons.has("show_only") ||
                 is_matching_show_only_filters ||
                 are_include_filters_empty ||
                 !callsign_filters.is_show_only_filters_active;
             const are_filters_not_excluding =
+                relaxed_reasons.has("hide") ||
                 !is_matching_hide_filters ||
                 are_exclude_filters_empty ||
                 !callsign_filters.is_hide_filters_active;
+            const is_dx_continent_active =
+                relaxed_reasons.has("dx_continents") || filters.dx_continents[spot.dx_continent];
+            const is_spotter_continent_active =
+                relaxed_reasons.has("spotter_continents") ||
+                filters.spotter_continents[spot.spotter_continent];
 
-            const is_dx_continent_active = filters.dx_continents[spot.dx_continent];
-            const is_spotter_continent_active = filters.spotter_continents[spot.spotter_continent];
-
-            const result =
+            return (
                 is_in_time_limit &&
+                is_band_active &&
+                is_mode_active &&
                 is_dx_continent_active &&
                 is_spotter_continent_active &&
-                is_band_and_mode_active &&
                 are_filters_including &&
-                are_filters_not_excluding;
-            return result;
-        });
-
-        if (!is_history_mode) {
-            filtered = filtered.slice(0, 100);
+                are_filters_not_excluding
+            );
         }
 
-        if (filters.show_only_latest_spot) {
-            const latest_spots = new Map();
-            for (const spot of filtered) {
-                const existing = latest_spots.get(spot.dx_callsign);
-                if (!existing || spot.time > existing.time) {
-                    latest_spots.set(spot.dx_callsign, spot);
-                }
+        function get_displayed_spots(relaxed_reasons) {
+            let displayed_spots = spots_with_alerts.filter(spot =>
+                is_spot_visible(spot, relaxed_reasons),
+            );
+
+            if (!is_history_mode && !is_callsign_search) {
+                displayed_spots = displayed_spots.slice(0, 100);
             }
-            filtered = Array.from(latest_spots.values());
+
+            // Collapsing a single DX's history to one spot defeats the search
+            if (filters.show_only_latest_spot && !is_callsign_search) {
+                const latest_spots = new Map();
+                for (const spot of displayed_spots) {
+                    const existing = latest_spots.get(spot.dx_callsign);
+                    if (!existing || spot.time > existing.time) {
+                        latest_spots.set(spot.dx_callsign, spot);
+                    }
+                }
+                displayed_spots = Array.from(latest_spots.values());
+            }
+
+            return displayed_spots;
         }
 
-        // Sort the filtered spots
-        return sort_spots(filtered, table_sort, radio_status, radio_band);
+        function count_visible_spots(reasons) {
+            return get_displayed_spots(new Set(reasons)).length;
+        }
+
+        function get_actionable_reasons() {
+            const single_reasons = ACTIONABLE_REASON_ORDER.filter(
+                reason => count_visible_spots([reason]) > 0,
+            );
+            if (single_reasons.length > 0) return single_reasons;
+
+            for (let size = 2; size <= ACTIONABLE_REASON_ORDER.length; size += 1) {
+                let best_reasons = null;
+                let best_visible_count = 0;
+                for (const reasons of get_combinations(ACTIONABLE_REASON_ORDER, size)) {
+                    const visible_count = count_visible_spots(reasons);
+                    if (visible_count > best_visible_count) {
+                        best_reasons = reasons;
+                        best_visible_count = visible_count;
+                    }
+                }
+                if (best_reasons != null) return best_reasons;
+            }
+            return [];
+        }
+
+        const displayed_spots = get_displayed_spots(no_relaxed_reasons);
+        const actionable_reasons =
+            displayed_spots.length === 0 &&
+            source_spots.length > 0 &&
+            search_query.length === 0 &&
+            !filter_missing_flags
+                ? get_actionable_reasons()
+                : [];
+        const sorted_spots = sort_spots(displayed_spots, table_sort, radio_status, radio_band);
+        let empty_state = null;
+        if (sorted_spots.length === 0) {
+            empty_state =
+                source_spots.length === 0
+                    ? is_history_mode
+                        ? { kind: "history" }
+                        : { kind: "source", source: selected_reference_type ?? "cluster" }
+                    : { kind: "hidden", reasons: actionable_reasons };
+        }
+
+        return { spots: sorted_spots, empty_state };
     }, [
         spots_with_alerts,
+        source_spots,
+        selected_reference_type,
         filter_missing_flags,
         filters,
         show_only_filters,
@@ -271,7 +354,10 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
         is_history_mode,
         now_ms,
         clock_revision,
+        is_callsign_search,
     ]);
+
+    const { spots, empty_state } = filter_result;
 
     const spots_per_band_count = useMemo(() => {
         return Object.fromEntries(
@@ -299,6 +385,7 @@ export default function useSpotFiltering(raw_spots, is_history_mode = false) {
     return {
         spots,
         spots_with_alerts,
+        empty_state,
         filter_missing_flags,
         set_filter_missing_flags,
         spots_per_band_count,

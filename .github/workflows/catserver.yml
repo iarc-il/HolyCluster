@@ -7,9 +7,13 @@ on:
       - "backend/shared/artifact-validator/**"
       - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
-      - ".github/scripts/catserver_*.py"
+      - ".github/scripts/catserver_*"
       - "scripts/tests/test_catserver_*.py"
-      - "ui/**"
+      - "ui/package.json"
+      - "ui/package-lock.json"
+      - "ui/scripts/release_browser_smoke.mjs"
+      - "ui/src/utils/release_download.js"
+      - "ui/src/assets/icon.png"
     branches:
       - "dev"
     tags:
@@ -20,21 +24,32 @@ on:
       - "backend/shared/artifact-validator/**"
       - "backend/shared/src/shared/artifact_validation.py"
       - ".github/workflows/catserver.yml"
-      - ".github/scripts/catserver_*.py"
+      - ".github/scripts/catserver_*"
       - "scripts/tests/test_catserver_*.py"
-      - "ui/**"
+      - "ui/package.json"
+      - "ui/package-lock.json"
+      - "ui/scripts/release_browser_smoke.mjs"
+      - "ui/src/utils/release_download.js"
+      - "ui/src/assets/icon.png"
     branches:
       - "dev"
+  # Dry run of the tag-only production update checks; never publishes
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version to build and test as, e.g. catserver-v1.4.0"
+        required: true
+        type: string
 
 env:
   CARGO_TARGET_DIR: target
   TARGET: x86_64-pc-windows-gnu
   # Checkout can rewrite annotated tags; use the triggering tag for releases.
-  CATSERVER_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+  CATSERVER_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_version || '' }}
   CATSERVER_SENTRY_ENVIRONMENT: ${{ github.ref == 'refs/heads/dev' && 'dev' || github.ref_type == 'tag' && 'prod' || 'dev' }}
   # Development builds favor CI speed; production tags keep maximum optimization.
-  CARGO_PROFILE_RELEASE_LTO: ${{ github.ref_type == 'tag' && 'true' || 'false' }}
-  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ github.ref_type == 'tag' && '1' || '16' }}
+  CARGO_PROFILE_RELEASE_LTO: ${{ (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') && 'true' || 'false' }}
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') && '1' || '16' }}
   CARGO_INCREMENTAL: "0"
   TZ: UTC
   LC_ALL: C.UTF-8
@@ -43,7 +58,7 @@ env:
   RUSTC_WRAPPER: sccache
 
 concurrency:
-  group: catserver-${{ github.ref }}
+  group: catserver-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -330,13 +345,13 @@ jobs:
           name: Candidate-package-inspection
           path: candidate/inspection.txt
       - name: Snapshot and validate actual production bytes once
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         run: |
           python3 .github/scripts/catserver_baseline.py \
             --validator "$PWD/backend/shared/artifact-validator/target/release/holy-artifact-validator" \
             --output-dir baseline
       - name: Preserve immutable production baseline
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@v4
         with:
           name: Production-update-baseline
@@ -425,12 +440,12 @@ jobs:
       - name: Exercise the actual AppImage payload
         run: xvfb-run -a node ui/scripts/release_browser_smoke.mjs
       - uses: actions/download-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         with:
           name: Production-update-baseline
           path: baseline
       - name: Prepare production update scenarios and build UI
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         working-directory: ui
         run: |
           mkdir -p "$RUNNER_TEMP/update-product"
@@ -440,7 +455,7 @@ jobs:
           fi
           npm run build
       - name: Require direct AppImage FUSE execution
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         run: |
           test -c /dev/fuse
           test -r /dev/fuse
@@ -452,7 +467,7 @@ jobs:
           os.close(os.open("/dev/fuse", os.O_RDWR))
           PY
       - name: Run both real update scenarios without external networking
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         env:
           VERSION: ${{ needs.inspect-candidate-packages.outputs.version }}
         run: |
@@ -465,7 +480,7 @@ jobs:
               --version "$VERSION" --dist "$PWD/ui/dist" \
               --attestation "$PWD/update-results/attestation.json"
       - name: Preserve small update attestation and scenario logs
-        if: ${{ always() && startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
           name: Linux-update-attestation
@@ -473,7 +488,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Preserve full failure evidence only
-        if: ${{ failure() && startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ failure() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
           name: Linux-update-failure-evidence
@@ -488,7 +503,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Require production baseline and Linux scenarios
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         env:
           BASELINE_RESULT: ${{ needs.inspect-candidate-packages.result }}
           LINUX_RESULT: ${{ needs.smoke-linux-release.result }}
@@ -496,21 +511,21 @@ jobs:
           test "$BASELINE_RESULT" = success
           test "$LINUX_RESULT" = success
       - name: Require production update attestation
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         uses: actions/download-artifact@v4
         with:
           name: Linux-update-attestation
           path: update-results
       - name: Require attestation file
-        if: startsWith(github.ref, 'refs/tags/')
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
         run: test -s update-results/attestation.json
       - name: Explicit non-production no-op
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ !(startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') }}
         run: echo 'Non-production publication; product update coverage was not run'
 
   publish-catserver:
     name: Publish Catserver
-    if: github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/')
+    if: github.event_name != 'workflow_dispatch' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
     needs: [test-catserver, lint-catserver, build-linux, build-windows, inspect-candidate-packages, smoke-windows-release, smoke-linux-release, update-process-gate]
     runs-on: ubuntu-latest
     steps:

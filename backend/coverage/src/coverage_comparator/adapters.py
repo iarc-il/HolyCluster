@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
-SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth")
+SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth", "dxscape")
 SOURCES = ("holy", *SERVICES)
 IDENTITY_FIELDS = ("time", "dx_callsign", "frequency", "spotter_callsign")
 MATCH_FIELDS = ("dx_callsign", "frequency", "spotter_callsign")
@@ -26,6 +26,7 @@ def identity(spot: dict) -> str:
     frequency = float(spot["frequency"])
     if not dx or not spotter or not math.isfinite(frequency) or frequency <= 0:
         raise ValueError("Invalid normalized identity")
+    frequency = round(frequency, 1)
     values = {"dx_callsign": dx, "frequency": frequency, "spotter_callsign": spotter}
     return ":".join(str(values[field]) for field in MATCH_FIELDS)
 

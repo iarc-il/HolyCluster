@@ -6,15 +6,14 @@ from unittest.mock import MagicMock
 import fakeredis.aioredis
 from prometheus_client import CollectorRegistry, generate_latest
 
-from coverage_comparator.adapters import FakeAdapter, Snapshot
-from coverage_comparator.matcher import Matcher
+from coverage_comparator.adapters import SERVICES, FakeAdapter, Snapshot
+from coverage_comparator.matcher import Matcher, empty_state
 from coverage_comparator.metrics import Metrics
 from coverage_comparator.postgres_samples import PostgresSampleSink
 from coverage_comparator.samples import MemorySampleSink
 from coverage_comparator.service import consume_snapshot
 
 SPOT = {"time": "1200", "dx_callsign": "4X1AA", "frequency": 14074.0, "spotter_callsign": "W1AA"}
-SERVICES = ("dxsummit", "dxheat", "dxwatch", "dxdata", "hamqth")
 
 
 class MatcherTests(unittest.IsolatedAsyncioTestCase):
@@ -23,7 +22,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         self.registry = CollectorRegistry()
         self.metrics = Metrics(self.registry)
         self.sink = MemorySampleSink()
-        self.matcher = Matcher(self.redis, self.metrics, self.sink)
+        self.matcher = Matcher(self.redis, self.metrics, self.sink, window=60)
         for source in ("holy", *SERVICES):
             await self.matcher.health(source, True, 0)
             await self.matcher.health(source, True, 60)
@@ -38,6 +37,112 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
             )
             or 0
         )
+
+    def cause_count(self, service, cause):
+        return (
+            self.registry.get_sample_value(
+                "holycluster_coverage_service_only_causes_total", {"service": service, "cause": cause}
+            )
+            or 0
+        )
+
+    async def test_default_window_covers_delayed_feed(self):
+        redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        registry = CollectorRegistry()
+        matcher = Matcher(redis, Metrics(registry), MemorySampleSink())
+        for source in ("holy", "dxscape"):
+            for now in (0, 60, 120, 180):
+                await matcher.health(source, True, now)
+        await matcher.observe("holy", SPOT, 180)
+        for source in ("holy", "dxscape"):
+            await matcher.health(source, True, 299)
+        await matcher.observe("dxscape", SPOT, 299)
+        await matcher.finalize(360)
+        self.assertEqual(
+            registry.get_sample_value(
+                "holycluster_coverage_outcomes_total", {"service": "dxscape", "result": "matched"}
+            ),
+            1,
+        )
+        await redis.aclose()
+
+    async def test_additive_service_state_migration(self):
+        state = empty_state()
+        state["version"] = 1
+        state["feeds"]["holy"]["generation"] = 4
+        state["outcomes"]["dxsummit|matched"] = 7
+        del state["feeds"]["dxscape"]
+        await self.redis.set("coverage:state", json.dumps(state))
+
+        await self.matcher.restart(100)
+
+        migrated = json.loads(await self.redis.get("coverage:state"))
+        self.assertEqual(migrated["version"], 2)
+        self.assertEqual(set(migrated["feeds"]), {"holy", *SERVICES})
+        self.assertFalse(migrated["feeds"]["dxscape"]["up"])
+        self.assertEqual(migrated["feeds"]["dxscape"]["generation"], 1)
+        self.assertEqual(migrated["feeds"]["holy"]["generation"], 5)
+        self.assertEqual(migrated["outcomes"]["dxsummit|matched"], 7)
+
+    async def test_service_only_outcomes_are_attributed_to_pipeline_results(self):
+        cases = (
+            ([], "not_observed"),
+            (["invalid_band"], "invalid_band"),
+            (["geo_error", "invalid_callsign"], "multiple_drops"),
+            (["invalid_band", "success"], "pipeline_gap"),
+        )
+        for index, (results, cause) in enumerate(cases):
+            spot = {**SPOT, "dx_callsign": f"4X{index}AA"}
+            await self.matcher.observe("dxsummit", spot, 60)
+            for result in results:
+                await self.matcher.observe_pipeline(spot, result, 61)
+        await self.matcher.finalize(120)
+        for _, cause in cases:
+            self.assertEqual(self.cause_count("dxsummit", cause), 1)
+
+    async def test_holy_output_takes_precedence_over_pipeline_drop(self):
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.observe_pipeline(SPOT, "invalid_band", 61)
+        await self.matcher.observe("holy", SPOT, 62)
+        await self.matcher.finalize(120)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.cause_count("dxsummit", "invalid_band"), 0)
+
+    async def test_pipeline_metadata_does_not_start_comparison_window(self):
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "success", 60), "pending")
+        await self.matcher.observe("dxsummit", SPOT, 119)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "success", 119), "matched")
+        await self.matcher.observe("holy", SPOT, 170)
+        await self.matcher.finalize(179)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.count("dxsummit", "service_only"), 0)
+
+    async def test_late_pipeline_metadata_does_not_reach_repeated_identity(self):
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.finalize(120)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "invalid_band", 121), "discarded")
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 130)
+        await self.matcher.observe("dxsummit", SPOT, 130)
+        await self.matcher.finalize(190)
+        self.assertEqual(self.count("dxsummit", "service_only"), 2)
+        self.assertEqual(self.cause_count("dxsummit", "invalid_band"), 0)
+        self.assertEqual(self.cause_count("dxsummit", "not_observed"), 2)
+
+    async def test_discarded_pipeline_metadata_extends_finalized_marker(self):
+        await self.matcher.observe("dxsummit", SPOT, 60)
+        await self.matcher.finalize(120)
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 120)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "invalid_band", 179), "discarded")
+
+        for source in ("holy", "dxsummit"):
+            await self.matcher.health(source, True, 181)
+        await self.matcher.observe("dxsummit", SPOT, 181)
+        self.assertEqual(await self.matcher.observe_pipeline(SPOT, "invalid_band", 182), "discarded")
+        await self.matcher.finalize(241)
+        self.assertEqual(self.cause_count("dxsummit", "invalid_band"), 0)
+        self.assertEqual(self.cause_count("dxsummit", "not_observed"), 2)
 
     async def test_example_throttle_does_not_sample_outcome_metrics(self):
         sink = PostgresSampleSink(MagicMock(), clock=lambda: 0, utcnow=lambda: datetime.fromtimestamp(120, UTC))
@@ -60,9 +165,27 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
                 await self.matcher.observe(first, SPOT, 60)
                 await self.matcher.observe(first, SPOT, 90)
                 await self.matcher.observe(second, SPOT, 119)
-                await self.matcher.finalize(120)
+                await self.matcher.finalize(150)
                 self.assertEqual(self.count("dxsummit", "matched"), 1)
                 self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+
+    async def test_repeated_source_extends_window(self):
+        await self.matcher.observe("holy", SPOT, 60)
+        await self.matcher.observe("holy", SPOT, 110)
+        await self.matcher.observe("dxsummit", SPOT, 169)
+        await self.matcher.finalize(170)
+        self.assertEqual(self.count("dxsummit", "matched"), 1)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+        self.assertEqual(self.count("dxsummit", "service_only"), 0)
+
+    async def test_window_extension_is_bounded(self):
+        await self.matcher.observe("holy", SPOT, 60)
+        await self.matcher.observe("holy", SPOT, 119)
+        await self.matcher.observe("holy", SPOT, 178)
+        await self.matcher.finalize(179.999)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 0)
+        await self.matcher.finalize(180)
+        self.assertEqual(self.count("dxsummit", "holy_only"), 1)
 
     async def test_source_time_difference_matches_within_observation_window(self):
         await self.matcher.observe("holy", SPOT, 60)
@@ -80,7 +203,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.count("dxsummit", "holy_only"), 1)
         await self.matcher.finalize(180)
         self.assertEqual(self.count("dxsummit", "service_only"), 1)
-        self.assertEqual(len(self.sink.samples), 6)
+        self.assertEqual(len(self.sink.samples), len(SERVICES) + 1)
 
     async def test_pairwise_and_absent_sides(self):
         await self.matcher.observe("dxsummit", SPOT, 60)
@@ -121,11 +244,11 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_restart_recovers_windows_and_stream_dedupe(self):
         await self.matcher.observe("holy", SPOT, 60, event_id="60000-0")
-        recovered = Matcher(self.redis, self.metrics, self.sink)
+        recovered = Matcher(self.redis, self.metrics, self.sink, window=60)
         await recovered.observe("holy", SPOT, 120, event_id="60000-0")
         await recovered.finalize(180)
         self.assertEqual(self.count("dxsummit", "holy_only"), 1)
-        self.assertEqual(len(self.sink.samples), 5)
+        self.assertEqual(len(self.sink.samples), len(SERVICES))
 
     async def test_labels_are_bounded(self):
         with self.assertRaises(ValueError):
@@ -134,7 +257,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         await self.matcher.finalize(120)
         for family in self.registry.collect():
             for sample in family.samples:
-                self.assertLessEqual(set(sample.labels), {"service", "result", "reason"})
+                self.assertLessEqual(set(sample.labels), {"service", "result", "reason", "cause"})
                 if "service" in sample.labels:
                     self.assertIn(sample.labels["service"], ("holy", *SERVICES))
         self.assertNotIn(b"4X1AA", generate_latest(self.registry))
@@ -154,7 +277,7 @@ class MatcherTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_state_is_bounded(self):
-        matcher = Matcher(self.redis, self.metrics, self.sink, max_windows=1)
+        matcher = Matcher(self.redis, self.metrics, self.sink, max_windows=1, window=60)
         await matcher.observe("holy", SPOT, 60)
         await matcher.observe("holy", {**SPOT, "dx_callsign": "4X2AA"}, 61)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 1)

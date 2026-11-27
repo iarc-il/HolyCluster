@@ -5,6 +5,10 @@ import { useColors } from "@/hooks/useColors";
 import { useUpdate } from "@/hooks/useUpdate.jsx";
 
 const CAT_RELEASE_NOTES = {
+    "1.3.4": [
+        "Fixed tuning on OmniRig radios that did not respond to spot clicks",
+        "Fixed Linux auto-updates that could hang or not finish",
+    ],
     "1.3.3": [
         <b key="rotator-toggle">Clicking the rotator button now disables it</b>,
         "RTTY is now supported for OmniRig",
@@ -15,7 +19,7 @@ const CAT_RELEASE_NOTES = {
 const INTERNAL_RELEASE_NOTES = ["Release notes are available only for public releases."];
 
 function release_notes_for(version) {
-    if (Object.hasOwn(CAT_RELEASE_NOTES, version)) {
+    if (Object.prototype.hasOwnProperty.call(CAT_RELEASE_NOTES, version)) {
         return { heading: "What's new", notes: CAT_RELEASE_NOTES[version] };
     }
     if (/^\d+\.\d+\.\d+-\d+(?:-g[0-9a-f]+)?$/i.test(version ?? "")) {
@@ -133,7 +137,7 @@ function message_for(status, error) {
         updated: "CAT Control restarted with the verified update.",
         installing: "Installing CAT Control…",
         reboot_required: "Restart Windows to finish installing CAT Control.",
-        unsupported: "Automatic updates are not supported on this platform.",
+        unsupported: "Automatic updates are not available on this platform.",
         failed: error ?? "CAT Control update failed.",
     };
     return messages[status] ?? null;
@@ -192,7 +196,7 @@ export default function UpdateControls({ on_check = null }) {
                         className="rounded-lg bg-blue-600 p-2 text-sm font-medium text-white"
                         href="/addons#download"
                     >
-                        Download manually
+                        Download update
                     </a>
                 )}
             </div>

@@ -1,3 +1,5 @@
+import CallsignSearchChip from "@/components/search/CallsignSearchChip.jsx";
+import CallsignSearchModal from "@/components/search/CallsignSearchModal.jsx";
 import Input from "@/components/ui/Input.jsx";
 import Popup from "@/components/ui/Popup.jsx";
 import SearchIcon from "@/components/ui/SearchIcon.jsx";
@@ -5,6 +7,7 @@ import Select from "@/components/ui/Select.jsx";
 import X from "@/components/ui/X.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useRef, useState } from "react";
 
@@ -15,6 +18,7 @@ export default function CallsignSearch({
     compact = false,
     border_position = "bottom",
     data_tour = "callsign-search",
+    default_dx,
 }) {
     const { colors } = useColors();
     const {
@@ -25,10 +29,14 @@ export default function CallsignSearch({
         set_pinned_spot,
     } = useSpotInteraction();
     const { filters, setFilters, callsign_filters, setCallsignFilters } = useFilters();
+    const { is_callsign_search } = useSpotData();
     const single_spot = filters.show_only_latest_spot;
     const single_spot_ref = useRef(null);
     const [show_single_popup, set_show_single_popup] = useState(false);
     const [single_spot_hover, set_single_spot_hover] = useState(false);
+    const history_search_ref = useRef(null);
+    const [history_search_hover, set_history_search_hover] = useState(false);
+    const history_search_label = "Search DX History";
 
     const toggle_button_base = {
         border: `1px solid ${colors.theme.text}38`,
@@ -75,20 +83,74 @@ export default function CallsignSearch({
             data-tour={data_tour}
             style={border_style}
         >
-            {!compact && <SearchIcon color={colors.theme.text} />}
-            <Input
-                className={`${compact ? "min-w-0 flex-1 h-9 text-base" : "w-48 h-10 text-lg"} border-2`}
-                border_color={colors.table.header_arrow}
-                placeholder="Search callsign..."
-                value={search_query}
-                onChange={e => set_search_query(e.target.value)}
-                onKeyDown={e => {
-                    if (e.key === "Enter" && search_query.trim()) {
-                        handle_enter(search_query.trim());
-                    }
-                }}
-            />
-            {search_query && <X size="24" on_click={() => set_search_query("")} />}
+            {/* The text filter is ignored during a callsign search, and the
+                chip replaces the history button, so hide both */}
+            {!is_callsign_search && (
+                <>
+                    {!compact && <SearchIcon color={colors.theme.text} />}
+                    <Input
+                        className={`${compact ? "min-w-0 flex-1 h-9 text-base" : "w-48 h-10 text-lg"} border-2`}
+                        border_color={colors.table.header_arrow}
+                        placeholder="Search callsign..."
+                        value={search_query}
+                        onChange={e => set_search_query(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === "Enter" && search_query.trim()) {
+                                handle_enter(search_query.trim());
+                            }
+                        }}
+                    />
+                    {search_query && <X size="24" on_click={() => set_search_query("")} />}
+                    <CallsignSearchModal
+                        data_tour={`${data_tour}-history-search`}
+                        button={
+                            <span
+                                ref={history_search_ref}
+                                className={`flex items-center rounded-md ${compact ? "px-1 py-1" : "px-2 py-1"}`}
+                                onMouseEnter={() => set_history_search_hover(true)}
+                                onMouseLeave={() => set_history_search_hover(false)}
+                                // The popup sits above the modal this click opens
+                                onClick={() => set_history_search_hover(false)}
+                                style={{
+                                    ...toggle_button_base,
+                                    ...(history_search_hover ? toggle_button_hover_style : {}),
+                                }}
+                            >
+                                <span className="sr-only">{history_search_label}</span>
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke={colors.theme.text}
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                                    <path d="M3 3v5h5" />
+                                    <path d="M12 7v5l3 2" />
+                                </svg>
+                            </span>
+                        }
+                    />
+                    {history_search_hover && (
+                        <Popup anchor_ref={history_search_ref} keep_in_view={true}>
+                            <div
+                                className="py-1 px-2 rounded shadow-lg"
+                                style={{
+                                    color: colors.theme.text,
+                                    background: colors.theme.background,
+                                }}
+                            >
+                                {history_search_label}
+                            </div>
+                        </Popup>
+                    )}
+                </>
+            )}
+            <CallsignSearchChip compact={compact} />
             <Select
                 className={`${compact ? "h-9 !w-24 !px-2 !py-1 text-xs" : "ml-auto h-9 w-28 text-sm"} font-semibold`}
                 data-tour={`${data_tour}-reference-selector`}

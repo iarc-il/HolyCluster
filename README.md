@@ -7,7 +7,7 @@ HolyCluster is a live amateur radio DX cluster with modern interface and CAT int
 - Live DX spots from several sources
 - Map, spot list, filters, and alerts
 - Band activity and propagation information
-- Optional local radio control through the CAT server
+- Optional local radio control through CAT Control
 
 ## Use HolyCluster
 
@@ -32,7 +32,7 @@ npm run dev
 ```
 
 To route the development server's API and WebSocket traffic through a local
-CAT server on port 3000, run:
+`catserver` process on port 3000, run:
 
 ```sh
 npm run dev -- --catserver
@@ -76,8 +76,8 @@ cd ../backend
 ```
 
 `CATSERVER_MSI_DIR` must contain `latest.json` and an `artifacts/` directory
-with the CAT server release files named in that manifest. The API serves these
-files to CAT server users.
+with the CAT Control release files named in that manifest. The API serves these
+files to CAT Control users.
 
 These files are created and updated by the CI/CD pipeline.
 
@@ -101,9 +101,9 @@ Run backend tests with:
 uv run pytest
 ```
 
-### CAT server
+### CAT Control
 
-The CAT server is an optional local application. It runs on
+CAT Control is an optional local application. It runs on
 `http://127.0.0.1:3000`, proxies HolyCluster, and lets the web interface tune a
 connected radio.
 
@@ -112,10 +112,9 @@ Hamlib is also available on all supported systems, including the `NET rigctl`
 model for network-connected radios. The selected backend and its settings are
 saved in the user's HolyCluster configuration directory.
 
-Both the Linux and Windows versions are built on Linux. No other operating
-system has been tested as a CAT server development machine.
+Both the Linux and Windows versions are built on Linux. No other operating system has been tested for CAT Control development.
 
-Run the CAT server normally with:
+Run CAT Control normally with:
 
 ```sh
 cd catserver
@@ -127,21 +126,21 @@ different HolyCluster server, and `--dev-server` uses the shared development
 server. Use `--no-browser` to start the server without opening a browser, for
 example in automated tests.
 
-For UI development, start Vite without its CATServer reverse proxy:
+For UI development, start Vite without its `catserver` reverse proxy:
 
 ```sh
 cd ui
 npm run dev
 ```
 
-In another terminal, point CATServer at Vite:
+In another terminal, point `catserver` at Vite:
 
 ```sh
 cd catserver
 cargo run -- --backend 127.0.0.1:5173
 ```
 
-Open CATServer's origin at `http://127.0.0.1:3000`, not the Vite origin. Do not
+Open the `catserver` origin at `http://127.0.0.1:3000`, not the Vite origin. Do not
 pass Vite's `--catserver` option or set `CATSERVER_PROXY=true` in this setup.
 Select the Hamlib Dummy radio or rotator model in CAT Control settings when a
 simulated device is needed.
@@ -153,7 +152,7 @@ AppIndicator packages:
 sudo apt install libgtk-3-0 libappindicator3-1
 ```
 
-CATServer sends error reports to Sentry. Reports keep error messages, cause
+CAT Control sends error reports to Sentry. Reports keep error messages, cause
 chains, stack traces, and diagnostic context. They omit the computer-name field
 and replace the local home-directory prefix in paths with `~`.
 

@@ -4,7 +4,6 @@ import {
     get_dxcc_label,
     normalize_dxcc_code,
 } from "@/data/dxcc_entities.js";
-import { shorten_dxcc_label } from "@/data/dxcc_labels.js";
 
 const dxcc_to_country_flag = {
     "Agalega and St. Brandon Islands": "Mauritius",
@@ -151,8 +150,4 @@ export function get_dxcc_flag(dxcc_code) {
     if (!label) return null;
 
     return get_flag(label);
-}
-
-export function shorten_dxcc(dx_country) {
-    return shorten_dxcc_label(dx_country);
 }

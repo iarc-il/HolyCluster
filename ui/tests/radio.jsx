@@ -40,7 +40,7 @@ vi.mock("@/hooks/useWs", () => ({
 }));
 
 import useRadio, { RadioProvider } from "@/hooks/useRadio";
-import { RTTY_TUNING_MIN_VERSION } from "@/utils/cat_features.js";
+import raw_band_plans from "../../shared/band_plans.json";
 
 function Consumer() {
     Consumer.radio = useRadio();
@@ -74,6 +74,12 @@ describe("radio configuration", () => {
     });
 
     afterEach(() => cleanup());
+
+    it("converts shared kHz band bounds to classify radio frequencies in Hz", () => {
+        render_radio();
+        emit({ event: "status", status: "connected", freq: raw_band_plans[20].freq_start * 1000 });
+        expect(Consumer.radio.radio_band).toBe(20);
+    });
 
     it("uses radio configuration API 2 protocol messages", async () => {
         render_radio();
@@ -212,20 +218,14 @@ describe("radio configuration", () => {
         expect(websocket.send).not.toHaveBeenCalled();
     });
 
-    it("negotiates capabilities and reports unsupported transports", () => {
-        const view = render_radio();
+    it("negotiates radio configuration capabilities", () => {
+        render_radio();
         emit({ event: "status", status: "connected", catserver_version: "catserver-v2.0.0" });
         expect(websocket.send).toHaveBeenCalledWith("radio", { action: "GetCapabilities" });
+        emit({ event: "capabilities", radio_configuration_api: 1 });
+        expect(Consumer.radio.radio_configuration_support).toBe("update_required");
         emit({ event: "capabilities", radio_configuration_api: 2 });
         expect(Consumer.radio.radio_configuration_support).toBe("supported");
-
-        websocket.transport = "cat_v1_2";
-        view.rerender(
-            <RadioProvider>
-                <Consumer />
-            </RadioProvider>,
-        );
-        expect(Consumer.radio.radio_configuration_support).toBe("update_required");
     });
 
     it("reports an unconfigured radio as unavailable", () => {
@@ -256,7 +256,7 @@ describe("radio configuration", () => {
 
         expect(websocket.send).not.toHaveBeenCalled();
         expect(toast.warn).toHaveBeenCalledWith(
-            "Update CATServer to use RTTY with OmniRig. The radio was not changed.",
+            "Update CAT Control to use RTTY with OmniRig. The radio was not changed.",
             {
                 theme: "dark",
                 toastId: "radio-mode",
@@ -307,7 +307,7 @@ describe("radio configuration", () => {
 
     it("blocks RTTY until the active backend is known", () => {
         render_radio();
-        const supported_version = `catserver-v${RTTY_TUNING_MIN_VERSION.slice(0, 3).join(".")}`;
+        const supported_version = "catserver-v1.3.0";
         emit({
             event: "status",
             status: "connected",
@@ -321,7 +321,7 @@ describe("radio configuration", () => {
         expect(Consumer.radio.radio_band).toBe(20);
         expect(websocket.send).not.toHaveBeenCalled();
         expect(toast.warn).toHaveBeenCalledWith(
-            "Wait for CATServer radio configuration before using RTTY.",
+            "CAT Control is still loading your radio settings. Try RTTY again in a moment.",
             {
                 theme: "dark",
                 toastId: "radio-mode",
@@ -354,7 +354,7 @@ describe("radio configuration", () => {
 
         expect(websocket.send).not.toHaveBeenCalled();
         expect(toast.warn).toHaveBeenCalledWith(
-            "Wait for CATServer radio configuration before using RTTY.",
+            "CAT Control is still loading your radio settings. Try RTTY again in a moment.",
             {
                 theme: "dark",
                 toastId: "radio-mode",

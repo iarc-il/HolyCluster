@@ -1,10 +1,11 @@
 import argparse
 import asyncio
-import random
-import sys
 import re
+import socket
+import sys
 from datetime import datetime, timezone
 
+import asyncpg
 import httpx
 from loguru import logger
 import redis.exceptions
@@ -14,7 +15,15 @@ from shared.geo import GeoException, get_geo_details
 from shared.qrz import QrzSessionManager
 from shared.telemetry import capture_exception, initialize_sentry
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import (
+    DataError,
+    DBAPIError,
+    DisconnectionError,
+    IntegrityError,
+    InterfaceError as SQLAlchemyInterfaceError,
+    OperationalError,
+    TimeoutError as SQLAlchemyTimeoutError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from collectors.db.valkey_config import close_valkey_client, get_valkey_client
@@ -35,12 +44,28 @@ from collectors.telnet.runner import (
     run_concurrent_telnet_connections,
 )
 from collectors.telnet.spot_tracking import TelnetSpotTracker
+from collectors.utils import retry_delay
 from collectors.wwff import run_wwff_collector
 
 import aiomonitor
 
 STREAM_API = "stream-api"
+COVERAGE_PIPELINE_STREAM = "coverage-holy-pipeline"
+COVERAGE_PIPELINE_MAXLEN = 100_000
+COVERAGE_PIPELINE_TIMEOUT = 0.5
 PERSIST_ATTEMPTS = 3
+RAW_DATABASE_CONNECTION_ERRORS = (
+    ConnectionError,
+    socket.gaierror,
+    asyncpg.PostgresConnectionError,
+    asyncpg.CannotConnectNowError,
+)
+RETRYABLE_SQLALCHEMY_ERRORS = (
+    OperationalError,
+    SQLAlchemyInterfaceError,
+    DisconnectionError,
+    SQLAlchemyTimeoutError,
+)
 LOTW_CACHE_KEY = "collector:lotw:user_activity"
 LOTW_REFRESH_INTERVAL_SECONDS = 3600
 LOTW_RETRY_BASE_SECONDS = 600
@@ -182,6 +207,54 @@ async def add_spot_to_postgres(engine, spot: dict):
         await session.commit()
 
 
+async def publish_coverage_pipeline_result(valkey_client, spot: dict, result: str) -> str:
+    if spot.get("type"):
+        return "excluded"
+    try:
+        record = {field: spot[field] for field in ("time", "dx_callsign", "frequency", "spotter_callsign")}
+        record["result"] = result
+        async with asyncio.timeout(COVERAGE_PIPELINE_TIMEOUT):
+            await valkey_client.xadd(
+                COVERAGE_PIPELINE_STREAM,
+                record,
+                maxlen=COVERAGE_PIPELINE_MAXLEN,
+                approximate=False,
+            )
+    except (KeyError, TypeError, ValueError, TimeoutError, redis.exceptions.RedisError):
+        return "error"
+    return "success"
+
+
+def is_raw_database_connection_error(error: Exception) -> bool:
+    if isinstance(error, RAW_DATABASE_CONNECTION_ERRORS):
+        return True
+    return (
+        type(error) is asyncpg.InternalClientError
+        and re.fullmatch(
+            r"cannot switch to state \d+; another operation \(\d+\) is in progress",
+            str(error),
+        )
+        is not None
+    )
+
+
+def is_retryable_persistence_error(error: Exception) -> bool:
+    if isinstance(error, redis.exceptions.RedisError) or is_raw_database_connection_error(error):
+        return True
+    if isinstance(error, RETRYABLE_SQLALCHEMY_ERRORS):
+        return True
+    return isinstance(error, DBAPIError) and (
+        error.connection_invalidated
+        or isinstance(error.orig, Exception)
+        and is_raw_database_connection_error(error.orig)
+    )
+
+
+def is_rejected_spot_error(error: Exception) -> bool:
+    """The database refused this spot's data, so retrying or restarting will not help."""
+    return isinstance(error, (DataError, IntegrityError)) and not is_retryable_persistence_error(error)
+
+
 async def persist_spot(engine, valkey_client, spot: dict):
     for attempt in range(PERSIST_ATTEMPTS):
         try:
@@ -191,7 +264,11 @@ async def persist_spot(engine, valkey_client, spot: dict):
                 with metrics.operation("valkey_xadd"):
                     await valkey_client.xadd(STREAM_API, spot, "*", maxlen=10000)
             return
-        except (SQLAlchemyError, redis.exceptions.RedisError):
+        except Exception as error:
+            if not is_retryable_persistence_error(error):
+                raise
+            if is_raw_database_connection_error(error):
+                await engine.dispose()
             if attempt == PERSIST_ATTEMPTS - 1:
                 raise
             delay = 2**attempt
@@ -203,7 +280,7 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
     logger.info("Spot processor started")
 
     valkey_client = get_valkey_client()
-    engine = create_async_engine(settings.db_url, pool_pre_ping=True, pool_recycle=3600)
+    engine = create_async_engine(settings.db_url, pool_pre_ping=True, pool_recycle=3600, hide_parameters=True)
 
     try:
         while True:
@@ -252,14 +329,22 @@ async def process_spots(input_queue: asyncio.Queue, qrz_manager: QrzSessionManag
                     with metrics.processing.labels(source, "persist").time():
                         await persist_spot(engine, valkey_client, enriched_spot)
                     result = "success"
-                except (SQLAlchemyError, redis.exceptions.RedisError) as e:
-                    logger.opt(exception=e).warning("Failed to persist spot after retries")
+                except Exception as e:
+                    if is_rejected_spot_error(e):
+                        logger.opt(exception=e).warning(f"Dropping spot rejected by the database: {enriched_spot}")
+                    elif is_retryable_persistence_error(e):
+                        logger.opt(exception=e).warning("Failed to persist spot after retries")
+                    else:
+                        raise
                     capture_exception(e, operation="collector.persist")
             except asyncio.CancelledError:
                 result = "cancelled"
                 raise
             finally:
                 metrics.spots.labels(source, "pipeline", result).inc()
+                if result != "cancelled":
+                    publication = await publish_coverage_pipeline_result(valkey_client, spot, result)
+                    metrics.spots.labels(source, "coverage", publication).inc()
                 input_queue.task_done()
 
     except asyncio.CancelledError:
@@ -282,12 +367,6 @@ async def refresh_dxpedition_data(valkey_client):
             logger.exception("Failed to refresh DXpedition data")
             capture_exception(e, operation="collector.dxpedition_refresh")
         await asyncio.sleep(sleep)
-
-
-def lotw_retry_delay(failure_count: int) -> float:
-    exponent = min(failure_count - 1, 10)
-    base_delay = min(LOTW_RETRY_BASE_SECONDS * 2**exponent, LOTW_RETRY_MAX_SECONDS)
-    return min(base_delay + random.uniform(0, base_delay * 0.2), LOTW_RETRY_MAX_SECONDS)
 
 
 async def load_cached_lotw_user_data(valkey_client):
@@ -332,13 +411,13 @@ async def refresh_lotw_user_data(valkey_client):
             sleep = LOTW_REFRESH_INTERVAL_SECONDS
         except (httpx.HTTPError, LotwResponseError) as e:
             failure_count += 1
-            sleep = lotw_retry_delay(failure_count)
+            sleep = retry_delay(LOTW_RETRY_BASE_SECONDS, failure_count, LOTW_RETRY_MAX_SECONDS)
             logger.warning(f"LoTW user activity unavailable; retrying in {sleep:.1f}s: {type(e).__name__}")
             if failure_count == 1:
                 capture_exception(e, operation="collector.lotw_refresh")
         except Exception as e:
             failure_count += 1
-            sleep = lotw_retry_delay(failure_count)
+            sleep = retry_delay(LOTW_RETRY_BASE_SECONDS, failure_count, LOTW_RETRY_MAX_SECONDS)
             logger.exception("Failed to refresh LoTW user activity")
             capture_exception(e, operation="collector.lotw_refresh")
         await asyncio.sleep(sleep)

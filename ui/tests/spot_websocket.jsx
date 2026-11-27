@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const websocket = vi.hoisted(() => ({
     readyState: 0,
     epoch: null,
-    transport: "unified",
     send: vi.fn(),
     handlers: new Set(),
     subscribe: (_type, handler) => {
@@ -21,7 +20,6 @@ vi.mock("@/hooks/useWs", () => ({
     useWs: () => ({
         readyState: websocket.readyState,
         spot_socket_epoch: websocket.epoch,
-        transport: websocket.transport,
         send_now: websocket.send,
         subscribe: websocket.subscribe,
         now_ms: websocket.now_ms,
@@ -79,7 +77,6 @@ describe("spot subscriptions", () => {
         vi.setSystemTime(spot.time * 1000);
         websocket.readyState = 0;
         websocket.epoch = null;
-        websocket.transport = "unified";
         websocket.send = vi.fn(() => true);
         websocket.snapshot = [];
         websocket.now_ms = () => Date.now();
@@ -141,13 +138,16 @@ describe("spot subscriptions", () => {
         expect(websocket.send).toHaveBeenCalledTimes(count);
     });
 
-    it.each(["initial", "update"])("stops retries after an empty legacy %s response", event => {
-        const view = renderHook(useSpotWebSocket);
-        connect(view);
-        receive([], { event });
-        act(() => vi.advanceTimersByTime(120000));
-        expect(websocket.send).toHaveBeenCalledTimes(1);
-    });
+    it.each(["initial", "update"])(
+        "continues retries after an unacknowledged %s response",
+        event => {
+            const view = renderHook(useSpotWebSocket);
+            connect(view);
+            receive([], { event });
+            act(() => vi.advanceTimersByTime(1200));
+            expect(websocket.send).toHaveBeenCalledTimes(2);
+        },
+    );
 
     it("uses server time when the browser clock is wrong", () => {
         websocket.now_ms = () => spot.time * 1000;
@@ -210,18 +210,6 @@ describe("spot subscriptions", () => {
         expect(vi.getTimerCount()).toBe(0);
     });
 
-    it("cancels a pending request when the selected transport changes", () => {
-        const view = renderHook(useSpotWebSocket);
-        connect(view);
-        const first = websocket.send.mock.lastCall[1].subscription_id;
-        websocket.transport = "cat_v1_2";
-        connect(view, 2);
-        expect(websocket.send.mock.lastCall[1].subscription_id).not.toBe(first);
-        act(() => vi.advanceTimersByTime(1200));
-        expect(websocket.send).toHaveBeenCalledTimes(3);
-        expect(websocket.send.mock.lastCall[2]).toBe(2);
-    });
-
     it("does not reuse correlation IDs after unmounting on the same socket", () => {
         const first_view = renderHook(useSpotWebSocket);
         connect(first_view);
@@ -231,29 +219,23 @@ describe("spot subscriptions", () => {
         expect(websocket.send.mock.lastCall[1].subscription_id).not.toBe(first);
     });
 
-    it.each(["explicit", "legacy"])(
-        "handles synchronous %s registration through StrictMode cleanup",
-        protocol => {
-            websocket.send.mockImplementation((_type, request) => {
-                for (const handler of websocket.handlers)
-                    handler(
-                        protocol === "explicit"
-                            ? {
-                                  event: "subscribed",
-                                  subscription_ack: true,
-                                  subscription_id: request.subscription_id,
-                              }
-                            : { event: "initial", spots: [] },
-                    );
-                return true;
-            });
-            websocket.readyState = 1;
-            websocket.epoch = 1;
-            renderHook(useSpotWebSocket, { wrapper: StrictMode });
-            act(() => vi.advanceTimersByTime(120000));
-            expect(websocket.send).toHaveBeenCalledTimes(1);
-        },
-    );
+    it("handles synchronous registration through StrictMode cleanup", () => {
+        websocket.send.mockImplementation((_type, request) => {
+            for (const handler of websocket.handlers) {
+                handler({
+                    event: "subscribed",
+                    subscription_ack: true,
+                    subscription_id: request.subscription_id,
+                });
+            }
+            return true;
+        });
+        websocket.readyState = 1;
+        websocket.epoch = 1;
+        renderHook(useSpotWebSocket, { wrapper: StrictMode });
+        act(() => vi.advanceTimersByTime(120000));
+        expect(websocket.send).toHaveBeenCalledTimes(1);
+    });
 
     it("keeps the cached snapshot and tour buffer while merging an initial batch", () => {
         websocket.snapshot = [

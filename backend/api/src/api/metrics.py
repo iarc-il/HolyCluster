@@ -20,13 +20,24 @@ HTTP_DURATION = Histogram(
     buckets=HTTP_BUCKETS,
 )
 CLIENT_VERSION_ACTIVE = Gauge(
-    PREFIX + "client_version_active", "Open spot subscribers by client release", ["ui_version", "catserver_version"]
+    PREFIX + "client_version_active",
+    "Open spot subscribers by software, client release, device class and browser family",
+    ["software_id", "ui_version", "catserver_version", "client_type", "browser_type"],
 )
 CLIENT_VERSION_REPORTS = Counter(
-    PREFIX + "client_version_reports_total", "Changed client release reports", ["ui_version", "catserver_version"]
+    PREFIX + "client_version_reports_total",
+    "Changed software, client release, device class or browser family reports",
+    ["software_id", "ui_version", "catserver_version", "client_type", "browser_type"],
 )
+ANONYMOUS_USER_ACTIVE = Gauge(PREFIX + "anonymous_user_active", "Distinct identified open browser installations")
+ANONYMOUS_USER_CONNECTIONS_ACTIVE = Gauge(
+    PREFIX + "anonymous_user_connections_active", "Open spot subscriptions with a browser installation identity"
+)
+ANONYMOUS_USER_CONNECTION_COUNTS: dict[str, int] = {}
+ANONYMOUS_USER_CONNECTION_LOCK = Lock()
 CLIENT_VERSION_PAIRS = set()
 CLIENT_VERSION_PAIR_LOCK = Lock()
+SOFTWARE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 UI_SHA = re.compile(r"[0-9a-fA-F]{7,40}")
 UI_TAG = re.compile(
     r"v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
@@ -107,6 +118,13 @@ def message_kind(message):
     return "unknown"
 
 
+def software_id(message):
+    if "software_id" not in message:
+        return "not_reported"
+    value = message["software_id"]
+    return value if isinstance(value, str) and SOFTWARE_ID.fullmatch(value) else "invalid"
+
+
 def client_version(message, field):
     if field not in message:
         return "not_reported"
@@ -122,14 +140,34 @@ def client_version(message, field):
     return value if CAT_TAG.fullmatch(value) else "invalid"
 
 
+def client_type(message):
+    if "client_type" not in message:
+        return "not_reported"
+    value = message["client_type"]
+    return value if isinstance(value, str) and value in {"mobile", "desktop"} else "invalid"
+
+
+def browser_type(message):
+    if "browser_type" not in message:
+        return "not_reported"
+    value = message["browser_type"]
+    return value if isinstance(value, str) and value in {"chrome", "edge", "firefox", "safari", "other"} else "invalid"
+
+
 def client_version_pair(message):
-    pair = (client_version(message, "ui_version"), client_version(message, "catserver_version"))
+    pair = (
+        software_id(message),
+        client_version(message, "ui_version"),
+        client_version(message, "catserver_version"),
+        client_type(message),
+        browser_type(message),
+    )
     # Keep admission atomic when multiple ASGI threads share the registry.
     with CLIENT_VERSION_PAIR_LOCK:
         if pair in CLIENT_VERSION_PAIRS:
             return pair
         if len(CLIENT_VERSION_PAIRS) >= 100:
-            return ("other", "other")
+            return ("other", "other", "other", "other", "other")
         CLIENT_VERSION_PAIRS.add(pair)
     return pair
 
@@ -138,7 +176,27 @@ def client_version_pair(message):
 class Connection:
     endpoint: str
     active: bool = True
-    client_versions: tuple[str, str] | None = None
+    client_versions: tuple[str, str, str, str, str] | None = None
+    user_id: str | None = None
+
+    def report_user_id(self, user_id: str):
+        if not self.active or user_id == self.user_id:
+            return
+        with ANONYMOUS_USER_CONNECTION_LOCK:
+            if self.user_id is None:
+                ANONYMOUS_USER_CONNECTIONS_ACTIVE.inc()
+            else:
+                previous = ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] - 1
+                if previous:
+                    ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] = previous
+                else:
+                    del ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id]
+                    ANONYMOUS_USER_ACTIVE.dec()
+            self.user_id = user_id
+            count = ANONYMOUS_USER_CONNECTION_COUNTS.get(user_id, 0)
+            ANONYMOUS_USER_CONNECTION_COUNTS[user_id] = count + 1
+            if count == 0:
+                ANONYMOUS_USER_ACTIVE.inc()
 
     def report_client_versions(self, message):
         if not self.active:
@@ -157,6 +215,15 @@ class Connection:
             self.active = False
             if self.client_versions is not None:
                 CLIENT_VERSION_ACTIVE.labels(*self.client_versions).dec()
+            if self.user_id is not None:
+                with ANONYMOUS_USER_CONNECTION_LOCK:
+                    remaining = ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] - 1
+                    if remaining:
+                        ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id] = remaining
+                    else:
+                        del ANONYMOUS_USER_CONNECTION_COUNTS[self.user_id]
+                        ANONYMOUS_USER_ACTIVE.dec()
+                    ANONYMOUS_USER_CONNECTIONS_ACTIVE.dec()
             WS_ACTIVE.labels(self.endpoint).dec()
             WS_DISCONNECTS.labels(self.endpoint).inc()
 

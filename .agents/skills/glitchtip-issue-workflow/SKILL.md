@@ -16,24 +16,26 @@ If the skill invocation already names one unambiguous GlitchTip project or compo
 
 This is the only normal question. After scope selection, execute autonomously. Do not ask the user to prioritize issues or choose technical subgroups.
 
-## 2. Create the working branch and receipt
+## 2. Create the working branch and update the state file
 
 Record the branch active at invocation. Create one integration branch on top of its current HEAD for all changes required by the selected scope. Use one worktree for that branch when isolation is needed. Do not create stacked per-issue branches.
 
-Create `receipt.txt` at the root of the main git repo dir. Keep it untracked and never stage or commit it. Update it after every material verdict, commit, validation result, and blocker so interrupted work can resume from it.
+Use `glitchtip-issues.md` at the root of the main git repo dir as the persistent issue state file. Keep it untracked and never stage or commit it. Create it only when it does not exist. Otherwise, read it first and update it in place. Never reset or replace it with a per-run report.
 
-The receipt header must include:
+Reconcile the selected scope with the current GlitchTip state. Preserve useful prior evidence, decisions, commit references, validation results, limitations, and blockers. Replace stale current-state fields instead of appending conflicting snapshots. Keep issues outside the selected scope unchanged.
 
-- Selected GlitchTip scope
-- Base branch and base commit
-- Working branch
-- Start time
+The file header must include:
+
+- Last update time
+- Most recently selected GlitchTip scope
+- Base branch and base commit for the active workflow
+- Working branch for the active workflow
 
 Preserve unrelated tracked and untracked work.
 
 ## 3. Inventory the selected scope
 
-Fetch every unresolved issue in the selected GlitchTip project or component. For each issue, record in the receipt:
+Fetch every unresolved issue in the selected GlitchTip project or component. For each issue, update the state file with:
 
 - Issue ID and component
 - Event count and last-seen time
@@ -84,7 +86,7 @@ Do not stop merely because:
 - A diagnostic-completeness change is more appropriate than a root fix.
 - Existing code already covers an issue.
 
-Record the verdict and continue. Stop the whole workflow only when work cannot safely continue across the selected scope.
+Update the issue state and continue. Stop the whole workflow only when work cannot safely continue across the selected scope.
 
 ## 6. Select the correct lane
 
@@ -136,29 +138,35 @@ If a safe change requires a broad product, API, lifecycle, storage, architecture
 
 Run focused checks before broader checks. Prefer end-to-end runtime or reporting paths over isolated fixtures. Include diagnostic and privacy tests when diagnostics change.
 
-Record exact commands, matched test counts, results, and limitations in the receipt. Do not count zero-match filters. Keep files unchanged while their validation runs. Distinguish local tests from real GlitchTip ingestion, mocks from hardware or OS validation, and builds from deployment or recurrence evidence.
+Record exact commands, matched test counts, results, and limitations in the state file. Do not count zero-match filters. Keep files unchanged while their validation runs. Distinguish local tests from real GlitchTip ingestion, mocks from hardware or OS validation, and builds from deployment or recurrence evidence.
 
 Obtain independent review for correctness, simplicity, architecture, scope, test strength, privacy, and new risk. Fix concrete findings and rerun affected checks.
 
 Use bounded worker tasks. A worker that has not returned is not proof of active progress. Do not report an investigation as active unless work is actually in progress. If a worker stalls, recover its completed evidence, record the interruption, and continue directly or with a replacement worker.
 
-## 9. Maintain `receipt.txt`
+## 9. Maintain `glitchtip-issues.md`
 
-For every selected issue, record:
+Treat the file as the current source of truth for issue workflow state, not as a receipt or an append-only run log. Organize it by scope and issue ID so later invocations can update existing entries without duplicating them.
+
+For every selected issue, maintain:
 
 - Issue ID and title
+- Current GlitchTip status, event count, and last-seen time
 - Technical subgroup
-- Verdict
+- Current workflow verdict
 - Evidence supporting the verdict
 - Commit ID and subject when applicable
 - Exact validation and review results
 - Known limitations and external prerequisites
+- Last checked time
 
 Use `Commit: none` for verdicts that require no new commit, and reference an existing commit when it establishes `already-covered`.
 
-Add an `UNHANDLED` section. It should normally contain `None`. Any entry must give a concrete exceptional reason, such as unavailable required hardware, unavailable credentials, a broken repository baseline, or a required broad product decision. `Needs more investigation` is not sufficient: investigate it, add the missing diagnostics, establish existing coverage, or identify the concrete blocker.
+When a previously recorded issue is no longer returned as unresolved in the selected scope, retain its entry and mark it `no-longer-unresolved` with the last checked time. Do not claim that this workflow resolved it unless separately proven, and do not resolve GlitchTip issues automatically.
 
-Before completion, verify that every unresolved issue fetched from the selected scope appears exactly once in the receipt with a verdict or in `UNHANDLED` with an exceptional reason.
+Maintain an `UNHANDLED` section for the selected scope. It should normally contain `None`. Any entry must give a concrete exceptional reason, such as unavailable required hardware, unavailable credentials, a broken repository baseline, or a required broad product decision. `Needs more investigation` is not sufficient: investigate it, add the missing diagnostics, establish existing coverage, or identify the concrete blocker.
+
+Before completion, verify that every unresolved issue fetched from the selected scope appears exactly once in the state file with a verdict or in `UNHANDLED` with an exceptional reason. Also verify that no duplicate entry exists for the same scope and issue ID.
 
 ## 10. Complete the workflow
 
@@ -167,7 +175,7 @@ Finish with:
 - One working branch based on the branch active at invocation
 - Separate atomic commits for the selected scope's required changes
 - A clean tracked working tree
-- An untracked, complete `receipt.txt`
+- An untracked, up-to-date `glitchtip-issues.md`
 - All selected issues accounted for
 
 Report:
@@ -177,6 +185,6 @@ Report:
 - Issue subgroups and verdict counts
 - Commits created
 - Exact validation and independent-review results
-- Receipt path
+- State file path
 - Externally blocked or unhandled issues
 - Issues that may later be resolved, while making clear that no issue was resolved automatically

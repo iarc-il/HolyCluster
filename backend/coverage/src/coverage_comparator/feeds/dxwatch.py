@@ -112,7 +112,7 @@ class DXWatchAdapter:
                 if not isinstance(spot_id, str) or not re.fullmatch(r"[1-9]\d{0,19}", spot_id):
                     raise ValueError("Invalid DXWatch spot ID")
                 records.append((int(spot_id), _normalize(fields, now)))
-        except (httpx.HTTPError, ValueError, TypeError, OverflowError):
+        except (ValueError, TypeError, OverflowError):
             return Snapshot([], recoverable=False)
 
         saturated = len(records) >= self.rows

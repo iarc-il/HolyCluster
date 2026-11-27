@@ -36,7 +36,7 @@ function HistoryBar({
     set_is_dragging,
 }) {
     const { colors } = useColors();
-    const { hours, offset_ms, to_string } = useTimeZone();
+    const { hours, offset_ms, format_date, format_time } = useTimeZone();
     const { now_ms: current_time_ms } = useServerClock();
     const {
         active_profile_data: {
@@ -427,14 +427,14 @@ function HistoryBar({
                                     className="text-[14px] leading-none whitespace-nowrap font-medium"
                                     style={{ color: colors.theme.text }}
                                 >
-                                    {to_string(tick.date).slice(0, 6)}
+                                    {format_date(tick.date)}
                                 </span>
                             ) : (
                                 <span
                                     className="text-[14px] leading-none whitespace-nowrap"
                                     style={{ color: colors.theme.text, opacity: 0.8 }}
                                 >
-                                    {to_string(tick.date).slice(13, 18)}
+                                    {format_time(tick.date)}
                                 </span>
                             )}
                         </div>

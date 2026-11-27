@@ -126,10 +126,20 @@ const no_spotlight_interaction_steps = new Set([
 export const test = base.extend({
     tour_spots: [tour_spots, { option: true }],
     auto_start_tour: [false, { option: true }],
-    page: async ({ page, tour_spots, auto_start_tour }, use) => {
+    radio_state: [{ status: "unavailable" }, { option: true }],
+    radio_requests: async ({}, use) => {
+        await use([]);
+    },
+    propagation_data: [null, { option: true }],
+    page: async (
+        { page, tour_spots, auto_start_tour, radio_state, radio_requests, propagation_data },
+        use,
+    ) => {
         await page.addInitScript(auto_start => {
+            if (sessionStorage.getItem("tour_fixture_initialized")) return;
             localStorage.clear();
             sessionStorage.clear();
+            sessionStorage.setItem("tour_fixture_initialized", "true");
             localStorage.setItem("first_launch", JSON.stringify(auto_start));
             localStorage.setItem("active_view", "0");
             localStorage.setItem("mobile_tab", JSON.stringify("map"));
@@ -140,7 +150,7 @@ export const test = base.extend({
             route.fulfill({
                 status: 200,
                 contentType: "application/json",
-                body: "null",
+                body: JSON.stringify(propagation_data),
             }),
         );
         await page.route("**/dxpeditions", route =>
@@ -156,12 +166,13 @@ export const test = base.extend({
                     version: 1,
                     type: "radio",
                     event: "status",
-                    status: "unavailable",
+                    ...radio_state,
                     catserver_version: "catserver-v2.0.0",
                 }),
             );
             websocket.onMessage(message => {
                 const request = JSON.parse(message);
+                if (request.type === "radio") radio_requests.push(request);
                 if (request.type !== "spots" || request.action !== "initial") return;
 
                 websocket.send(
@@ -187,6 +198,13 @@ export async function open_tour_launcher(page) {
     await expect(page.locator(tour_target("top-bar"))).toBeVisible();
 
     const launcher = page.locator(tour_target("tour-launcher"));
+    if (page.viewportSize().width < 768) {
+        await page.locator(tour_target("mobile-main-tab-explore")).click();
+        await page.locator(tour_target("side-panel-tab-tours")).click();
+        await expect(page.locator(tour_target("tour-launcher-panel"))).toBeVisible();
+        return;
+    }
+
     const launcher_button = launcher.locator("button");
     if (!(await launcher_button.isVisible())) {
         const menu_button = page.locator(tour_target("top-bar-left-menu")).locator("button");
@@ -202,7 +220,11 @@ export async function start_tour(page, chapter_title) {
     await open_tour_launcher(page);
 
     const panel = page.locator(tour_target("tour-launcher-panel"));
-    await panel.getByRole("button", { name: `Select ${chapter_title} tour` }).click();
+    await panel
+        .getByRole("button", {
+            name: `Select ${page.viewportSize().width < 768 ? ({ "Spots Table": "Spots" }[chapter_title] ?? chapter_title) : chapter_title} tour`,
+        })
+        .click();
     await panel.getByRole("button", { name: "Start tour", exact: true }).click();
 }
 

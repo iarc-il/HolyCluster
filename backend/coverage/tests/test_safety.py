@@ -1,8 +1,11 @@
 import asyncio
+import ssl
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import fakeredis.aioredis
+import httpx
 from prometheus_client import CollectorRegistry
 from coverage_comparator.adapters import FakeAdapter, Snapshot
 from coverage_comparator.matcher import Matcher
@@ -19,7 +22,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         self.redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
         self.registry = CollectorRegistry()
         self.sink = MemorySampleSink()
-        self.matcher = Matcher(self.redis, Metrics(self.registry), self.sink)
+        self.matcher = Matcher(self.redis, Metrics(self.registry), self.sink, window=60)
         for source in ("holy", "dxsummit"):
             await self.matcher.health(source, True, 0)
             await self.matcher.health(source, True, 60)
@@ -57,7 +60,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await self.matcher.finalize(120)
         recovered_sink = MemorySampleSink()
-        recovered = Matcher(self.redis, self.matcher.metrics, recovered_sink)
+        recovered = Matcher(self.redis, self.matcher.metrics, recovered_sink, window=60)
         await recovered.finalize(121)
         await recovered.finalize(122)
         self.assertEqual(len(recovered_sink.samples), 1)
@@ -90,11 +93,94 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
             await run_adapter(self.matcher, adapter)
         adapter.close.assert_awaited_once()
 
+    async def test_expected_network_failures_report_once_per_outage(self):
+        request = httpx.Request("GET", "https://example.test")
+        for error in (
+            TimeoutError(),
+            aiohttp.ClientConnectionError("unavailable"),
+            aiohttp.ClientResponseError(MagicMock(), (), status=502, message="Bad Gateway"),
+            httpx.ConnectError("unavailable", request=request),
+            httpx.ReadTimeout("unavailable", request=request),
+            httpx.HTTPStatusError(
+                "service unavailable",
+                request=request,
+                response=httpx.Response(503, request=request),
+            ),
+        ):
+            with self.subTest(error=type(error).__name__):
+                adapter = FakeAdapter("dxsummit", [])
+                adapter.poll = AsyncMock(side_effect=[error, error, asyncio.CancelledError()])
+                adapter.close = AsyncMock()
+                with (
+                    patch("coverage_comparator.service.capture_exception") as capture,
+                    patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+                    self.assertRaises(asyncio.CancelledError),
+                ):
+                    await run_adapter(self.matcher, adapter)
+                capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+                adapter.close.assert_awaited_once()
+
+    async def test_failures_after_poll_remain_reported(self):
+        error = TimeoutError()
+        adapter = FakeAdapter("dxsummit", [Snapshot([]), Snapshot([])])
+        adapter.close = AsyncMock()
+        with (
+            patch(
+                "coverage_comparator.service.consume_snapshot",
+                new=AsyncMock(side_effect=[error, asyncio.CancelledError()]),
+            ),
+            patch("coverage_comparator.service.capture_exception") as capture,
+            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+            self.assertRaises(asyncio.CancelledError),
+        ):
+            await run_adapter(self.matcher, adapter)
+        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+
+    async def test_certificate_failure_remains_reported(self):
+        request = httpx.Request("GET", "https://example.test")
+
+        def make_httpx_error():
+            try:
+                raise httpx.ConnectError("invalid certificate", request=request) from ssl.SSLCertVerificationError(
+                    1, "self signed"
+                )
+            except httpx.ConnectError as error:
+                return error
+
+        for error in (
+            aiohttp.ClientConnectorCertificateError(MagicMock(), OSError("invalid certificate")),
+            make_httpx_error(),
+        ):
+            with self.subTest(error=type(error).__name__):
+                adapter = FakeAdapter("dxsummit", [])
+                adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
+                adapter.close = AsyncMock()
+                with (
+                    patch("coverage_comparator.service.capture_exception") as capture,
+                    patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+                    self.assertRaises(asyncio.CancelledError),
+                ):
+                    await run_adapter(self.matcher, adapter)
+                capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+
+    async def test_unexpected_adapter_failure_remains_reported(self):
+        error = RuntimeError("broken adapter")
+        adapter = FakeAdapter("dxsummit", [])
+        adapter.poll = AsyncMock(side_effect=[error, asyncio.CancelledError()])
+        adapter.close = AsyncMock()
+        with (
+            patch("coverage_comparator.service.capture_exception") as capture,
+            patch("coverage_comparator.service.asyncio.sleep", new_callable=AsyncMock),
+            self.assertRaises(asyncio.CancelledError),
+        ):
+            await run_adapter(self.matcher, adapter)
+        capture.assert_called_once_with(error, operation="coverage.poll.dxsummit")
+
     async def test_many_windows_recover_and_finalize_in_bounded_batches(self):
         for number in range(105):
             await self.matcher.observe("holy", {**SPOT, "dx_callsign": f"X{number}"}, 60)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 105)
-        recovered = Matcher(self.redis, self.matcher.metrics, self.sink)
+        recovered = Matcher(self.redis, self.matcher.metrics, self.sink, window=60)
         await recovered.finalize(120)
         self.assertEqual(await self.redis.hlen("coverage:windows"), 5)
         await recovered.finalize(120)
@@ -107,7 +193,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_disabled_services_emit_no_classifications_or_skips(self):
-        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, services=("dxsummit",))
+        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, window=60, services=("dxsummit",))
         await matcher.observe("holy", SPOT, 60)
         await matcher.finalize(120)
         self.assertEqual(
@@ -124,7 +210,7 @@ class SafetyTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_pending_sample_limit_does_not_change_classification(self):
-        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, max_samples=0)
+        matcher = Matcher(self.redis, self.matcher.metrics, self.sink, max_samples=0, window=60)
         await matcher.observe("holy", SPOT, 60)
         await matcher.finalize(120)
         self.assertEqual(len(self.sink.samples), 0)

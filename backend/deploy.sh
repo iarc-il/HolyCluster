@@ -32,6 +32,13 @@ mark_deployed() {
     rm -f "$DEPLOYMENT_BASE"
 }
 
+# Runs after the deploy succeeded, so a cleanup failure must not fail the deploy
+cleanup_docker() {
+    if ! bash cleanup-docker.sh; then
+        echo "Docker cleanup failed; the deploy itself succeeded." >&2
+    fi
+}
+
 # The checkout can differ from the marker after an older script rolls back.
 # Keep this baseline if checkout advances before deployment fails.
 if [ ! -f "$DEPLOYMENT_BASE" ]; then
@@ -49,9 +56,19 @@ fi
 
 CURRENT_HEAD=$(git rev-parse HEAD)
 
+MANAGED_SERVICES=(api collector coverage nginx victoriametrics grafana)
+# Compose resolves COMPOSE_PROFILES from both the shell and .env.
+ACTIVE_SERVICES=$(docker compose config --services)
+GRAFANA_MCP_ENABLED=false
+if grep -qxF grafana-mcp <<< "$ACTIVE_SERVICES"; then
+    GRAFANA_MCP_ENABLED=true
+    MANAGED_SERVICES+=(grafana-mcp)
+fi
+
+ROOT_CHANGED_FILES=""
 if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     CHANGED_FILES=""
-    for svc in api collector coverage nginx victoriametrics grafana; do
+    for svc in "${MANAGED_SERVICES[@]}"; do
         CONTAINER_ID=$(docker compose ps --all --quiet "$svc")
         HEALTH_STATE=""
         if [ -n "$CONTAINER_ID" ]; then
@@ -66,7 +83,7 @@ if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
             collector) CHANGED_FILES+=$'collectors/recovery\n' ;;
             coverage) CHANGED_FILES+=$'coverage/recovery\n' ;;
             nginx) CHANGED_FILES+=$'infra/nginx/recovery\n' ;;
-            victoriametrics|grafana) CHANGED_FILES+="infra/monitoring/$svc/recovery"$'\n' ;;
+            victoriametrics|grafana|grafana-mcp) CHANGED_FILES+="infra/monitoring/$svc/recovery"$'\n' ;;
         esac
     done
     if [ -z "$CHANGED_FILES" ]; then
@@ -76,9 +93,11 @@ if [ "$DEPLOYED_HEAD" = "$CURRENT_HEAD" ]; then
     fi
 else
     CHANGED_FILES=$(git diff --name-only --relative "$DEPLOYED_HEAD" "$CURRENT_HEAD" -- .)
+    # Root build input is outside backend/; keep its routing separate from backend/shared/.
+    ROOT_CHANGED_FILES=$(git diff --name-only --no-relative "$DEPLOYED_HEAD" "$CURRENT_HEAD" -- ../shared/band_plans.json)
 fi
 
-if [ -z "$CHANGED_FILES" ]; then
+if [ -z "$CHANGED_FILES" ] && [ -z "$ROOT_CHANGED_FILES" ]; then
     mark_deployed
     echo "No files changed in backend/. Nothing to deploy."
     exit 0
@@ -94,6 +113,7 @@ fi
 
 echo "Changed files:"
 echo "$CHANGED_FILES"
+echo "$ROOT_CHANGED_FILES"
 echo ""
 
 declare -A SERVICES
@@ -146,6 +166,9 @@ while IFS= read -r file; do
             add_service valkey
             add_service victoriametrics
             add_service grafana
+            if [ "$GRAFANA_MCP_ENABLED" = true ]; then
+                add_service grafana-mcp
+            fi
             run_migrations
             ;;
         shared/*)
@@ -187,6 +210,11 @@ while IFS= read -r file; do
         infra/monitoring/grafana/*)
             add_service grafana
             ;;
+        infra/monitoring/grafana-mcp/*)
+            if [ "$GRAFANA_MCP_ENABLED" = true ]; then
+                add_service grafana-mcp
+            fi
+            ;;
         infra/postgres/*)
             add_service postgres
             ;;
@@ -195,6 +223,10 @@ while IFS= read -r file; do
             ;;
     esac
 done <<< "$CHANGED_FILES"
+
+if grep -qxF "shared/band_plans.json" <<< "$ROOT_CHANGED_FILES"; then
+    add_service collector
+fi
 
 if [[ -v SERVICES[api] ]]; then
     add_service nginx
@@ -205,6 +237,7 @@ SERVICE_LIST="${!SERVICES[*]}"
 if [ -z "$SERVICE_LIST" ]; then
     mark_deployed
     echo "Changed files don't map to any services. Nothing to deploy."
+    cleanup_docker
     exit 0
 fi
 
@@ -300,7 +333,7 @@ if [ "$COMPOSE_FILE_CHANGED" = true ]; then
 fi
 
 HEALTH_SERVICES=()
-for svc in api collector coverage nginx victoriametrics grafana; do
+for svc in "${MANAGED_SERVICES[@]}"; do
     if [[ -v SERVICES[$svc] ]]; then
         HEALTH_SERVICES+=("$svc")
     fi
@@ -313,3 +346,4 @@ fi
 
 mark_deployed
 echo "Deploy complete."
+cleanup_docker

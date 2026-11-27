@@ -5,6 +5,7 @@ import {
     fetch_gaps as fetch_gaps_generic,
 } from "@/utils/interval_cache.js";
 import { normalize_spot_dxcc_fields } from "@/utils/spot_dxcc.js";
+import { has_valid_spot_locations } from "@/utils/spot_location.js";
 
 const DB_NAME = "holycluster_spot_cache";
 const DB_VERSION = 1;
@@ -21,7 +22,8 @@ const store = create_interval_db(
                 spot !== null &&
                 typeof spot === "object" &&
                 typeof spot.id === "string" &&
-                Number.isFinite(spot.time),
+                Number.isFinite(spot.time) &&
+                has_valid_spot_locations(spot),
         ),
 );
 
@@ -45,6 +47,7 @@ export function normalize_spots(spots) {
             return normalize_spot_dxcc_fields(spot);
         })
         .filter(spot => {
+            if (!has_valid_spot_locations(spot)) return false;
             if (!spot.dx_dxcc_code || !spot.spotter_dxcc_code) return false;
             if (!modes.includes(spot.mode)) return false;
             if (!continents.includes(spot.dx_continent)) return false;

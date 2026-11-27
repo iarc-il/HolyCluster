@@ -12,7 +12,7 @@ from collectors.metrics import CollectorMetrics, SpotEnvelope, start_metrics_ser
 from collectors.telnet import runner as telnet_runner
 from collectors.pota import get_pota_spot_key, parse_pota_spot
 from prometheus_client import generate_latest
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError
 
 PREFIX = "holycluster_collector_"
 
@@ -54,6 +54,28 @@ class MetricsTest(IsolatedAsyncioTestCase):
                 sort_key=lambda spot: 0,
             )
         return queue
+
+    async def test_pipeline_results_publish_bounded_coverage_records(self):
+        valkey = AsyncMock()
+        spot = {
+            "time": "1200Z",
+            "dx_callsign": "K1SECRET",
+            "frequency": 14074.0,
+            "spotter_callsign": "W1PRIVATE",
+        }
+        self.assertEqual(await main.publish_coverage_pipeline_result(valkey, spot, "invalid_band"), "success")
+        valkey.xadd.assert_awaited_once_with(
+            "coverage-holy-pipeline",
+            {**spot, "result": "invalid_band"},
+            maxlen=100_000,
+            approximate=False,
+        )
+        valkey.reset_mock()
+        self.assertEqual(
+            await main.publish_coverage_pipeline_result(valkey, {**spot, "type": "pota"}, "success"),
+            "excluded",
+        )
+        valkey.xadd.assert_not_awaited()
 
     async def test_empty_json_is_success_and_failure_preserves_last_success(self):
         await self.poll([[]])
@@ -100,7 +122,11 @@ class MetricsTest(IsolatedAsyncioTestCase):
             patch.object(main, "get_valkey_client", return_value=stream),
             patch.object(main, "create_async_engine", return_value=engine),
             patch.object(main, "enrich_spot", AsyncMock(return_value=envelope.spot)),
-            patch.object(main, "add_spot_to_postgres", AsyncMock(side_effect=[SQLAlchemyError(), None, None])),
+            patch.object(
+                main,
+                "add_spot_to_postgres",
+                AsyncMock(side_effect=[OperationalError("insert", {}, ConnectionRefusedError()), None, None]),
+            ),
             patch.object(main.asyncio, "sleep", AsyncMock()),
         ):
             task = asyncio.create_task(main.process_spots(queue, MagicMock()))
@@ -283,6 +309,7 @@ class MetricsTest(IsolatedAsyncioTestCase):
         incoming = asyncio.Queue()
         reading = asyncio.Event()
         reader, writer = MagicMock(), MagicMock()
+        writer.drain = AsyncMock()
         writer.wait_closed = AsyncMock()
         valkey = AsyncMock()
         valkey.set.side_effect = [True, False]
@@ -328,6 +355,8 @@ class MetricsTest(IsolatedAsyncioTestCase):
             finally:
                 task.cancel()
                 await task
+        writer.write.assert_any_call(b"bye\n")
+        writer.drain.assert_awaited()
         self.assertEqual(queue.qsize(), 1)
         self.assertEqual(spot_tracker.record.await_count, 2)
         spot_tracker.record.assert_awaited_with("2010Z:K1SECRET:14074.0:W1PRIVATE", "DXUSA")

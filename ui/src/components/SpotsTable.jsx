@@ -1,7 +1,8 @@
-import CallsignSearch from "@/components/CallsignSearch.jsx";
 import { QUICK_SPOT_EVENT } from "@/components/SubmitSpot.jsx";
+import CallsignSearch from "@/components/search/CallsignSearch.jsx";
+import Button from "@/components/ui/Button.jsx";
 import X from "@/components/ui/X.jsx";
-import { forwardRef, useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 import SpotContextMenu from "./SpotContextMenu";
 import Popup from "./ui/Popup";
 
@@ -9,20 +10,19 @@ import {
     TOUR_TABLE_CONTEXT_MENU_EVENT,
     TOUR_TABLE_SPOT_ROW_EVENT,
 } from "@/components/tour/tour_events.js";
-import {
-    get_dxcc_label,
-    is_canada_dxcc_code,
-    is_us_state_dxcc_code,
-} from "@/data/dxcc_entities.js";
+import { get_dxcc_label } from "@/data/dxcc_entities.js";
 import { get_dxcc_flag } from "@/data/flags.js";
 import { STATES } from "@/data/states.js";
+import { view_callsign_history } from "@/hooks/useCallsignSearch";
 import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
+import useRadio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
 import { useSpotData } from "@/hooks/useSpotData";
 import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useTimeZone } from "@/hooks/useTimeZone";
 import { get_missing_alert_flash_phase } from "@/utils.js";
+import { get_spot_dxcc_display } from "@/utils/spot_dxcc.js";
 
 const cell_classes = {
     time: "w-[15%] md:w-[11%] xl:w-[8%]",
@@ -51,6 +51,57 @@ const MISSING_ALERT_FLASH_CSS_VAR_NAMES = [
 ];
 const tour_table_header_height = 32;
 const tour_table_row_height = 28;
+
+const EMPTY_REASON_ACTIONS = {
+    radio_band: { label: "Radio-band filter", button: "Use selected bands" },
+    bands: { label: "Band filters", button: "Enable all" },
+    modes: { label: "Mode filters", button: "Enable all" },
+    dx_continents: { label: "DX continent filters", button: "Enable all" },
+    spotter_continents: { label: "Spotter continent filters", button: "Enable all" },
+    show_only: { label: "Show-only filters", button: "Turn off" },
+    hide: { label: "Hide filters", button: "Turn off" },
+};
+
+function get_empty_spots_copy(empty_state) {
+    if (empty_state.kind === "history") {
+        return { title: "No spots in selected time range", hint: null };
+    }
+    if (empty_state.kind === "source") {
+        const source =
+            empty_state.source === "cluster" ? "cluster" : empty_state.source.toUpperCase();
+        return { title: `No ${source} spots received`, hint: null };
+    }
+
+    return { title: "No spots" };
+}
+
+export function get_active_spot_table_style({
+    is_previewed,
+    is_pinned,
+    is_radio_match,
+    normal_background,
+    normal_text,
+    band,
+    light_band,
+    band_text,
+}) {
+    let background_color = normal_background;
+    let text_color = normal_text;
+    let edge_style;
+
+    if (is_pinned) {
+        background_color = light_band;
+        text_color = band_text;
+        edge_style = `inset 4px 0 0 ${band}`;
+    } else if (is_radio_match) {
+        background_color = `color-mix(in srgb, ${normal_background} 60%, ${light_band})`;
+    } else if (is_previewed) {
+        background_color = `color-mix(in srgb, ${normal_background} 88%, ${light_band})`;
+        edge_style = `inset 2px 0 0 ${band}`;
+    }
+
+    return { background_color, text_color, edge_style };
+}
 
 export function get_tour_row_index(spots_count, table_height) {
     if (spots_count <= 0) return -1;
@@ -221,11 +272,76 @@ function get_sota_points_style(points) {
     };
 }
 
+export function FitText({ value, children, className = "", style, title }) {
+    const container_ref = useRef(null);
+    const text_ref = useRef(null);
+
+    useLayoutEffect(() => {
+        const container = container_ref.current;
+        const text = text_ref.current;
+        if (!container || !text) return;
+
+        text.style.fontSize = "";
+        const maximum_size = Number.parseFloat(getComputedStyle(text).fontSize) || 14;
+        const minimum_size = Math.min(9, maximum_size);
+
+        function fit_text() {
+            const available_width = container.clientWidth;
+            if (available_width <= 0) return;
+
+            text.style.fontSize = `${maximum_size}px`;
+            if (text.scrollWidth <= available_width) return;
+
+            let lower_size = minimum_size;
+            let upper_size = maximum_size;
+            text.style.fontSize = `${minimum_size}px`;
+            if (text.scrollWidth > available_width) return;
+
+            for (let index = 0; index < 5; index += 1) {
+                const middle_size = (lower_size + upper_size) / 2;
+                text.style.fontSize = `${middle_size}px`;
+                if (text.scrollWidth <= available_width) {
+                    lower_size = middle_size;
+                } else {
+                    upper_size = middle_size;
+                }
+            }
+            text.style.fontSize = `${lower_size}px`;
+        }
+
+        fit_text();
+        if (typeof ResizeObserver === "undefined") return;
+
+        const resize_observer = new ResizeObserver(fit_text);
+        resize_observer.observe(container);
+        return () => resize_observer.disconnect();
+    }, [value]);
+
+    return (
+        <span ref={container_ref} className="block w-full min-w-0 whitespace-nowrap">
+            <span
+                ref={text_ref}
+                className={`inline-block ${className}`}
+                style={style}
+                title={title}
+            >
+                {children}
+            </span>
+        </span>
+    );
+}
+
+export function get_spot_entity_label(spot) {
+    return get_dxcc_label(spot.dx_dxcc_code);
+}
+
 function Callsign({ callsign }) {
     return (
-        <a href={`https://www.qrz.com/db/${callsign}`} target="_blank" rel="noreferrer">
-            {callsign}
-        </a>
+        <FitText value={callsign} title={callsign}>
+            <a href={`https://www.qrz.com/db/${callsign}`} target="_blank" rel="noreferrer">
+                {callsign}
+            </a>
+        </FitText>
     );
 }
 
@@ -238,6 +354,7 @@ const Spot = forwardRef(function Spot(
         set_pinned_spot,
         set_hovered_spot,
         set_cat_to_spot,
+        can_set_cat,
         on_context_menu,
         is_new_spot,
         cell_classes,
@@ -247,7 +364,7 @@ const Spot = forwardRef(function Spot(
     },
     ref,
 ) {
-    const { current_freq_spots } = useSpotData();
+    const { current_freq_spots, is_history_mode, is_callsign_search } = useSpotData();
     const { settings } = useSettings();
     const [is_fading, set_is_fading] = useState(false);
 
@@ -263,11 +380,14 @@ const Spot = forwardRef(function Spot(
         set_is_fading(false);
     }, [is_new_spot]);
 
-    const { to_string } = useTimeZone();
-    const formatted_time = to_string(new Date(spot.time * 1000)).slice(13, 18);
+    const { format_time, format_date } = useTimeZone();
+    const spot_date = new Date(spot.time * 1000);
+    const formatted_time = format_time(spot_date);
+    // A callsign search spans days, so the time alone is ambiguous
+    const formatted_date = is_callsign_search ? format_date(spot_date) : null;
     const is_same_freq = current_freq_spots.includes(spot.id);
     const is_pinned = spot.id === pinned_spot;
-    const is_hovered = spot.id === hovered_spot.id || is_pinned || is_same_freq;
+    const is_previewed = spot.id === hovered_spot.id;
 
     const { colors, dev_mode } = useColors();
     let row_classes;
@@ -294,23 +414,32 @@ const Spot = forwardRef(function Spot(
         normal_text_color = colors.table.odd_text;
     }
 
-    if (is_hovered) {
-        background_color = colors.light_bands[spot.band];
-        text_color = colors.text[spot.band];
-    } else if (is_new_spot && !is_fading) {
+    const active_style = get_active_spot_table_style({
+        is_previewed,
+        is_pinned,
+        is_radio_match: is_same_freq,
+        normal_background: normal_bg_color,
+        normal_text: normal_text_color,
+        band: color,
+        light_band: colors.light_bands[spot.band],
+        band_text: colors.text[spot.band],
+    });
+
+    if (!is_pinned && !is_previewed && is_new_spot && !is_fading) {
         background_color = colors.light_bands[spot.band];
         text_color = colors.text[spot.band];
     } else {
-        background_color = normal_bg_color;
-        text_color = normal_text_color;
+        background_color = active_style.background_color;
+        text_color = active_style.text_color;
     }
 
     const [is_flag_hovered, set_is_flag_hovered] = useState(false);
     const [is_reference_hovered, set_is_reference_hovered] = useState(false);
     const [is_missing_hovered, set_is_missing_hovered] = useState(false);
-    const dx_label = get_dxcc_label(spot.dx_dxcc_code) || spot.dx_country || "";
-    const is_us_state_entity = is_us_state_dxcc_code(spot.dx_dxcc_code);
-    const is_canada_entity = is_canada_dxcc_code(spot.dx_dxcc_code);
+    const { dx_label, is_us_state_entity, is_canada_entity } = get_spot_dxcc_display(
+        spot,
+        is_history_mode ? "history" : "live",
+    );
     const state_name = is_canada_entity
         ? STATES.Canada?.[spot.dx_state]
         : is_us_state_entity
@@ -363,6 +492,8 @@ const Spot = forwardRef(function Spot(
             ref={ref}
             data-tour={is_tour_row ? "spot-row" : undefined}
             data-tour-state={is_tour_row ? (is_pinned ? "pinned" : "unpinned") : undefined}
+            data-pinned={is_pinned}
+            data-spot-id={spot.id}
             style={{
                 backgroundColor: background_color,
                 outlineColor: is_regular_alerted ? colors.light_bands[spot.band] : "",
@@ -376,7 +507,7 @@ const Spot = forwardRef(function Spot(
             onMouseEnter={() => set_hovered_spot({ source: "table", id: spot.id })}
             onClick={() => set_pinned_spot(spot.id)}
         >
-            <td className={cell_classes.time}>
+            <td className={cell_classes.time} style={{ boxShadow: active_style.edge_style }}>
                 {is_pinned ? (
                     <div className="m-auto w-fit">
                         <X
@@ -386,6 +517,11 @@ const Spot = forwardRef(function Spot(
                                 return set_pinned_spot(null);
                             }}
                         />
+                    </div>
+                ) : formatted_date ? (
+                    <div className="leading-tight">
+                        {formatted_time}
+                        <div className="text-xs opacity-70">{formatted_date}</div>
                     </div>
                 ) : (
                     formatted_time
@@ -444,15 +580,15 @@ const Spot = forwardRef(function Spot(
             >
                 <span
                     ref={missing_popup_anchor}
-                    className="relative"
+                    className="relative block w-full min-w-0"
                     onMouseEnter={() => {
                         if (spot.missingNeeded?.is_needed) set_is_missing_hovered(true);
                     }}
                     onMouseLeave={() => set_is_missing_hovered(false)}
                 >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="flex w-full min-w-0 items-center gap-1">
                         <span
-                            className={is_missing_alerted ? "inline-block rounded px-1" : ""}
+                            className={`min-w-0 flex-1 ${is_missing_alerted ? "rounded px-1" : ""}`}
                             style={is_missing_alerted ? missing_alert_callsign_style : undefined}
                         >
                             <Callsign callsign={spot.dx_callsign} />
@@ -464,12 +600,8 @@ const Spot = forwardRef(function Spot(
                                 background: colors.theme.background,
                             }}
                         />
+                        {is_dxpedition_alerted && <span title="DXpedition">⭐</span>}
                     </span>
-                    {is_dxpedition_alerted && (
-                        <span className="ml-1" title="DXpedition">
-                            ⭐
-                        </span>
-                    )}
                 </span>
                 {is_missing_hovered && spot.missingNeeded?.is_needed && (
                     <Popup anchor_ref={missing_popup_anchor}>
@@ -497,16 +629,34 @@ const Spot = forwardRef(function Spot(
             <td
                 className={cell_classes.freq}
                 data-tour={is_tour_row ? "spot-row-frequency" : undefined}
-                onClick={() => set_cat_to_spot(spot)}
+                style={{ fontWeight: is_same_freq ? 600 : undefined }}
+                onClick={
+                    can_set_cat
+                        ? event => {
+                              event.stopPropagation();
+                              set_cat_to_spot(spot, { notify_logger: true });
+                          }
+                        : undefined
+                }
             >
-                <div
-                    className="inline-block min-w-[3.25rem] px-1 rounded-full cursor-pointer md:hidden"
-                    style={{ backgroundColor: color, color: colors.text[spot.band] }}
-                >
-                    {spot.freq}
+                <div className="w-full md:hidden">
+                    <FitText
+                        value={spot.freq}
+                        className={`rounded-full px-1 tabular-nums ${can_set_cat ? "cursor-pointer" : ""}`}
+                        style={{ backgroundColor: color, color: colors.text[spot.band] }}
+                        title={String(spot.freq)}
+                    >
+                        {spot.freq}
+                    </FitText>
                 </div>
-                <div className="hidden min-w-[3.25rem] px-1 rounded-full cursor-pointer md:inline-block">
-                    {spot.freq}
+                <div className="hidden w-full md:block">
+                    <FitText
+                        value={spot.freq}
+                        className={`rounded-full px-1 tabular-nums ${can_set_cat ? "cursor-pointer" : ""}`}
+                        title={String(spot.freq)}
+                    >
+                        {spot.freq}
+                    </FitText>
                 </div>
             </td>
             <td className={cell_classes.band} data-tour={is_tour_row ? "spot-row-band" : undefined}>
@@ -679,7 +829,17 @@ function HeaderCell({ title, field, cell_classes, table_sort, set_table_sort, so
 
 function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const { colors } = useColors();
-    const { spots, new_spot_ids, current_freq_spots } = useSpotData();
+    const { is_cat_available } = useRadio();
+    const can_set_cat = is_cat_available();
+    const {
+        spots,
+        empty_state,
+        new_spot_ids,
+        current_freq_spots,
+        network_state,
+        is_history_mode,
+        fetch_state,
+    } = useSpotData();
     const {
         hovered_spot,
         set_hovered_spot,
@@ -688,7 +848,14 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         is_pota_mode,
         selected_reference_type,
     } = useSpotInteraction();
-    const { get_filter_add_status, add_filter_if_allowed } = useFilters();
+    const {
+        get_filter_add_status,
+        add_filter_if_allowed,
+        setFilterKeys,
+        setRadioModeFilter,
+        setCallsignFilters,
+    } = useFilters();
+    const { settings } = useSettings();
     const row_refs = useRef({});
     const table_flash_ref = useRef(null);
     const [tour_row_index, set_tour_row_index] = useState(4);
@@ -759,6 +926,36 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
     const table_columns = show_sota_points ? sota_columns : is_pota_mode ? pota_columns : columns;
     const selected_tour_row_index =
         spots.length > 0 ? Math.min(tour_row_index, spots.length - 1) : -1;
+    const show_empty_state =
+        empty_state != null &&
+        (is_history_mode ? fetch_state === "done" : network_state === "connected");
+    const empty_copy = show_empty_state ? get_empty_spots_copy(empty_state) : null;
+
+    function apply_empty_reason(reason) {
+        switch (reason) {
+            case "radio_band":
+                setRadioModeFilter(false);
+                break;
+            case "bands":
+                setFilterKeys("bands", true, settings.disabled_bands);
+                break;
+            case "modes":
+                setFilterKeys("modes", true, settings.disabled_modes);
+                break;
+            case "dx_continents":
+                setFilterKeys("dx_continents", true);
+                break;
+            case "spotter_continents":
+                setFilterKeys("spotter_continents", true);
+                break;
+            case "show_only":
+                setCallsignFilters(state => ({ ...state, is_show_only_filters_active: false }));
+                break;
+            case "hide":
+                setCallsignFilters(state => ({ ...state, is_hide_filters_active: false }));
+                break;
+        }
+    }
 
     const [context_menu, set_context_menu] = useState({
         visible: false,
@@ -789,8 +986,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         if (menu_type === "flag") {
             return [
                 build_filter_action({
-                    add_label: spot => `Add Alert for ${get_dxcc_label(spot.dx_dxcc_code)}`,
-                    remove_label: spot => `Remove Alert for ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    add_label: spot => `Add Alert for ${get_spot_entity_label(spot)}`,
+                    remove_label: spot => `Remove Alert for ${get_spot_entity_label(spot)}`,
                     build_filter: spot => ({
                         action: "alert",
                         type: "entity",
@@ -799,8 +996,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     }),
                 }),
                 build_filter_action({
-                    add_label: spot => `Add Show Only ${get_dxcc_label(spot.dx_dxcc_code)}`,
-                    remove_label: spot => `Remove Show Only ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    add_label: spot => `Add Show Only ${get_spot_entity_label(spot)}`,
+                    remove_label: spot => `Remove Show Only ${get_spot_entity_label(spot)}`,
                     build_filter: spot => ({
                         action: "show_only",
                         type: "entity",
@@ -809,8 +1006,8 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                     }),
                 }),
                 build_filter_action({
-                    add_label: spot => `Add Hide ${get_dxcc_label(spot.dx_dxcc_code)}`,
-                    remove_label: spot => `Remove Hide ${get_dxcc_label(spot.dx_dxcc_code)}`,
+                    add_label: spot => `Add Hide ${get_spot_entity_label(spot)}`,
+                    remove_label: spot => `Remove Hide ${get_spot_entity_label(spot)}`,
                     build_filter: spot => ({
                         action: "hide",
                         type: "entity",
@@ -846,6 +1043,11 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                   }),
                               );
                           },
+                      },
+                      // The history search looks up DX callsigns only
+                      {
+                          label: () => "View History",
+                          onClick: spot => view_callsign_history(spot.dx_callsign),
                       },
                   ]),
             {
@@ -971,11 +1173,11 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
         if (
             hovered_ref !== undefined &&
             ["spotter", "dx", "arc", "bar", "dxpedition"].includes(hovered_spot.source) &&
-            pinned_spot === undefined
+            pinned_spot === null
         ) {
             hovered_ref.scrollIntoView({ block: "center", behavior: "instant" });
         }
-    }, [hovered_spot]);
+    }, [hovered_spot, pinned_spot]);
 
     return (
         <>
@@ -1010,6 +1212,44 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     />
                                 ))}
                             </tr>
+                            {empty_copy && (
+                                <tr>
+                                    <td colSpan={table_columns.length}>
+                                        <div
+                                            className="mx-auto max-w-sm px-4 py-10"
+                                            data-tour="spots-empty-state"
+                                            aria-live="polite"
+                                            style={{ color: colors.theme.text }}
+                                        >
+                                            <div className="text-center font-semibold">
+                                                {empty_copy.title}
+                                            </div>
+                                            {empty_state.kind === "hidden" &&
+                                                empty_state.reasons.map(reason => {
+                                                    const action = EMPTY_REASON_ACTIONS[reason];
+                                                    if (!action) return null;
+                                                    return (
+                                                        <div
+                                                            key={reason}
+                                                            className="mt-3 flex items-center justify-between gap-4 text-left"
+                                                            data-tour={`spots-empty-reason-${reason}`}
+                                                        >
+                                                            <span>{action.label}</span>
+                                                            <Button
+                                                                className="shrink-0 px-3 py-1"
+                                                                on_click={() =>
+                                                                    apply_empty_reason(reason)
+                                                                }
+                                                            >
+                                                                {action.button}
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                             {spots.map((spot, index) => (
                                 <Spot
                                     ref={element => (row_refs.current[spot.id] = element)}
@@ -1021,6 +1261,7 @@ function SpotsTable({ table_sort, set_table_sort, set_cat_to_spot }) {
                                     set_pinned_spot={set_pinned_spot}
                                     set_hovered_spot={set_hovered_spot}
                                     set_cat_to_spot={set_cat_to_spot}
+                                    can_set_cat={can_set_cat}
                                     on_context_menu={handle_context_menu}
                                     is_new_spot={new_spot_ids.has(spot.id)}
                                     cell_classes={table_cell_classes}

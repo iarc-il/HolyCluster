@@ -1,11 +1,9 @@
 import dxcc_map from "virtual:dxcc-map";
 import {
-    get_dxcc_label,
     is_filterable_dxcc_entity,
     normalize_dxcc_code,
     normalize_dxcc_entity_code,
 } from "@/data/dxcc_entities.js";
-import { normalize_dxcc_label } from "@/data/dxcc_labels.js";
 import lakes from "@/maps/lakes.json";
 import {
     ZONE_CONFIG,
@@ -17,8 +15,6 @@ import {
 import * as d3 from "d3";
 import { century, declination, equationOfTime } from "solar-calculator";
 import { profile_map } from "./map_profile.js";
-
-export { dxcc_map };
 
 function build_color_groups(country_color_indices) {
     const groups = new Map();
@@ -684,17 +680,6 @@ const DXCC_LABEL_STYLE = {
     font_scale: 0.25,
     text_width_factor: 0.62,
 };
-
-export function get_dxcc_entity_name(feature) {
-    const dxcc_code = normalize_dxcc_code(feature?.properties?.dxcc_entity_code);
-    const label = get_dxcc_label(dxcc_code);
-    if (label) return label;
-
-    const dxcc_name = feature?.properties?.dxcc_name;
-    if (typeof dxcc_name !== "string") return "";
-
-    return normalize_dxcc_label(dxcc_name);
-}
 
 function get_zone_action_map(callsign_filters, system, overlay_highlights = null) {
     const filters = callsign_filters?.filters ?? [];

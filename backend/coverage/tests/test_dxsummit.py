@@ -70,6 +70,8 @@ class DXSummitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(identity(spot), "BD3CT:21074.0:AD1C")
         _, other = DXSummitAdapter._normalize(record(2, comment="changed"))
         self.assertEqual(identity(spot), identity(other))
+        self.assertEqual(identity({**spot, "frequency": "14021.06"}), identity({**spot, "frequency": 14021.1}))
+        self.assertNotEqual(identity({**spot, "frequency": 14021.16}), identity({**spot, "frequency": 14021.1}))
         self.assertEqual(
             identity(
                 {
@@ -82,9 +84,11 @@ class DXSummitTests(unittest.IsolatedAsyncioTestCase):
             ),
             identity(spot),
         )
-        _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-A", comment=None))
-        self.assertEqual(other["spotter_callsign"], "AD1C-A")
+        _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-@", comment=None))
+        self.assertEqual(other["spotter_callsign"], "AD1C")
         self.assertEqual(other["comment"], "")
+        _, other = DXSummitAdapter._normalize(record(2, de_call="ad1c-A"))
+        self.assertEqual(other["spotter_callsign"], "AD1C-A")
         upstream = record(1, info="CW")
         del upstream["comment"]
         self.assertEqual(DXSummitAdapter._normalize(upstream)[1]["comment"], "CW")

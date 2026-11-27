@@ -26,7 +26,23 @@ const gtm = { filename: "https://tracker.example/gtm.js", lineno: 695 };
 const secondary = [
     "undefined is not an object (evaluating 'v._result.default')",
     'can\'t access property "default", v._result is undefined',
+    "Cannot read properties of undefined (reading 'default')",
 ];
+
+it("prepares events when Object.hasOwn is unavailable", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Object, "hasOwn");
+    Object.defineProperty(Object, "hasOwn", { value: undefined, configurable: true });
+    try {
+        const input = event("application failure", [app]);
+        const result = prepareSentryEvent(input, {
+            originalException: new Error("application failure"),
+        });
+        expect(result.exception).toEqual(input.exception);
+        expect(result.contexts.diagnostic.provenance).toBe("app_frames");
+    } finally {
+        Object.defineProperty(Object, "hasOwn", descriptor);
+    }
+});
 
 describe("runtime bridge advisory", () => {
     const message = "Invalid call to runtime.sendMessage(). Tab not found.";

@@ -9,7 +9,6 @@ dependencies = [
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.7.1",
-    "redis>=7.1.0",
     "sqlmodel>=0.0.27",
     "sentry-sdk>=2.0.0",
 ]

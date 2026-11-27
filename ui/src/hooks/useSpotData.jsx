@@ -1,5 +1,6 @@
 import { play_alert_sound } from "@/utils.js";
 import { createContext, useContext, useEffect } from "react";
+import useCallsignSearch from "./useCallsignSearch";
 import { useFilters } from "./useFilters";
 import useHistorySpots from "./useHistorySpots";
 import use_radio from "./useRadio";
@@ -20,6 +21,8 @@ export const SpotDataProvider = ({
     endTime,
     window_size_ms,
     step_size_ms,
+    callsign_search,
+    set_callsign_search,
 }) => {
     const {
         raw_spots: ws_raw_spots,
@@ -33,26 +36,37 @@ export const SpotDataProvider = ({
         committed_start,
         committed_end,
     } = useHistorySpots(startTime, endTime, window_size_ms, step_size_ms);
+    const {
+        raw_spots: search_raw_spots,
+        fetch_state: search_fetch_state,
+        error: search_error,
+        truncated: search_truncated,
+    } = useCallsignSearch(callsign_search);
 
     const is_history_mode = !!(startTime && endTime);
+    const is_callsign_search = !!callsign_search;
     // Hard guarantee, independent of whatever fed history_raw_spots: while in
     // history mode the table may only ever show spots inside the selected
     // window. Never fall through to live spots here, regardless of source.
-    const raw_spots = is_history_mode
-        ? history_raw_spots.filter(spot => {
-              const time_ms = spot.time * 1000;
-              return time_ms >= startTime.getTime() && time_ms <= endTime.getTime();
-          })
-        : ws_raw_spots;
-    const new_spot_ids = is_history_mode ? new Set() : ws_new_spot_ids;
+    let raw_spots = ws_raw_spots;
+    if (is_callsign_search) {
+        raw_spots = search_raw_spots;
+    } else if (is_history_mode) {
+        raw_spots = history_raw_spots.filter(spot => {
+            const time_ms = spot.time * 1000;
+            return time_ms >= startTime.getTime() && time_ms <= endTime.getTime();
+        });
+    }
+    const new_spot_ids = is_history_mode || is_callsign_search ? new Set() : ws_new_spot_ids;
     const {
         spots,
+        empty_state,
         filter_missing_flags,
         set_filter_missing_flags,
         spots_per_band_count,
         spots_per_mode_count,
         current_freq_spots,
-    } = useSpotFiltering(raw_spots, is_history_mode);
+    } = useSpotFiltering(raw_spots, { is_history_mode, is_callsign_search });
 
     const { pinned_spot } = useSpotInteraction();
     const { settings } = useSettings();
@@ -63,6 +77,7 @@ export const SpotDataProvider = ({
     useEffect(() => {
         if (
             !is_history_mode &&
+            !is_callsign_search &&
             new_spot_ids.size > 0 &&
             settings.alert_sound_enabled &&
             callsign_filters.is_alert_filters_active
@@ -97,6 +112,7 @@ export const SpotDataProvider = ({
             value={{
                 spots,
                 raw_spots,
+                empty_state,
                 new_spot_ids,
                 filter_missing_flags,
                 set_filter_missing_flags,
@@ -109,6 +125,12 @@ export const SpotDataProvider = ({
                 fetch_state,
                 committed_start,
                 committed_end,
+                callsign_search,
+                set_callsign_search,
+                is_callsign_search,
+                search_fetch_state,
+                search_error,
+                search_truncated,
             }}
         >
             {children}

@@ -7,6 +7,9 @@ const state = vi.hoisted(() => ({
     opens: 0,
     capture: vi.fn(),
     get_all_error: null,
+    transaction_error_at: null,
+    transaction_error_name: "InvalidStateError",
+    transactions: 0,
     unreadable_keys: [],
     keys_error: null,
     delete_error: null,
@@ -34,6 +37,13 @@ vi.mock("idb", async importOriginal => {
                     version: db.version,
                     objectStoreNames: db.objectStoreNames,
                     transaction(...args) {
+                        state.transactions++;
+                        if (state.transactions === state.transaction_error_at) {
+                            throw new DOMException(
+                                "The database transaction is unavailable",
+                                state.transaction_error_name,
+                            );
+                        }
                         const tx = db.transaction(...args);
                         return {
                             done: tx.done,
@@ -77,6 +87,9 @@ afterEach(() => {
     state.open_error = null;
     state.opens = 0;
     state.get_all_error = null;
+    state.transaction_error_at = null;
+    state.transaction_error_name = "InvalidStateError";
+    state.transactions = 0;
     state.unreadable_keys = [];
     state.keys_error = null;
     state.delete_error = null;
@@ -130,6 +143,25 @@ describe("cache lifecycle", () => {
             await cache.evict_old_records();
             expect(read(start, end).is_complete).toBe(kind !== "spots");
             expect(state.opens).toBe(1);
+            expect(state.capture).not.toHaveBeenCalled();
+        },
+    );
+
+    it.each(["InvalidStateError", "NotFoundError"])(
+        "uses memory when the initial transaction fails with %s",
+        async error_name => {
+            state.transaction_error_at = 1;
+            state.transaction_error_name = error_name;
+            const store = make_store();
+
+            await expect(store.ready()).resolves.toBeUndefined();
+            await store.commit([], { start: 0, end: 10, data: [1] });
+
+            expect(store.get_overlapping_intervals(0, 10)).toEqual([
+                expect.objectContaining({ start: 0, end: 10, data: [1] }),
+            ]);
+            expect(state.opens).toBe(1);
+            expect(state.transactions).toBe(1);
             expect(state.capture).not.toHaveBeenCalled();
         },
     );
@@ -262,6 +294,43 @@ describe("cache lifecycle", () => {
         },
     );
 
+    it("refetches cached spot coverage with invalid locations", async () => {
+        vi.resetModules();
+        const { openDB } = await vi.importActual("idb");
+        const disk = await openDB("holycluster_spot_cache", 1, {
+            upgrade(db) {
+                db.createObjectStore("intervals", { keyPath: "id", autoIncrement: true });
+            },
+        });
+        await disk.clear("intervals");
+        const start = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+        const end = start + 3_600_000;
+        await disk.put("intervals", {
+            start,
+            end,
+            spots: [
+                {
+                    id: "invalid-location",
+                    time: start / 1000 + 1,
+                    dx_loc: [0, 91],
+                    spotter_loc: [0, 0],
+                },
+            ],
+        });
+        const cache = await import("@/utils/spot_cache_db.jsx");
+        const ws = transport();
+
+        await cache.ensure_spots_loaded(ws.send, ws.subscribe, ws.wait, start, end);
+
+        expect(ws.send).toHaveBeenCalledOnce();
+        expect(cache.get_spots(start, end)).toEqual({ spots: [], is_complete: true });
+        expect(await disk.getAll("intervals")).toEqual([
+            expect.objectContaining({ start, end, spots: [] }),
+        ]);
+        expect(state.capture).not.toHaveBeenCalled();
+        disk.close();
+    });
+
     it.each([
         ["spots", false],
         ["spots", true],
@@ -347,6 +416,49 @@ describe("cache lifecycle", () => {
         ]);
         expect(await disk.getAll("intervals")).toEqual([saved]);
         expect(await disk.get("other", 1)).toBe("untouched");
+        disk.close();
+    });
+
+    it("uses memory without modifying disk when a bulk read is aborted", async () => {
+        const { openDB } = await vi.importActual("idb");
+        const name = `bulk_abort_${sequence++}`;
+        const disk = await openDB(name, 1, {
+            upgrade(db) {
+                db.createObjectStore("intervals", { keyPath: "id", autoIncrement: true });
+            },
+        });
+        const saved = { id: 1, start: 0, end: 10 };
+        await disk.put("intervals", saved);
+        state.get_all_error = new DOMException("The transaction was aborted", "AbortError");
+        const store = create_interval_db(name, 1, "intervals");
+        await expect(store.ready()).resolves.toBeUndefined();
+        await store.commit([], { start: 0, end: 20 });
+        await store.evict(30, () => null);
+        expect(store.get_overlapping_intervals(0, 20)).toEqual([]);
+        expect(await disk.getAll("intervals")).toEqual([saved]);
+        expect(state.capture).not.toHaveBeenCalled();
+        disk.close();
+    });
+
+    it("uses memory when the database closes before key recovery", async () => {
+        const { openDB } = await vi.importActual("idb");
+        const name = `closing_${sequence++}`;
+        const disk = await openDB(name, 1, {
+            upgrade(db) {
+                db.createObjectStore("intervals", { keyPath: "id", autoIncrement: true });
+            },
+        });
+        const saved = { id: 1, start: 0, end: 10 };
+        await disk.put("intervals", saved);
+        state.get_all_error = new DOMException("unreadable", "UnknownError");
+        state.transaction_error_at = 2;
+        const store = create_interval_db(name, 1, "intervals");
+        await expect(store.ready()).resolves.toBeUndefined();
+        await store.commit([], { start: 0, end: 20 });
+        await store.evict(30, () => null);
+        expect(store.get_overlapping_intervals(0, 20)).toEqual([]);
+        expect(await disk.getAll("intervals")).toEqual([saved]);
+        expect(state.capture).not.toHaveBeenCalled();
         disk.close();
     });
 

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 function clock() {
     const { colors } = useColors();
-    const { time_zone, toggle_time_zone, label, to_string } = useTimeZone();
+    const { time_zone, toggle_time_zone, label, format_time } = useTimeZone();
     const { now_ms, clock_revision } = useServerClock();
     const [time, set_current_time] = useState(() => new Date(now_ms()));
 
@@ -26,7 +26,7 @@ function clock() {
             onClick={toggle_time_zone}
             style={{ color: colors.theme.text }}
         >
-            {`${to_string(time).slice(13, 18)} ${label}`}
+            {`${format_time(time)} ${label}`}
         </button>
     );
 }

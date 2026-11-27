@@ -1,6 +1,8 @@
 import { isError, toError } from "@/utils/errors.js";
 import * as Sentry from "@sentry/react";
 
+import { get_user_id } from "@/utils/user_id.js";
+
 const default_options = {
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT,
@@ -27,7 +29,15 @@ const dom_errors = new Set([
 
 export function annotateDiagnosticError(value, evidence) {
     const error = toError(value);
-    error_diagnostics.set(error, { ...error_diagnostics.get(error), ...evidence });
+    const original_is_object =
+        value !== null && ["object", "function"].includes(typeof value) && value !== error;
+    const diagnostics = {
+        ...(original_is_object ? error_diagnostics.get(value) : undefined),
+        ...error_diagnostics.get(error),
+        ...evidence,
+    };
+    error_diagnostics.set(error, diagnostics);
+    if (original_is_object) error_diagnostics.set(value, diagnostics);
     return error;
 }
 
@@ -328,7 +338,10 @@ function isLazySecondary(primary, boundary, original_frames) {
         !/^undefined is not an object \(evaluating '[A-Za-z_$][\w$]*\._result\.default'\)$/.test(
             message,
         ) &&
-        !/^can't access property "default", [A-Za-z_$][\w$]*\._result is undefined$/.test(message)
+        !/^can't access property "default", [A-Za-z_$][\w$]*\._result is undefined$/.test(
+            message,
+        ) &&
+        message !== "Cannot read properties of undefined (reading 'default')"
     )
         return false;
     const frame = primary.stacktrace?.frames?.at(-1);
@@ -409,8 +422,8 @@ function isRuntimeBridgeCandidate(
             original === message ||
             (isError(original) &&
                 original.message === message &&
-                !Object.hasOwn(original, "cause") &&
-                !Object.hasOwn(original, "errors")))
+                !Object.prototype.hasOwnProperty.call(original, "cause") &&
+                !Object.prototype.hasOwnProperty.call(original, "errors")))
     );
 }
 
@@ -477,7 +490,7 @@ export function prepareSentryEvent(event, hint = {}) {
         mechanisms.includes("auto.function.react.error_boundary") ||
         exception?.values?.some(value => value.type?.startsWith("React ErrorBoundary "));
     if (isPrimitiveFirefoxGlobalOom(event, original, evidence, boundary)) return null;
-    const has_original = Object.hasOwn(hint, "originalException");
+    const has_original = Object.prototype.hasOwnProperty.call(hint, "originalException");
     const needs_synthetic_stack =
         has_original &&
         !isError(original) &&
@@ -654,6 +667,9 @@ export function initializeSentry(options = {}) {
         replaysSessionSampleRate: 0,
         beforeSend: prepareSentryEvent,
     });
+
+    const user_id = get_user_id();
+    if (user_id) Sentry.setUser({ id: user_id });
 
     return true;
 }

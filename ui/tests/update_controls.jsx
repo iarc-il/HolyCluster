@@ -12,12 +12,7 @@ vi.mock("@/hooks/useRadio", () => ({
 import About from "@/components/About.jsx";
 import UpdateControls, { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
 import UtilityButtons from "@/components/UtilityButtons.jsx";
-import {
-    UpdateProvider,
-    compare_update_versions,
-    normalize_update_status,
-} from "@/hooks/useUpdate.jsx";
-import { NATIVE_UPDATER_MIN_VERSION } from "@/utils/cat_features.js";
+import { UpdateProvider, normalize_update_status } from "@/hooks/useUpdate.jsx";
 
 vi.mock("@/hooks/useColors", () => ({
     useColors: () => ({
@@ -56,7 +51,7 @@ afterEach(() => {
 beforeEach(() => {
     color_context.dev_mode = false;
     cat.current = {
-        local_version: [...NATIVE_UPDATER_MIN_VERSION],
+        local_version: [1, 3, 0, 0],
         is_cat_available: () => true,
     };
 });
@@ -78,32 +73,30 @@ describe("CAT Control updates", () => {
         expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
     });
 
-    it("only treats a newer remote version as an update", () => {
-        expect(compare_update_versions("1.2.0", "1.3.0")).toBeGreaterThan(0);
-        expect(compare_update_versions("1.3.0", "1.3.0")).toBe(0);
-        expect(compare_update_versions("1.4.0", "1.3.0")).toBeLessThan(0);
-        expect(
-            normalize_update_status({
-                status: "available",
-                version: { local_version: "1.4.0", remote_version: "1.3.0" },
-            }).status,
-        ).toBe("newer_local");
-        expect(
-            normalize_update_status({
-                status: "available",
-                version: { local: "bad", remote: "bad" },
-            }).status,
-        ).toBe("malformed");
+    it("normalizes released update states", () => {
         expect(
             normalize_update_status({
                 state: "idle",
                 available_version: null,
                 diagnostic: null,
+            }),
+        ).toEqual({
+            status: "current",
+            local_version: null,
+            remote_version: null,
+            error: null,
+        });
+        expect(
+            normalize_update_status({
+                state: "available",
+                available_version: "1.3.2",
+                diagnostic: null,
             }).status,
-        ).toBe("current");
+        ).toBe("available");
         expect(normalize_update_status({ state: "reboot_required" }).status).toBe(
             "reboot_required",
         );
+        expect(normalize_update_status({ status: "available" }).status).toBe("malformed");
     });
 
     it("handles an empty update response", async () => {
@@ -216,13 +209,17 @@ describe("CAT Control updates", () => {
         render_updates();
 
         const dialog = await screen.findByRole("dialog");
-        const cat_link = screen.getByRole("link", { name: /CAT/ });
+        let cat_link = screen.getByRole("button", { name: "Open CAT Control update" });
         expect(within(cat_link).getByText("!")).not.toBeNull();
         expect(within(dialog).getByText("Version 1.3.1 is ready to install.")).not.toBeNull();
         await userEvent.click(within(dialog).getByRole("button", { name: "Later" }));
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-        expect(within(cat_link).getByText("!")).not.toBeNull();
+        cat_link = await screen.findByRole("button", { name: "Open CAT Control update" });
+        expect(cat_link.getAttribute("type")).toBe("button");
+        expect(cat_link.getAttribute("aria-haspopup")).toBe("dialog");
+        expect(cat_link.getAttribute("aria-expanded")).toBe("false");
         await userEvent.click(cat_link);
+        expect(cat_link.getAttribute("aria-expanded")).toBe("true");
         expect(await screen.findByRole("button", { name: "Update", exact: true })).not.toBeNull();
         expect(fetch).toHaveBeenCalledTimes(2);
     });
@@ -235,7 +232,11 @@ describe("CAT Control updates", () => {
             await waitFor(() =>
                 expect(screen.queryByText("Checking for CAT Control updates…")).toBeNull(),
             );
-            expect(within(screen.getByRole("link", { name: "CAT" })).queryByText("!")).toBeNull();
+            expect(
+                within(
+                    screen.getByRole("link", { name: "Open CAT Control downloads" }),
+                ).queryByText("!"),
+            ).toBeNull();
             expect(screen.queryByRole("dialog")).toBeNull();
         },
     );
@@ -282,7 +283,11 @@ describe("CAT Control updates", () => {
             </UpdateProvider>,
         );
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-        expect(within(screen.getByRole("link", { name: "CAT" })).queryByText("!")).toBeNull();
+        expect(
+            within(screen.getByRole("link", { name: "Open CAT Control downloads" })).queryByText(
+                "!",
+            ),
+        ).toBeNull();
         expect(fetch).toHaveBeenCalledTimes(3);
     });
 
@@ -391,15 +396,9 @@ describe("CAT Control updates", () => {
         const fetch = vi
             .fn()
             .mockResolvedValueOnce(response({ state: "available", available_version: "1.1.0" }))
-            .mockResolvedValueOnce(
-                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
-            )
-            .mockResolvedValueOnce(
-                response({ status: "deferred", version: { local: "1.0.0", remote: "1.1.0" } }),
-            )
-            .mockResolvedValueOnce(
-                response({ status: "installing", version: { local: "1.0.0", remote: "1.1.0" } }),
-            );
+            .mockResolvedValueOnce(response({ state: "deferred", available_version: "1.1.0" }))
+            .mockResolvedValueOnce(response({ state: "deferred", available_version: "1.1.0" }))
+            .mockResolvedValueOnce(response({ state: "installing", available_version: "1.1.0" }));
         vi.stubGlobal("fetch", fetch);
 
         render_updates();

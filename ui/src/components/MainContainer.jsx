@@ -1,16 +1,18 @@
 import LeftColumn from "@/components/LeftColumn.jsx";
 import MapControls from "@/components/MapControls.jsx";
+import MobileFiltersWorkspace from "@/components/MobileFiltersWorkspace.jsx";
+import MobileWorkspaceNavigation from "@/components/MobileWorkspaceNavigation.jsx";
 import SidePanel from "@/components/SidePanel.jsx";
 import SpotsTable from "@/components/SpotsTable.jsx";
 import TopBar from "@/components/TopBar.jsx";
-import UnsupportedVersion from "@/components/UnsupportedVersion.jsx";
 import { UpdateConsentDialog } from "@/components/UpdateControls.jsx";
+import CallsignHistoryLauncher from "@/components/search/CallsignHistoryLauncher.jsx";
 import WebsiteTour from "@/components/tour/WebsiteTour.jsx";
 import {
     TOUR_CLOSE_LEFT_PANEL_EVENT,
     TOUR_CLOSE_SIDE_PANEL_EVENT,
+    TOUR_OPEN_FILTERS_EVENT,
 } from "@/components/tour/tour_events.js";
-import Tabs from "@/components/ui/Tabs.jsx";
 import { useColors } from "@/hooks/useColors";
 import { useProfiles } from "@/hooks/useProfiles.jsx";
 import use_radio from "@/hooks/useRadio";
@@ -21,12 +23,12 @@ import { useSpotInteraction } from "@/hooks/useSpotInteraction";
 import { useServerClock } from "@/hooks/useWs";
 import {
     calculate_bearing_between_locations,
-    compare_version,
     get_bearing_origin,
     get_max_radius,
     get_spots_center,
     get_station_location,
 } from "@/utils.js";
+import { fullscreen_portal_target } from "@/utils/fullscreen_portal.js";
 import { open_db_and_evict as open_db_and_evict_propagation } from "@/utils/propagation_cache_db.jsx";
 import { open_db_and_evict as open_db_and_evict_spots } from "@/utils/spot_cache_db.jsx";
 import Maidenhead from "maidenhead";
@@ -63,8 +65,34 @@ function MainContent({
     useEffect(() => {
         document.body.style.backgroundColor = colors.theme.background;
     }, [colors.theme.background]);
-    const [toggled_ui, set_toggled_ui] = useState({ left_visible: true, right_visible: true });
-    const { local_version } = use_radio();
+    const is_full_cockpit = useMediaQuery("(min-width: 1536px)");
+    const is_md_device = useMediaQuery("(max-width: 767px)");
+    const [open_panel, set_open_panel] = useState(null);
+    const [preferred_mobile_panel, set_preferred_mobile_panel] = useLocalStorage("mobile_panel");
+    const panel_opener_ref = useRef(null);
+    const mobile_return_panel = useRef("map");
+
+    function close_panel() {
+        set_open_panel(null);
+        panel_opener_ref.current?.focus();
+    }
+
+    function toggle_panel(panel, opener) {
+        if (open_panel === panel) {
+            close_panel();
+        } else {
+            panel_opener_ref.current = opener;
+            set_open_panel(panel);
+        }
+    }
+
+    useLayoutEffect(() => {
+        if (is_full_cockpit || is_md_device) {
+            set_open_panel(null);
+        } else if (open_panel) {
+            document.getElementById(`${open_panel}-panel-close`)?.focus();
+        }
+    }, [is_full_cockpit, is_md_device, open_panel]);
     const {
         active_profile_data: {
             settings,
@@ -80,6 +108,7 @@ function MainContent({
         set_filter_missing_flags,
         committed_start: spots_committed_start,
         committed_end: spots_committed_end,
+        set_callsign_search,
     } = useSpotData();
     const { set_pinned_spot } = useSpotInteraction();
     const is_history_mode = !!(history_start && history_end);
@@ -192,7 +221,8 @@ function MainContent({
         }
     }, [max_radius, auto_radius, radius_in_km]);
 
-    const { set_mode_and_freq, radio_freq, radio_mode } = use_radio();
+    const { set_mode_and_freq, highlight_spot, is_radio_available, radio_freq, radio_mode } =
+        use_radio();
     const { set_azimuth, is_rotator_available, rotator_azimuth, rotator_target_azimuth } =
         useRotator();
 
@@ -221,8 +251,11 @@ function MainContent({
         }
     }
 
-    function set_cat_to_spot(spot) {
+    function set_cat_to_spot(spot, { notify_logger = false } = {}) {
         if (set_mode_and_freq(spot.mode, spot.freq) === false) return;
+        if (notify_logger && settings.highlight_enabled && is_radio_available()) {
+            highlight_spot(spot, settings.highlight_port);
+        }
         const next_rotator_azimuth = is_rotator_available() ? get_rotator_azimuth(spot) : null;
         set_previous_cat_states(
             [
@@ -259,6 +292,8 @@ function MainContent({
 
     function on_key_down(event) {
         if (event.key === "Escape") {
+            if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+            if (open_panel) close_panel();
             set_pinned_spot(null);
         }
 
@@ -280,20 +315,31 @@ function MainContent({
 
     useEffect(() => {
         function close_left_panel_for_tour() {
-            set_toggled_ui(state => ({ ...state, left_visible: false }));
+            if (is_md_device && preferred_mobile_panel === "filters")
+                set_preferred_mobile_panel(mobile_return_panel.current);
+            if (open_panel === "filters") close_panel();
         }
 
         function close_side_panel_for_tour() {
-            set_toggled_ui(state => ({ ...state, right_visible: false }));
+            if (is_md_device && preferred_mobile_panel === "explore")
+                set_preferred_mobile_panel(mobile_return_panel.current);
+            if (open_panel === "tools") close_panel();
         }
 
+        function open_filters_for_tour() {
+            if (is_md_device) set_preferred_mobile_panel("filters");
+            else set_open_panel("filters");
+        }
+
+        document.addEventListener(TOUR_OPEN_FILTERS_EVENT, open_filters_for_tour);
         document.addEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
         document.addEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         return () => {
+            document.removeEventListener(TOUR_OPEN_FILTERS_EVENT, open_filters_for_tour);
             document.removeEventListener(TOUR_CLOSE_LEFT_PANEL_EVENT, close_left_panel_for_tour);
             document.removeEventListener(TOUR_CLOSE_SIDE_PANEL_EVENT, close_side_panel_for_tour);
         };
-    }, []);
+    }, [open_panel, is_md_device, preferred_mobile_panel, set_preferred_mobile_panel]);
 
     useEffect(() => {
         function handle_fullscreen_change() {
@@ -329,13 +375,12 @@ function MainContent({
         }
     }
 
-    const is_md_device = useMediaQuery("only screen and (max-width : 768px)");
-
     function toggle_history() {
         if (is_history_mode) {
             set_history_start(null);
             set_history_end(null);
         } else {
+            set_callsign_search(null);
             const bar_start_ms = now_ms() - display_hours * 3_600_000;
             set_history_start(new Date(bar_start_ms));
             set_history_end(new Date(bar_start_ms + window_size_ms));
@@ -373,16 +418,13 @@ function MainContent({
         </div>
     );
 
-    const table =
-        compare_version(local_version, [1, 2, 0, 0]) > 0 || local_version == null ? (
-            <SpotsTable
-                set_cat_to_spot={set_cat_to_spot}
-                table_sort={table_sort}
-                set_table_sort={set_table_sort}
-            />
-        ) : (
-            <UnsupportedVersion />
-        );
+    const table = (
+        <SpotsTable
+            set_cat_to_spot={set_cat_to_spot}
+            table_sort={table_sort}
+            set_table_sort={set_table_sort}
+        />
+    );
 
     const main_view_mode = settings.main_view_mode ?? "both";
     const main_view_order = settings.main_view_order ?? "map_table";
@@ -408,26 +450,16 @@ function MainContent({
         map,
         table,
     };
-    const mobile_tab_by_panel = {
-        map: {
-            label: "Map",
-            content: map,
-            data_tour: "mobile-main-tab-map",
-            icon: MAP_TAB_ICON,
-            viewbox: "0 0 16 16",
-            size: "16",
-        },
-        table: {
-            label: "Table",
-            content: table,
-            data_tour: "mobile-main-tab-table",
-            icon: TABLE_TAB_ICON,
-            viewbox: "0 0 16 16",
-            size: "16",
-        },
-    };
-    const mobile_tabs = active_panel_keys.map(panel_key => mobile_tab_by_panel[panel_key]);
-    const mobile_tabs_key = `${main_view_mode}-${main_view_order}`;
+    const mobile_panel = [...active_panel_keys, "filters", "explore"].includes(
+        preferred_mobile_panel,
+    )
+        ? preferred_mobile_panel
+        : active_panel_keys[0];
+
+    useEffect(() => {
+        if (mobile_panel === "map" || mobile_panel === "table")
+            mobile_return_panel.current = mobile_panel;
+    }, [mobile_panel]);
 
     return (
         <div className="flex flex-col h-full" data-tour="app-shell">
@@ -437,49 +469,99 @@ function MainContent({
                     position="bottom-right"
                     theme={settings.theme === "Light" ? "light" : "dark"}
                 />,
-                is_map_fullscreen ? map_wrapper_ref.current : document.body,
+                fullscreen_portal_target(is_map_fullscreen, map_wrapper_ref.current, document.body),
             )}
             <TopBar
                 set_map_controls={set_map_controls}
                 set_radius_in_km={set_radius_in_km}
-                toggled_ui={toggled_ui}
-                set_toggled_ui={set_toggled_ui}
+                is_compact={!is_full_cockpit}
+                is_mobile={is_md_device}
+                open_panel={open_panel}
+                toggle_panel={toggle_panel}
                 dev_mode={dev_mode}
                 can_undo_cat={previous_cat_states.length > 0}
                 undo_cat={undo_cat_change}
             />
             <div className="flex flex-col flex-1 min-h-0" data-tour="main-content">
                 <div className="flex relative flex-1 min-h-0" data-tour="main-workspace">
-                    <LeftColumn toggled_ui={toggled_ui}>
-                        <WebsiteTour />
-                    </LeftColumn>
-                    {is_md_device ? (
-                        <Tabs
-                            key={mobile_tabs_key}
-                            local_storage_name={mobile_tabs.length > 1 ? "mobile_tab" : null}
-                            tabs={mobile_tabs}
-                            data_tour="mobile-main-tabs"
+                    {!is_md_device && !is_full_cockpit && open_panel && (
+                        <button
+                            type="button"
+                            aria-label={`Close ${open_panel === "filters" ? "Filters" : "Tools"} overlay`}
+                            tabIndex={-1}
+                            className="absolute inset-0 z-40 bg-black/40 cursor-default"
+                            onClick={close_panel}
                         />
-                    ) : (
-                        <div className="flex flex-1 min-w-0 h-full">
-                            {active_panel_keys.map(panel_key => (
-                                <div
-                                    key={panel_key}
-                                    className={`${desktop_panel_widths[panel_key]} min-w-0 h-full`}
-                                    data-tour={`${panel_key}-panel`}
-                                >
-                                    {main_panel_content[panel_key]}
-                                </div>
-                            ))}
-                        </div>
                     )}
-                    <SidePanel
-                        toggled_ui={toggled_ui}
-                        set_toggled_ui={set_toggled_ui}
-                        set_cat_to_spot={set_cat_to_spot}
-                        active_view={active_view}
-                        set_active_view={set_active_view}
-                    />
+                    {!is_md_device && (
+                        <LeftColumn
+                            visible={is_full_cockpit || open_panel === "filters"}
+                            overlay={!is_full_cockpit}
+                            on_close={close_panel}
+                        >
+                            <WebsiteTour is_mobile={is_md_device} />
+                        </LeftColumn>
+                    )}
+                    <div
+                        className="flex flex-1 min-w-0 h-full"
+                        inert={!is_md_device && !is_full_cockpit && open_panel ? "" : undefined}
+                    >
+                        {is_md_device ? (
+                            <div className="flex-1 min-w-0 h-full" data-tour="mobile-workspace">
+                                {["map", "table", "filters", "explore"].map(panel => (
+                                    <div
+                                        key={panel}
+                                        id={`mobile-workspace-${panel}`}
+                                        className={
+                                            mobile_panel === panel ? "h-full min-w-0" : "hidden"
+                                        }
+                                    >
+                                        {panel === "filters" ? (
+                                            <MobileFiltersWorkspace
+                                                visible={mobile_panel === "filters"}
+                                            />
+                                        ) : panel === "explore" ? (
+                                            <SidePanel
+                                                mobile
+                                                visible
+                                                set_cat_to_spot={set_cat_to_spot}
+                                                active_view={active_view}
+                                                set_active_view={set_active_view}
+                                                on_open={() =>
+                                                    set_preferred_mobile_panel("explore")
+                                                }
+                                            />
+                                        ) : (
+                                            main_panel_content[panel]
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-1 min-w-0 h-full">
+                                {active_panel_keys.map(panel_key => (
+                                    <div
+                                        key={panel_key}
+                                        className={`${desktop_panel_widths[panel_key]} min-w-0 h-full ${panel_key === "table" ? "overflow-x-auto" : ""}`}
+                                        data-tour={`${panel_key}-panel`}
+                                    >
+                                        {main_panel_content[panel_key]}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    {!is_md_device && (
+                        <SidePanel
+                            visible={is_full_cockpit || open_panel === "tools"}
+                            overlay={!is_full_cockpit}
+                            on_close={close_panel}
+                            on_open={() => set_open_panel("tools")}
+                            set_cat_to_spot={set_cat_to_spot}
+                            active_view={active_view}
+                            set_active_view={set_active_view}
+                        />
+                    )}
                 </div>
                 {is_history_mode && (
                     <Suspense fallback={null}>
@@ -496,7 +578,17 @@ function MainContent({
                         />
                     </Suspense>
                 )}
+                <CallsignHistoryLauncher />
             </div>
+            {is_md_device && (
+                <MobileWorkspaceNavigation
+                    panel_keys={active_panel_keys}
+                    active_panel={mobile_panel}
+                    on_select={set_preferred_mobile_panel}
+                    map_icon={MAP_TAB_ICON}
+                    table_icon={TABLE_TAB_ICON}
+                />
+            )}
         </div>
     );
 }
@@ -513,6 +605,17 @@ function MainContainer() {
     const [history_start, set_history_start] = useState(null);
     const [history_end, set_history_end] = useState(null);
     const [is_dragging, set_is_dragging] = useState(false);
+    const [callsign_search, set_callsign_search] = useState(null);
+
+    // Playback and callsign search both replace the live spots, so starting a
+    // search leaves playback.
+    function start_callsign_search(search) {
+        if (search) {
+            set_history_start(null);
+            set_history_end(null);
+        }
+        set_callsign_search(search);
+    }
 
     function set_window_size_ms(value_or_setter) {
         update_active_profile_section("history", history => ({
@@ -561,6 +664,8 @@ function MainContainer() {
                 endTime={history_end}
                 window_size_ms={window_size_ms}
                 step_size_ms={step_size_ms}
+                callsign_search={callsign_search}
+                set_callsign_search={start_callsign_search}
             >
                 <MainContent
                     history_start={history_start}

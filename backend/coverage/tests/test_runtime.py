@@ -7,9 +7,10 @@ from urllib.request import urlopen
 
 import fakeredis.aioredis
 from prometheus_client import start_http_server
+from redis.exceptions import RedisError
 
 from coverage_comparator.adapters import SERVICES
-from coverage_comparator.main import METRICS_PORT, main, run, run_with_database
+from coverage_comparator.main import METRICS_PORT, default_adapters, main, release_lease, run, run_with_database
 from coverage_comparator.samples import DisabledSampleSink
 
 
@@ -63,9 +64,10 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(ready.wait(), timeout=5)
                 body = await asyncio.to_thread(fetch_metrics)
-                self.assertIn(b"holycluster_coverage_identity_window_seconds 60.0", body)
+                self.assertIn(b"holycluster_coverage_identity_window_seconds 180.0", body)
                 self.assertIn(b"holycluster_coverage_pending_windows", body)
                 self.assertIn(b'holycluster_coverage_comparison_eligible{service="dxsummit"} 0.0', body)
+                self.assertIn(b'holycluster_coverage_comparison_eligible{service="dxscape"} 0.0', body)
                 handlers[signal.SIGTERM]()
                 await asyncio.wait_for(task, timeout=5)
                 self.assertFalse(servers[0].socket.fileno() >= 0)
@@ -73,6 +75,63 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
+
+    async def test_lease_cleanup_tolerates_valkey_failure(self):
+        redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        lease = MagicMock()
+        lease.acquire = AsyncMock(return_value=True)
+        lease.owned = AsyncMock(side_effect=RedisError("unavailable"))
+        lease.release = AsyncMock()
+        redis.lock = MagicMock(return_value=lease)
+        settings = SimpleNamespace(
+            valkey_effective_host="localhost",
+            valkey_effective_port=6379,
+            valkey_db="0",
+        )
+        handlers = {}
+        handlers_ready = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        server = MagicMock()
+        thread = MagicMock()
+
+        def add_signal_handler(sig, callback):
+            handlers[sig] = callback
+            if sig == signal.SIGTERM:
+                handlers_ready.set()
+
+        with (
+            patch("coverage_comparator.main.Redis", return_value=redis),
+            patch("coverage_comparator.main.start_http_server", return_value=(server, thread)),
+            patch.object(loop, "add_signal_handler", side_effect=add_signal_handler),
+            patch.object(loop, "remove_signal_handler"),
+        ):
+            task = asyncio.create_task(
+                run(settings, tuple(IdleAdapter(service) for service in SERVICES), DisabledSampleSink())
+            )
+            await asyncio.wait_for(handlers_ready.wait(), timeout=1)
+            handlers[signal.SIGTERM]()
+            await asyncio.wait_for(task, timeout=1)
+
+        lease.release.assert_not_awaited()
+        await redis.aclose()
+
+    async def test_lease_release_failure_does_not_replace_original_error(self):
+        lease = MagicMock()
+        lease.owned = AsyncMock(return_value=True)
+        lease.release = AsyncMock(side_effect=RedisError("unavailable"))
+
+        with self.assertRaisesRegex(RuntimeError, "original failure"):
+            try:
+                raise RuntimeError("original failure")
+            finally:
+                await release_lease(lease)
+
+        lease.release.assert_awaited_once_with()
+
+    def test_default_adapters_match_services(self):
+        adapters = default_adapters()
+        self.assertEqual(tuple(adapter.service for adapter in adapters), SERVICES)
+        self.assertEqual(len({adapter.service for adapter in adapters}), len(SERVICES))
 
 
 class DatabaseRuntimeTests(unittest.IsolatedAsyncioTestCase):

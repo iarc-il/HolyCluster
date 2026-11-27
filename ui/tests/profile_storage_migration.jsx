@@ -13,9 +13,9 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sanitize_profile_store as sanitize_old_store } from "./fixtures/profiles/master_profile_data.mjs";
+import profile_storage_history from "./fixtures/profiles/profile_storage_history.json";
 
-// Both real sanitizers use the same small CTY country-data fixture.
+// Current sanitization uses the same CTY mock as the pinned historical fixtures.
 vi.mock("virtual:cty-dxcc-entities", () => ({
     default: ["United States", "Japan"],
     dxcc_code_entities: { 291: "United States", 339: "Japan" },
@@ -26,22 +26,11 @@ vi.mock("virtual:cty-dxcc-entities", () => ({
 }));
 
 function old_store() {
-    return sanitize_old_store({
-        version: 1,
-        active_profile_name: "Portable",
-        profiles: ["Home", "Portable"].map(name => ({
-            name,
-            data: {
-                settings: { callsign: name.toUpperCase() },
-                filters: { time_limit: 7200 },
-                hunter: {
-                    worked: { dxcc: { global: [291, 339] }, us_state: { global: ["CA"] } },
-                    imports: [{ id: "log", filename: "log.adi", imported_at: "2026-10-09" }],
-                },
-                history: { display_hours: 24 },
-            },
-        })),
-    });
+    return structuredClone(profile_storage_history.legacy_store);
+}
+
+function old_tab_rewrite() {
+    return structuredClone(profile_storage_history.old_tab_rewrite);
 }
 
 function save(key, value) {
@@ -99,13 +88,13 @@ describe("profile store migration across UI versions", () => {
         window.localStorage.clear();
     });
 
-    it("reproduces the destructive shared-key round trip with the production sanitizer", () => {
+    it("reproduces the destructive shared-key round trip from pinned historical fixtures", () => {
         const migrated = sanitize_profile_store(old_store());
         expect(progress(migrated)).toEqual([
             [291, 339],
             [291, 339],
         ]);
-        expect(progress(sanitize_profile_store(sanitize_old_store(migrated)))).toEqual([[], []]);
+        expect(progress(sanitize_profile_store(old_tab_rewrite()))).toEqual([[], []]);
     });
 
     it("migrates every profile once, backs up the exact original, and leaves old data intact", () => {
@@ -131,7 +120,7 @@ describe("profile store migration across UI versions", () => {
         expect(window.localStorage.getItem(PROFILE_STORE_BACKUP_KEY)).toBe(raw);
         expect(read(PROFILE_STORE_KEY)).toEqual(migrated);
         // An old tab can keep editing only its original key.
-        save(LEGACY_PROFILE_STORE_KEY, sanitize_old_store(migrated));
+        save(LEGACY_PROFILE_STORE_KEY, old_tab_rewrite());
         expect(initialize_profile_store()).toEqual(migrated);
         expect(window.localStorage.getItem(PROFILE_STORE_BACKUP_KEY)).toBe(raw);
     });
@@ -159,9 +148,7 @@ describe("profile store migration across UI versions", () => {
         save(LEGACY_PROFILE_STORE_KEY, old_store());
         mount();
         expect(screen.getByTestId("progress").textContent).toBe("[291,339]");
-        act(() =>
-            storage_event(LEGACY_PROFILE_STORE_KEY, sanitize_old_store(read(PROFILE_STORE_KEY))),
-        );
+        act(() => storage_event(LEGACY_PROFILE_STORE_KEY, old_tab_rewrite()));
         expect(screen.getByTestId("progress").textContent).toBe("[291,339]");
         const updated = read(PROFILE_STORE_KEY);
         updated.profiles[1].data.missing.worked.dxcc.global = [339];

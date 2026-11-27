@@ -239,6 +239,12 @@ async def telnet_and_collect(
 
         except asyncio.CancelledError:
             logger.info(f"{host}:{port} Task cancelled, shutting down.")
+            if writer is not None:
+                try:
+                    writer.write(b"bye\n")
+                    await asyncio.wait_for(writer.drain(), timeout=2)
+                except (asyncio.TimeoutError, ConnectionError, OSError):
+                    pass
             break
 
         except Exception as e:

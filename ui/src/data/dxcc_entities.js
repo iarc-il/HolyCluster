@@ -65,9 +65,6 @@ export const dxcc_entities_by_code = build_dxcc_entities_by_code(
     cty_dxcc_entities_by_code,
     cty_dxcc_code_entities,
 );
-export const dxcc_entity_by_code = Object.fromEntries(
-    Object.entries(dxcc_entities_by_code).map(([code, entity]) => [code, entity.label]),
-);
 export const dxcc_codes = Object.keys(dxcc_entities_by_code)
     .map(Number)
     .sort((a, b) => a - b);

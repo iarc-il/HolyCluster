@@ -1,10 +1,10 @@
 import asyncio
 import threading
 import unittest
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from api.main import app, broadcast_spots
 from shared.geo import GeoData, GeoException
@@ -62,14 +62,6 @@ class FakeHistorySession:
         return FakeHistoryExecuteResult(self.samples)
 
 
-class FakeWebSocket:
-    def __init__(self):
-        self.messages = []
-
-    async def send_json(self, message):
-        self.messages.append(message)
-
-
 def create_geo_data(callsign, *, cached=False, source="qrz"):
     return GeoData(
         cached=cached,
@@ -122,6 +114,9 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "message": "Missing websocket protocol version",
                 },
             )
+            with self.assertRaises(WebSocketDisconnect) as disconnect:
+                websocket.receive_json()
+            self.assertEqual(disconnect.exception.code, 1008)
 
     def test_ws_rejects_unsupported_version(self):
         with self.client.websocket_connect("/ws") as websocket:
@@ -270,6 +265,40 @@ class WebSocketProtocolTest(unittest.TestCase):
                 self.assertNotIn("subscription_ack", response)
                 self.assertEqual(response["event"], "initial" if action == "initial" else "update")
 
+    def test_subscription_acknowledges_before_blocked_presence_write(self):
+        write_started = threading.Event()
+        release_write = threading.Event()
+        write_finished = threading.Event()
+
+        async def blocked_upsert(*_args):
+            write_started.set()
+            await asyncio.to_thread(release_write.wait, 5)
+            write_finished.set()
+
+        release_timer = threading.Timer(1, release_write.set)
+        try:
+            with (
+                patch("api.main.upsert_user_presence", new=blocked_upsert),
+                patch("api.main.get_initial_spots", new=AsyncMock(return_value=[])),
+                self.client.websocket_connect("/ws") as websocket,
+            ):
+                websocket.send_json(
+                    {
+                        "version": 1,
+                        "type": "spots",
+                        "action": "initial",
+                        "subscription_id": "epoch-1",
+                        "user_id": "123e4567-e89b-42d3-a456-426614174000",
+                    }
+                )
+                self.assertTrue(write_started.wait(2))
+                release_timer.start()
+                self.assertEqual(websocket.receive_json()["event"], "subscribed")
+                self.assertFalse(write_finished.is_set())
+        finally:
+            release_write.set()
+            release_timer.cancel()
+
     def test_ws_rejects_spots_catch_up_without_last_time(self):
         with self.client.websocket_connect("/ws") as websocket:
             websocket.send_json({"version": 1, "type": "spots", "action": "catch_up"})
@@ -382,6 +411,92 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "field": "end_time",
                 },
             )
+
+    def test_ws_returns_search_response_for_normalized_callsign(self):
+        spots = [{"dx_callsign": "K3ABC"}]
+        session = FakeHistorySession(spots)
+        ten_days = 10 * 86400
+
+        with (
+            patch("api.main.async_session", new=lambda: session),
+            patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "search",
+                    "dx_callsign": " k3abc ",
+                    "start_time": 100,
+                    "end_time": 100 + ten_days,
+                }
+            )
+
+            self.assertEqual(
+                websocket.receive_json(),
+                {
+                    "version": 1,
+                    "type": "search",
+                    "dx_callsign": "K3ABC",
+                    "start_time": 100,
+                    "end_time": 100 + ten_days,
+                    "truncated": False,
+                    "spots": spots,
+                },
+            )
+
+    def test_ws_search_truncates_to_newest_spots(self):
+        # The query returns newest first; the response is oldest first.
+        rows = [{"dx_callsign": "K3ABC", "time": t} for t in (300, 200, 100)]
+        session = FakeHistorySession(rows)
+
+        with (
+            patch("api.main.MAX_SEARCH_RESULTS", 2),
+            patch("api.main.async_session", new=lambda: session),
+            patch("api.main.cleanup_spots", new=lambda raw_spots: list(raw_spots)),
+            self.client.websocket_connect("/ws") as websocket,
+        ):
+            websocket.send_json(
+                {"version": 1, "type": "search", "dx_callsign": "K3ABC", "start_time": 0, "end_time": 1000}
+            )
+            response = websocket.receive_json()
+
+        self.assertTrue(response["truncated"])
+        self.assertEqual([spot["time"] for spot in response["spots"]], [200, 300])
+
+    def test_ws_search_errors(self):
+        cases = [
+            (
+                {"start_time": 100, "end_time": 200},
+                {"error_type": "MissingField", "message": "Missing dx_callsign", "field": "dx_callsign"},
+            ),
+            (
+                {"dx_callsign": "K3ABC", "end_time": 200},
+                {"error_type": "MissingField", "message": "Missing start_time", "field": "start_time"},
+            ),
+            (
+                {"dx_callsign": "K3 ABC!", "start_time": 100, "end_time": 200},
+                {"error_type": "MalformedMessage", "message": "Invalid dx_callsign", "field": "dx_callsign"},
+            ),
+            (
+                {"dx_callsign": "K3ABC", "start_time": 200, "end_time": 100},
+                {
+                    "error_type": "MalformedMessage",
+                    "message": "end_time must be greater than start_time",
+                    "field": "start_time",
+                },
+            ),
+            (
+                {"dx_callsign": "K3ABC", "start_time": 100, "end_time": 100 + 15 * 86400},
+                {"error_type": "MalformedMessage", "message": "time range cannot exceed 14 days", "field": "end_time"},
+            ),
+        ]
+
+        with self.client.websocket_connect("/ws") as websocket:
+            for fields, expected in cases:
+                with self.subTest(fields=fields):
+                    websocket.send_json({"version": 1, "type": "search", **fields})
+                    self.assertEqual(websocket.receive_json(), {"version": 1, "type": "error", **expected})
 
     def test_ws_rejects_unknown_spots_action(self):
         with self.client.websocket_connect("/ws") as websocket:
@@ -587,34 +702,6 @@ class WebSocketProtocolTest(unittest.TestCase):
                     "received_type": "unknown",
                 },
             )
-
-    def test_broadcast_spots_sends_legacy_and_v1_messages(self):
-        legacy_websocket = FakeWebSocket()
-        ws_websocket = FakeWebSocket()
-        spots = [{"dx_callsign": "K1ABC"}]
-        fake_app = SimpleNamespace(
-            state=SimpleNamespace(
-                active_connections={legacy_websocket},
-                active_ws_spot_connections={ws_websocket},
-            )
-        )
-
-        with patch("api.main.time.time", return_value=10000):
-            asyncio.run(broadcast_spots(fake_app, spots))
-
-        self.assertEqual(legacy_websocket.messages, [{"type": "update", "spots": spots}])
-        self.assertEqual(
-            ws_websocket.messages,
-            [
-                {
-                    "version": 1,
-                    "type": "spots",
-                    "event": "update",
-                    "server_time": 10000,
-                    "spots": spots,
-                }
-            ],
-        )
 
 
 if __name__ == "__main__":

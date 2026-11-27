@@ -1,3 +1,4 @@
+import { useMediaQuery } from "@uidotdev/usehooks";
 import Maidenhead from "maidenhead";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,7 +10,6 @@ import { useColors } from "@/hooks/useColors";
 import { useFilters } from "@/hooks/useFilters";
 import use_radio from "@/hooks/useRadio";
 import { useSettings } from "@/hooks/useSettings";
-import { useMediaQuery } from "@uidotdev/usehooks";
 import Bands from "./Bands";
 import CatControl from "./CatControl";
 import General from "./General";
@@ -43,7 +43,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
     const { settings, set_settings } = useSettings();
     const { setFilters, setProfileFilters, is_shared_filter_state } = useFilters();
     const { is_cat_available } = use_radio();
-    const is_mobile_settings = useMediaQuery("only screen and (max-width : 768px)");
+    const is_mobile = useMediaQuery("(max-width: 767px)");
 
     useEffect(() => {
         function select_tab(event) {
@@ -116,21 +116,17 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        ...(!is_mobile_settings
-            ? [
-                  {
-                      label: "Layout",
-                      data_tour: "settings-tab-layout",
-                      content: (
-                          <Layout
-                              temp_settings={temp_settings}
-                              set_temp_settings={set_temp_settings}
-                              colors={colors}
-                          />
-                      ),
-                  },
-              ]
-            : []),
+        {
+            label: "Layout",
+            data_tour: "settings-tab-layout",
+            content: (
+                <Layout
+                    temp_settings={temp_settings}
+                    set_temp_settings={set_temp_settings}
+                    colors={colors}
+                />
+            ),
+        },
         {
             label: "Bands & Modes",
             data_tour: "settings-tab-bands-modes",
@@ -142,19 +138,23 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 />
             ),
         },
-        {
-            label: "Profiles",
-            data_tour: "settings-tab-profiles",
-            content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
-        },
-        {
-            label: "Import/Export",
-            data_tour: "settings-tab-import-export",
-            content: <ImportExport set_temp_settings={set_temp_settings} />,
-        },
+        ...(!is_mobile
+            ? [
+                  {
+                      label: "Profiles",
+                      data_tour: "settings-tab-profiles",
+                      content: <Profiles colors={colors} set_temp_settings={set_temp_settings} />,
+                  },
+                  {
+                      label: "Import/Export",
+                      data_tour: "settings-tab-import-export",
+                      content: <ImportExport set_temp_settings={set_temp_settings} />,
+                  },
+              ]
+            : []),
     ];
 
-    if (is_cat_available()) {
+    if (!is_mobile && is_cat_available()) {
         tabs.splice(1, 0, {
             label: "CAT Control",
             data_tour: "settings-tab-cat-control",
@@ -212,7 +212,7 @@ function Settings({ set_map_controls, set_radius_in_km }) {
                 reset_temp_settings();
             }}
         >
-            <div className="h-full w-[21rem] md:w-[42rem]">
+            <div className="h-full w-[min(21rem,calc(100vw-2rem))] md:w-[42rem]">
                 <Tabs tabs={tabs} data_tour="settings-tabs" />
             </div>
         </Modal>

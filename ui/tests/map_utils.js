@@ -133,10 +133,27 @@ describe("is_matching_list", () => {
     });
 
     it("matches a self-spotter filter", () => {
-        const self_spot = { ...spot, dx_callsign: "N0CALL", spotter_callsign: "N0CALL" };
+        const self_spot = {
+            ...spot,
+            dx_callsign: "N0CALL",
+            spotter_callsign: "N0CALL",
+        };
         const filters = [{ type: "self_spotters", action: "hide" }];
         expect(is_matching_list(filters, self_spot)).toBe(true);
     });
+
+    it.each(["frequent", "infrequent"])("matches a %s LoTW user", dx_lotw_status => {
+        const filters = [{ type: "lotw", action: "show_only" }];
+        expect(is_matching_list(filters, { ...spot, dx_lotw_status })).toBe(true);
+    });
+
+    it.each(["non_user", undefined, null, "unexpected"])(
+        "does not match a non-LoTW user with status %s",
+        dx_lotw_status => {
+            const filters = [{ type: "lotw", action: "hide" }];
+            expect(is_matching_list(filters, { ...spot, dx_lotw_status })).toBe(false);
+        },
+    );
 
     it("returns false for an empty filter list", () => {
         expect(is_matching_list([], spot)).toBe(false);
@@ -193,7 +210,10 @@ describe("sort_spots", () => {
     });
 
     it("sorts by callsign alphabetically", () => {
-        const sorted = sort_spots(spots, { column: "dx_callsign", ascending: true });
+        const sorted = sort_spots(spots, {
+            column: "dx_callsign",
+            ascending: true,
+        });
         expect(sorted[0].dx_callsign).toBe("G1ABC");
         expect(sorted[2].dx_callsign).toBe("K1ABC");
     });

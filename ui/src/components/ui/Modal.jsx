@@ -20,8 +20,10 @@ function Modal({
     external_open = null,
     external_close = null,
     apply_disabled = false,
+    backdrop = false,
     modal_style = null,
     data_tour = null,
+    trigger_class_name = "",
     dialog_data_tour = null,
     children,
     footer = null,
@@ -153,7 +155,7 @@ function Modal({
         <>
             <div
                 ref={trigger_ref}
-                className="cursor-pointer"
+                className={`cursor-pointer ${trigger_class_name}`}
                 data-tour={data_tour}
                 onClick={() => {
                     if (on_open != null) {
@@ -172,9 +174,12 @@ function Modal({
                         aria-modal={true}
                         data-tour={dialog_data_tour}
                         className="flex pt-24 fixed inset-0 z-[60] outline-none focus:outline-none overflow-y-auto"
-                        style={{ color: colors.theme.text }}
+                        style={{
+                            color: colors.theme.text,
+                            backgroundColor: backdrop ? "rgba(0, 0, 0, 0.6)" : "transparent",
+                        }}
                     >
-                        <div className="relative min-w-80 my-6 mx-auto pb-6">
+                        <div className="relative min-w-0 my-6 mx-auto pb-6">
                             <div className="absolute top-0 right-0 p-2 cursor-pointer z-[70]">
                                 <svg
                                     width="24"
